@@ -1,5 +1,6 @@
 # Build output
 /bin/
+/dist/
 *.exe
 
 # Go
@@ -16,6 +17,13 @@ coverage.*
 *.sqlite
 *.sqlite3
 *.log
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
 
 # IDE
 .idea/

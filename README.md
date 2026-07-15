@@ -3,8 +3,9 @@
 
 # adb_mcp
 
-**An [MCP](https://modelcontextprotocol.io) server for Android**
+**An [MCP](https://modelcontextprotocol.io) server that drives Android emulators and devices over `adb`**
 
+[![CI](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![MCP](https://img.shields.io/badge/MCP-stdio-3DDC84)](https://modelcontextprotocol.io)
 
@@ -36,9 +37,9 @@ that knowledge into its tools, so the agent doesn't have to relearn it:
 
 - Screenshots use `exec-out screencap` (no CRLF corruption) and are auto-downscaled
   so the image reader accepts them.
-- `describe_ui` returns each element's **center in true device pixels**, so taps
-  land where you mean them to — no guessing off the image.
-- `describe_ui` retries the transient "could not get idle state" failure.
+- `describe_ui` returns each element's **center in true device pixels** (so taps
+  land where you mean them to, no guessing off the image) and retries the
+  transient "could not get idle state" failure on its own.
 
 The workflow itself is bundled as readable **resources** (see below), so the
 agent can consult the "skill" the same way it would read a skill file.
@@ -136,3 +137,9 @@ name. Full map and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.m
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — shipped work, newest first
 - [docs/BACKLOG.md](docs/BACKLOG.md) — open ideas and XcodeBuildMCP parity gaps
 - [TODO.md](TODO.md) — current roadmap hub
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and conventions. Found a
+security issue? See [SECURITY.md](SECURITY.md) instead of opening a public
+issue. Licensed under [MIT](LICENSE).

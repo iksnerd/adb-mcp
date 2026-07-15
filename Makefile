@@ -1,8 +1,11 @@
 BINARY := adb-mcp
 INSTALL_DIR ?= $(HOME)/.local/bin
 
-# Version: prefer `git describe`, fall back to the VERSION file.
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || cat VERSION 2>/dev/null || echo dev)
+# Version: prefer an exact/annotated `git describe` tag match (v-prefix
+# stripped to match VERSION/main.go's bare-number convention), fall back to
+# the VERSION file (git describe --always would otherwise mask a missing tag
+# by returning a bare commit hash, so it's deliberately not used here).
+VERSION := $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//' || cat VERSION 2>/dev/null || echo dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 .PHONY: build install uninstall test vet check run version clean fmt tidy

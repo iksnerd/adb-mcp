@@ -12,7 +12,7 @@ Process: com.example.old
 java.lang.IllegalStateException: old one
 ========================================
 2026-07-15 19:13:29 data_app_crash (text, 40 bytes)
-Process: com.example.devclient
+Process: com.example.newest
 java.lang.NullPointerException: newest crash
 	at com.facebook.react.ReactActivity.onKeyDown()
 ========================================
@@ -21,7 +21,7 @@ Process: com.other.app
 java.lang.RuntimeException: middle other`
 
 func TestLatestDropboxEntry(t *testing.T) {
-	// No package filter → most recent by timestamp (19:13:29, the crash NPE).
+	// No package filter → most recent by timestamp (19:13:29, the newest NPE).
 	entry, ts, ok := latestDropboxEntry(sampleDropbox, "")
 	if !ok {
 		t.Fatal("expected an entry")
@@ -30,7 +30,7 @@ func TestLatestDropboxEntry(t *testing.T) {
 		t.Errorf("ts = %q, want the newest 2026-07-15 19:13:29", ts)
 	}
 	if !strings.Contains(entry, "newest crash") {
-		t.Errorf("entry = %q, want the newest crash crash", entry)
+		t.Errorf("entry = %q, want the newest crash", entry)
 	}
 
 	// Package filter → most recent entry mentioning that package, even though a

@@ -6,7 +6,7 @@ Shipped work, newest first. Roadmap and open ideas live in
 
 ## v0.10.0 — last_crash, bounded capture, clearer launch_app
 
-Clears the rest of the actionable council-hub field feedback.
+Clears the rest of the actionable field feedback.
 
 - **`last_crash`** (new tool) — returns the most recent app crash from the
   system DropBox (`dumpsys dropbox --print`, JVM/RN and native), full header +
@@ -27,7 +27,7 @@ Clears the rest of the actionable council-hub field feedback.
 
 ## v0.9.0 — screenshot black-frame detection & diagnosis
 
-From council-hub field feedback: `screenshot` returned a bare black PNG in two
+From field feedback: `screenshot` returned a bare black PNG in two
 different situations with no hint why, causing repeated misdiagnosis.
 
 - **`screenshot` now detects an all-black frame and says why.** It retries an
@@ -43,9 +43,8 @@ different situations with no hint why, causing repeated misdiagnosis.
 
 ## v0.8.0 — reload_app, open_dev_menu, richer log filtering
 
-From real field feedback (council-hub `android-emulator-mcp-feedback`) on two
-long a partner app/Expo dev-client debugging sessions — the two items flagged as
-costing the most back-and-forth.
+From real field feedback on two long real-world Expo dev-client debugging
+sessions — the two items flagged as costing the most back-and-forth.
 
 - **`reload_app`** — best-effort Metro/JS reload via the classic React Native
   `<package>.RELOAD_APP_ACTION` broadcast. Live-verified against a real Expo
@@ -132,7 +131,7 @@ costing the most back-and-forth.
 
 ## v0.5.0 — architecture split, bug-fix pass, gesture/status/report tools (46 tools)
 
-**Refactor — world-class layout**
+**Refactor — domain-mirrored layout**
 - Split the two monolith files (`tools/register.go` 997 lines, `android/device.go` 552 lines) into a domain-mirrored layout: each `tools/<domain>.go` adapter maps to an `android/<domain>.go` execution file, and `register.go` is now just the tool catalog. See [ARCHITECTURE.md](../ARCHITECTURE.md) and [architecture.mmd](architecture.mmd).
 
 **Bug fixes (from code review)**

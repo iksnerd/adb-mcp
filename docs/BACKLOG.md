@@ -17,10 +17,10 @@ device-lock/Keystore, custom PIN pads, `tap_on_text`/`wait_for_text`,
 
 - [ ] **Multi-touch / pinch-zoom gestures.** The single-pointer half shipped as `drag` (`input draganddrop`). True two-finger pinch/rotate needs the `sendevent` multi-touch protocol, which is device/kernel-specific (the `input` command has no multi-pointer verb) — parked until there's a reliable cross-device approach.
 
-## Field feedback (a partner app debugging sessions, 2026-07-15)
+## Field feedback (real-world debugging sessions, 2026-07-15)
 
-From council-hub `android-emulator-mcp-feedback` — real friction driving a
-React Native/Expo dev-client app across several long debugging sessions. Most
+From real-world field feedback — real friction driving a React Native/Expo
+dev-client app across several long debugging sessions. Most
 items from these sessions have shipped (see CHANGELOG v0.8.0–v0.10.0); what's
 left:
 
