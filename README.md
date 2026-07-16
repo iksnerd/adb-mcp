@@ -89,7 +89,13 @@ claude mcp add adb -- adb-mcp
 (When working inside this repo itself, the bundled `.mcp.json` is picked up
 automatically — no registration needed.)
 
-**Any other client** (Cursor, Windsurf, Codex, …): run `adb-mcp` over stdio.
+**Cursor / VS Code** — one-click install (assumes `adb-mcp` is on your `PATH`
+from step 2):
+
+[<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="20">](https://cursor.com/en/install-mcp?name=adb&config=eyJjb21tYW5kIjoiYWRiLW1jcCJ9)
+[<img src="https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square" alt="Install in VS Code" height="20">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522adb%2522%252C%2522command%2522%253A%2522adb-mcp%2522%257D)
+
+**Any other client** (Windsurf, Codex, …): run `adb-mcp` over stdio.
 The usual config shape:
 
 ```json
