@@ -62,18 +62,17 @@ Every release ships static binaries for macOS, Linux, and Windows
 (amd64/arm64). On macOS/Linux:
 
 ```bash
-tag=$(curl -fsSL https://api.github.com/repos/iksnerd/adb_mcp/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-os=$(uname -s | tr '[:upper:]' '[:lower:]')
-arch=$(uname -m); case $arch in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
-curl -fsSL "https://github.com/iksnerd/adb_mcp/releases/download/${tag}/adb-mcp_${tag}_${os}_${arch}.tar.gz" | tar -xz
-mkdir -p ~/.local/bin && mv adb-mcp ~/.local/bin/
+curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | sh
 ```
+
+The script ([install.sh](install.sh)) picks the right archive for your
+OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
+and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
+with `VERSION=v0.10.1`).
 
 On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
 `adb-mcp.exe` somewhere on your `PATH`.
-
-`checksums.txt` on each release has SHA-256 sums for all archives.
 
 ### From source (Go 1.26+)
 
