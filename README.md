@@ -44,22 +44,21 @@ that knowledge into its tools, so the agent doesn't have to relearn it:
 The workflow itself is bundled as readable **resources** (see below), so the
 agent can consult the "skill" the same way it would read a skill file.
 
-## Requirements
+## Getting started
+
+### 1. Prerequisites
 
 - Android SDK with `platform-tools` (`adb`) and `emulator`. The server finds it
   via `$ANDROID_HOME` / `$ANDROID_SDK_ROOT`, else the platform default
   (`~/Library/Android/sdk` on macOS).
 - At least one AVD (create one in Android Studio's Device Manager).
 
-Go is **not** required to run it — grab a prebuilt binary below. It's only
-needed to build from source.
+Go is **not** required — releases ship prebuilt binaries; it's only needed to
+[build from source](#from-source-go-126).
 
-## Install
+### 2. Install
 
-### Prebuilt binary (no Go needed)
-
-Every release ships static binaries for macOS, Linux, and Windows
-(amd64/arm64). On macOS/Linux:
+On macOS/Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | sh
@@ -74,29 +73,24 @@ On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
 `adb-mcp.exe` somewhere on your `PATH`.
 
-### From source (Go 1.26+)
+The registration below launches the server by the bare name `adb-mcp`, so it
+must be on your `$PATH` (`which adb-mcp` should resolve — the installer warns
+if `~/.local/bin` isn't on it). Otherwise point the client at the absolute
+path to the binary instead.
 
-```bash
-make install                 # builds ./bin/adb-mcp and copies it to ~/.local/bin
-# or:
-go build -o bin/adb-mcp .
-```
+### 3. Register with your MCP client
 
-The MCP registration below launches the server by the bare name `adb-mcp`, so it
-must be on your `$PATH`. `make install` puts it in `~/.local/bin` — make sure
-that's on your `PATH` (`which adb-mcp` should resolve). Otherwise point the
-client at the absolute path to the built binary instead.
-
-## Register with an MCP client
-
-**Claude Code** (from this repo, the bundled `.mcp.json` is picked up automatically),
-or explicitly:
+**Claude Code:**
 
 ```bash
 claude mcp add adb -- adb-mcp
 ```
 
-Any other client: run `adb-mcp` over stdio. Example config:
+(When working inside this repo itself, the bundled `.mcp.json` is picked up
+automatically — no registration needed.)
+
+**Any other client** (Cursor, Windsurf, Codex, …): run `adb-mcp` over stdio.
+The usual config shape:
 
 ```json
 {
@@ -104,6 +98,17 @@ Any other client: run `adb-mcp` over stdio. Example config:
     "adb": { "command": "adb-mcp" }
   }
 }
+```
+
+That's it — ask your agent to "boot an emulator and take a screenshot" to
+confirm everything is wired up.
+
+### From source (Go 1.26+)
+
+```bash
+make install                 # builds ./bin/adb-mcp and copies it to ~/.local/bin
+# or:
+go build -o bin/adb-mcp .
 ```
 
 ## Tools
