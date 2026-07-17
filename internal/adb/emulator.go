@@ -238,6 +238,86 @@ func (c *Client) Rotate(ctx context.Context) error {
 	return err
 }
 
+// gsmRegStates are the registration states adb emu gsm data|voice accept.
+var gsmRegStates = map[string]bool{
+	"unregistered": true, "home": true, "roaming": true,
+	"searching": true, "denied": true, "off": true, "on": true,
+}
+
+// Cellular drives the emulated radio through the emulator console: data/voice
+// registration state (adb emu gsm data|voice <state>), signal strength
+// (adb emu gsm signal-profile <0-4>), and mobile-data throughput/latency
+// (adb emu network speed|delay <value>). Every field is optional; at least one
+// must be set. speed/delay pass through to the console (which accepts named
+// profiles like "lte"/"edge" or raw "<up>:<down>" kbps / "<min>:<max>" ms), so
+// a bad value surfaces as the console's own KO error.
+func (c *Client) Cellular(ctx context.Context, data, voice string, signal *int, speed, delay string) error {
+	data = strings.ToLower(strings.TrimSpace(data))
+	voice = strings.ToLower(strings.TrimSpace(voice))
+	speed = strings.TrimSpace(speed)
+	delay = strings.TrimSpace(delay)
+	if data == "" && voice == "" && signal == nil && speed == "" && delay == "" {
+		return fmt.Errorf("set at least one of data, voice, signal, network_speed, or network_delay")
+	}
+	if data != "" {
+		if !gsmRegStates[data] {
+			return fmt.Errorf("unknown data state %q (use unregistered, home, roaming, searching, denied, off, or on)", data)
+		}
+		if _, err := c.emu(ctx, "gsm data", "gsm", "data", data); err != nil {
+			return err
+		}
+	}
+	if voice != "" {
+		if !gsmRegStates[voice] {
+			return fmt.Errorf("unknown voice state %q (use unregistered, home, roaming, searching, denied, off, or on)", voice)
+		}
+		if _, err := c.emu(ctx, "gsm voice", "gsm", "voice", voice); err != nil {
+			return err
+		}
+	}
+	if signal != nil {
+		if *signal < 0 || *signal > 4 {
+			return fmt.Errorf("signal must be 0-4 (0 = none, 4 = great), got %d", *signal)
+		}
+		if _, err := c.emu(ctx, "gsm signal-profile", "gsm", "signal-profile", strconv.Itoa(*signal)); err != nil {
+			return err
+		}
+	}
+	if speed != "" {
+		if _, err := c.emu(ctx, "network speed", "network", "speed", speed); err != nil {
+			return err
+		}
+	}
+	if delay != "" {
+		if _, err := c.emu(ctx, "network delay", "network", "delay", delay); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SetSensor sets an emulated hardware sensor's value(s) via the emulator console
+// (adb emu sensor set <name> <a>[:<b>[:<c>]]). Multi-axis sensors
+// (acceleration, gyroscope, magnetic-field, orientation) take three values;
+// single-value sensors (light, proximity, temperature, pressure, humidity) take
+// one. The sensor name and value count pass through to the console, so an
+// unknown name or wrong arity surfaces as its KO error.
+func (c *Client) SetSensor(ctx context.Context, name string, values []float64) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("a sensor name is required (e.g. acceleration, light, proximity)")
+	}
+	if len(values) == 0 || len(values) > 3 {
+		return fmt.Errorf("provide 1 to 3 sensor values, got %d", len(values))
+	}
+	parts := make([]string, len(values))
+	for i, v := range values {
+		parts[i] = strconv.FormatFloat(v, 'g', -1, 64)
+	}
+	_, err := c.emu(ctx, "sensor set", "sensor", "set", name, strings.Join(parts, ":"))
+	return err
+}
+
 // snapshotActions are the avd-snapshot verbs (list takes no name).
 var snapshotActions = map[string]bool{"save": true, "load": true, "delete": true, "list": true}
 

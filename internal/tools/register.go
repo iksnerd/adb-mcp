@@ -122,6 +122,12 @@ func Register(s *mcp.Server) {
 	add(s, "avd_snapshot",
 		"Manage emulator AVD snapshots (adb emu avd snapshot): action=save|load|delete a named snapshot, or list them. Save a known-good state, then load it to reset the device deterministically between runs — faster than a wipe_data cold boot. Emulator-only.",
 		avdSnapshot)
+	add(s, "cellular",
+		"Shape the emulated cellular radio (adb emu gsm / network): data and voice registration state (unregistered/home/roaming/searching/denied/off/on), signal strength (0-4), and mobile-data throughput/latency (network_speed like \"lte\"/\"edge\" or \"<up>:<down>\" kbps; network_delay like \"umts\" or \"<min>:<max>\" ms). Test offline/roaming/weak-signal and slow-network behaviour deterministically. Every field optional; set at least one. Emulator-only.",
+		cellular)
+	add(s, "set_sensor",
+		"Set an emulated hardware sensor value (adb emu sensor set) — drive accelerometer/gyroscope/orientation (pass x, y, z) or a single-value sensor like light/proximity/temperature/pressure/humidity (pass x only). Use to exercise shake/tilt/rotation handlers or ambient-light/proximity logic. Emulator-only.",
+		setSensor)
 
 	// --- Logs & capture ---
 	add(s, "logcat",
@@ -177,6 +183,9 @@ func Register(s *mcp.Server) {
 	add(s, "open_url",
 		"Open a URL or deep link via an ACTION_VIEW intent (am start) — the way to jump straight to a deep-linked screen. Optionally target a specific package.",
 		openURL)
+	add(s, "launch_dev_client",
+		"Launch an Expo dev build straight at a Metro dev server, skipping the Dev Launcher's server-picker screen. Builds the \"<scheme>://expo-development-client/?url=http://host:port\" deep link and opens it. Pass scheme (your app.json \"scheme\"); host/port default to localhost:8081. PREREQUISITE: run adb_reverse tcp:8081 first so the device can reach Metro, otherwise the dev client falls back to its embedded bundle. For plain Expo Go (not a dev build) use open_url with the exp:// URL instead.",
+		launchDevClient)
 	add(s, "get_app_details",
 		"Report an installed app's version name/code and its launchable activity (dumpsys package + resolve-activity) — to confirm what build is installed and find the activity to launch.",
 		getAppDetails)

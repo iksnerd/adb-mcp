@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -101,6 +102,28 @@ func (c *Client) OpenDevMenu(ctx context.Context) error {
 // ClearAppData wipes an app's data/cache, returning it to a first-launch state.
 func (c *Client) ClearAppData(ctx context.Context, pkg string) (string, error) {
 	return c.adb(ctx, "shell", "pm", "clear", pkg)
+}
+
+// ExpoDevClientURL builds the deep link that points an installed Expo dev build
+// straight at a Metro dev server, skipping the Dev Launcher's server-picker
+// screen: "<scheme>://expo-development-client/?url=<url-encoded http URL>".
+// scheme is the app's own URL scheme (from app.json "scheme"); host/port
+// default to localhost:8081 (localhost works once adb_reverse tcp:8081 is set).
+// Pure string building — no device — so it is unit-tested directly.
+func ExpoDevClientURL(scheme, host string, port int) (string, error) {
+	scheme = strings.TrimSpace(scheme)
+	scheme = strings.TrimSuffix(scheme, "://")
+	if scheme == "" {
+		return "", fmt.Errorf("a dev-client scheme is required (your app.json \"scheme\", e.g. \"myapp\")")
+	}
+	if strings.TrimSpace(host) == "" {
+		host = "localhost"
+	}
+	if port <= 0 {
+		port = 8081
+	}
+	server := fmt.Sprintf("http://%s:%d", host, port)
+	return fmt.Sprintf("%s://expo-development-client/?url=%s", scheme, url.QueryEscape(server)), nil
 }
 
 // OpenURL opens a URL or deep link via an ACTION_VIEW intent. When pkg is set

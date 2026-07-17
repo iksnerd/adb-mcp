@@ -226,6 +226,68 @@ func avdSnapshot(ctx context.Context, in snapshotArgs) (*mcp.CallToolResult, err
 	return text("%s", strings.TrimSpace(out)), nil
 }
 
+type cellularArgs struct {
+	serialArg
+	Data         string `json:"data,omitempty" jsonschema:"Mobile-data registration state: one of unregistered, home, roaming, searching, denied, off, on. Omit to leave unchanged."`
+	Voice        string `json:"voice,omitempty" jsonschema:"Voice registration state: one of unregistered, home, roaming, searching, denied, off, on. Omit to leave unchanged."`
+	Signal       *int   `json:"signal,omitempty" jsonschema:"Signal strength 0-4 (0 = no bars, 4 = full). Omit to leave unchanged."`
+	NetworkSpeed string `json:"network_speed,omitempty" jsonschema:"Data throughput: a named profile (gsm, gprs, edge, umts, hsdpa, lte, evdo, full) or raw \"<up>:<down>\" in kbps. Omit to leave unchanged."`
+	NetworkDelay string `json:"network_delay,omitempty" jsonschema:"Latency: a named profile (none, gprs, edge, umts) or raw \"<min>:<max>\" in ms. Omit to leave unchanged."`
+}
+
+func cellular(ctx context.Context, in cellularArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Cellular(ctx, in.Data, in.Voice, in.Signal, in.NetworkSpeed, in.NetworkDelay); err != nil {
+		return nil, err
+	}
+	parts := []string{}
+	if in.Data != "" {
+		parts = append(parts, "data "+in.Data)
+	}
+	if in.Voice != "" {
+		parts = append(parts, "voice "+in.Voice)
+	}
+	if in.Signal != nil {
+		parts = append(parts, fmt.Sprintf("signal %d", *in.Signal))
+	}
+	if in.NetworkSpeed != "" {
+		parts = append(parts, "speed "+in.NetworkSpeed)
+	}
+	if in.NetworkDelay != "" {
+		parts = append(parts, "delay "+in.NetworkDelay)
+	}
+	return text("Cellular set (%s) on %s.", strings.Join(parts, ", "), c.Serial), nil
+}
+
+type setSensorArgs struct {
+	serialArg
+	Sensor string   `json:"sensor" jsonschema:"Sensor name, e.g. acceleration, gyroscope, magnetic-field, orientation (3 values) or light, proximity, temperature, pressure, humidity (1 value)."`
+	X      float64  `json:"x" jsonschema:"First value (the only value for single-axis sensors like light/proximity)."`
+	Y      *float64 `json:"y,omitempty" jsonschema:"Second value for multi-axis sensors. Omit for single-value sensors."`
+	Z      *float64 `json:"z,omitempty" jsonschema:"Third value for multi-axis sensors. Omit for single-value sensors."`
+}
+
+func setSensor(ctx context.Context, in setSensorArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	values := []float64{in.X}
+	if in.Y != nil {
+		values = append(values, *in.Y)
+	}
+	if in.Z != nil {
+		values = append(values, *in.Z)
+	}
+	if err := c.SetSensor(ctx, in.Sensor, values); err != nil {
+		return nil, err
+	}
+	return text("Set sensor %s on %s.", in.Sensor, c.Serial), nil
+}
+
 func connectWireless(ctx context.Context, in connectWirelessArgs) (*mcp.CallToolResult, error) {
 	out, err := adb.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
 	if err != nil {

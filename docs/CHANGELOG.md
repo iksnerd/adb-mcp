@@ -4,6 +4,34 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.13.0 — cellular / sensors console controls + Expo dev-client launch
+
+**New — more Extended Controls (emulator console).** Two tools extend the
+`adb emu` console surface started in v0.12.0; both emulator-only:
+
+- **`cellular`** — shape the emulated radio: `data`/`voice` registration state
+  (unregistered/home/roaming/searching/denied/off/on), `signal` strength (0-4),
+  and mobile-data `network_speed`/`network_delay` (named profiles like `lte`/
+  `edge`, or raw `<up>:<down>` kbps / `<min>:<max>` ms). Test offline, roaming,
+  weak-signal, and slow-network behaviour deterministically. Every field is
+  optional; set at least one.
+- **`set_sensor`** — set a hardware sensor value (`adb emu sensor set`): pass
+  `x`/`y`/`z` for a multi-axis sensor (acceleration, gyroscope, magnetic-field,
+  orientation) or just `x` for a single-value one (light, proximity, temperature,
+  pressure, humidity). Drives shake/tilt/rotation and ambient-light/proximity
+  handlers.
+
+**New — `launch_dev_client`.** Launch an Expo dev build straight at a Metro dev
+server, skipping the Dev Launcher's server-picker screen. Builds the
+`<scheme>://expo-development-client/?url=http://host:port` deep link (from the
+app's `scheme`; host/port default to `localhost:8081`) and opens it via
+ACTION_VIEW. Closes the field-feedback gap where `open_url` with an `exp://` URL
+was the stopgap. Run `adb_reverse tcp:8081` first, or the dev client falls back
+to its embedded bundle.
+
+Still open: `biometric_auth` (enrolled-id discovery) needs a live-emulator pass
+to verify the `dumpsys fingerprint` format before shipping — see BACKLOG.
+
 ## v0.12.0 — Extended Controls tools + adb.Client refactor
 
 **New — Extended Controls (emulator console).** Six tools drive the emulator's

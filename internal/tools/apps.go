@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/iksnerd/adb_mcp/internal/adb"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,6 +36,14 @@ type openURLArgs struct {
 	serialArg
 	URL     string `json:"url" jsonschema:"URL or deep link to open (ACTION_VIEW)."`
 	Package string `json:"package,omitempty" jsonschema:"Optional package to target the intent at."`
+}
+
+type launchDevClientArgs struct {
+	serialArg
+	Scheme  string `json:"scheme" jsonschema:"The app's URL scheme from app.json (e.g. \"myapp\") — used to build the expo-development-client deep link."`
+	Host    string `json:"host,omitempty" jsonschema:"Metro dev-server host as the DEVICE sees it. Default localhost (works once adb_reverse tcp:8081 is set)."`
+	Port    int    `json:"port,omitempty" jsonschema:"Metro dev-server port. Default 8081."`
+	Package string `json:"package,omitempty" jsonschema:"Optional package to target the intent at (disambiguates if multiple apps claim the scheme)."`
 }
 
 type lastCrashArgs struct {
@@ -186,6 +196,21 @@ func openURL(ctx context.Context, in openURLArgs) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return text("Opened %s.\n%s", in.URL, strings.TrimSpace(out)), nil
+}
+
+func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	deepLink, err := adb.ExpoDevClientURL(in.Scheme, in.Host, in.Port)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := c.OpenURL(ctx, deepLink, in.Package); err != nil {
+		return nil, err
+	}
+	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse tcp:8081).", deepLink, c.Serial), nil
 }
 
 func lastCrash(ctx context.Context, in lastCrashArgs) (*mcp.CallToolResult, error) {

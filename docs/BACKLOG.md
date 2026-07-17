@@ -24,7 +24,7 @@ dev-client app across several long debugging sessions. Most
 items from these sessions have shipped (see CHANGELOG v0.8.0–v0.10.0); what's
 left:
 
-- [ ] **`launch_app` dev-server deep link.** For Expo/RN dev builds, `launch_app` lands on the Dev Launcher (which then needs Metro). A dedicated option to launch a dev-server URL directly would skip that hop. (`open_url` with the `exp://` / dev-client URL is a working stopgap today.) The "which surfaces are drivable vs opaque" docs are now covered in `android://guide/driving`.
+- [x] **`launch_app` dev-server deep link.** Shipped v0.13.0 as **`launch_dev_client`**: builds the `<scheme>://expo-development-client/?url=http://host:port` deep link and opens it via ACTION_VIEW, skipping the Dev Launcher's server picker. Host/port default to `localhost:8081` (pair with `adb_reverse tcp:8081`). Expo Go's plain `exp://` URL still goes through `open_url`. (Deep-link format built to Expo's documented spec; a live dev-build pass would confirm the scheme-resolution edge cases.)
 
 ## Field feedback, round 3 (biometric / lock-screen sessions, 2026-07-17)
 

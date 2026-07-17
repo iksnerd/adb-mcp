@@ -195,6 +195,18 @@ func TestConsoleControls(t *testing.T) {
 			[]string{"emu", "avd", "snapshot", "save", "clean"}},
 		{"snapshot list ignores name", func(c *Client) error { _, err := c.Snapshot(ctx, "list", ""); return err },
 			[]string{"emu", "avd", "snapshot", "list"}},
+		{"cellular data state", func(c *Client) error { return c.Cellular(ctx, "roaming", "", nil, "", "") },
+			[]string{"emu", "gsm", "data", "roaming"}},
+		{"cellular signal profile", func(c *Client) error { sig := 2; return c.Cellular(ctx, "", "", &sig, "", "") },
+			[]string{"emu", "gsm", "signal-profile", "2"}},
+		{"cellular network speed", func(c *Client) error { return c.Cellular(ctx, "", "", nil, "lte", "") },
+			[]string{"emu", "network", "speed", "lte"}},
+		{"cellular network delay", func(c *Client) error { return c.Cellular(ctx, "", "", nil, "", "200:400") },
+			[]string{"emu", "network", "delay", "200:400"}},
+		{"sensor three axes colon-joined", func(c *Client) error { return c.SetSensor(ctx, "acceleration", []float64{0, 9.8, 0}) },
+			[]string{"emu", "sensor", "set", "acceleration", "0:9.8:0"}},
+		{"sensor single value", func(c *Client) error { return c.SetSensor(ctx, "light", []float64{100}) },
+			[]string{"emu", "sensor", "set", "light", "100"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -232,10 +244,55 @@ func TestConsoleValidation(t *testing.T) {
 	if _, err := c.Snapshot(ctx, "save", ""); err == nil {
 		t.Error("expected a nameless save to be rejected")
 	}
+	if err := c.Cellular(ctx, "", "", nil, "", ""); err == nil {
+		t.Error("expected cellular with no fields to be rejected")
+	}
+	if err := c.Cellular(ctx, "flying", "", nil, "", ""); err == nil {
+		t.Error("expected an unknown data state to be rejected")
+	}
+	badSig := 7
+	if err := c.Cellular(ctx, "", "", &badSig, "", ""); err == nil {
+		t.Error("expected an out-of-range signal to be rejected")
+	}
+	if err := c.SetSensor(ctx, "", []float64{1}); err == nil {
+		t.Error("expected an empty sensor name to be rejected")
+	}
+	if err := c.SetSensor(ctx, "acceleration", nil); err == nil {
+		t.Error("expected zero sensor values to be rejected")
+	}
+	if err := c.SetSensor(ctx, "acceleration", []float64{1, 2, 3, 4}); err == nil {
+		t.Error("expected more than three sensor values to be rejected")
+	}
 
 	ko, _ := newFake("KO: no finger enrolled")
 	if err := ko.FingerRemove(ctx); err == nil {
 		t.Error("expected a KO: console reply to surface as an error")
+	}
+}
+
+// TestExpoDevClientURL pins the deep-link format and its defaults; the scheme
+// is required and a trailing "://" on it is tolerated.
+func TestExpoDevClientURL(t *testing.T) {
+	got, err := ExpoDevClientURL("myapp", "", 0)
+	if err != nil {
+		t.Fatalf("default url: %v", err)
+	}
+	want := "myapp://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+	if got != want {
+		t.Errorf("url = %q, want %q", got, want)
+	}
+
+	got, err = ExpoDevClientURL("myapp://", "192.168.1.10", 19000)
+	if err != nil {
+		t.Fatalf("explicit host/port: %v", err)
+	}
+	want = "myapp://expo-development-client/?url=http%3A%2F%2F192.168.1.10%3A19000"
+	if got != want {
+		t.Errorf("url = %q, want %q", got, want)
+	}
+
+	if _, err := ExpoDevClientURL("", "", 0); err == nil {
+		t.Error("expected an empty scheme to be rejected")
 	}
 }
 

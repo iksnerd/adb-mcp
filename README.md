@@ -128,7 +128,7 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-61 tools across nine areas. Every device-facing tool takes an optional
+64 tools across nine areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
@@ -136,8 +136,8 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 - **Observe** — `screenshot` to see, `describe_ui` for true-pixel element centers — with the focused **top window** (spot a biometric prompt occluding your app), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
 - **Interact** — tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`; opt-in `verify_change` tells you whether a tap/key actually changed the UI
 - **Lock / Keystore / Biometrics** — set/clear a secure lock screen, check lock state, `fingerprint_touch`/`finger_remove` to satisfy a BiometricPrompt on the emulator
-- **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery`, `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
-- **App lifecycle** — install/uninstall, launch/stop, `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
+- **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery`, `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
+- **App lifecycle** — install/uninstall, launch/stop, `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
 - **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics** — dark mode, mock location, clean status bar, `doctor`
 - **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task discovery, one-shot `build_and_run`

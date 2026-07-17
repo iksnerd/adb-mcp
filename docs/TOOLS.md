@@ -56,6 +56,8 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI |
 | `rotate_screen` | Rotate the emulator to its next orientation |
 | `avd_snapshot` | `save`/`load`/`delete`/`list` AVD snapshots — reset to a known state faster than a cold wipe |
+| `cellular` | Shape the radio: `data`/`voice` state, `signal` (0-4), `network_speed`/`network_delay` — offline/roaming/weak-signal/throttled |
+| `set_sensor` | Set a hardware sensor (`adb emu sensor set`): `x`/`y`/`z` (accelerometer/gyro/orientation) or `x` only (light/proximity/…) |
 
 ### App lifecycle
 | Tool | Purpose |
@@ -70,6 +72,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `clear_app_data` | Wipe data+cache → first-launch state |
 | `grant_permission` / `revoke_permission` | Grant/revoke a runtime permission |
 | `open_url` | Open a URL or deep link (ACTION_VIEW) |
+| `launch_dev_client` | Launch an Expo dev build straight at Metro (`<scheme>://expo-development-client/?url=…`), skipping the Dev Launcher — run `adb_reverse tcp:8081` first |
 | `push_file` / `pull_file` | Copy files to/from the device |
 
 ### Logs & capture
