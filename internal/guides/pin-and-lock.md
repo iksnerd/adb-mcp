@@ -7,6 +7,19 @@ there is no IME, so `input_text` does nothing. Use `enter_pin`. It resolves each
 digit's tap point in priority order: explicit `coords` → bounds-derived `grid`
 → the digit's element in the UI hierarchy, then taps each with a settle delay.
 
+**Visibility is pad-specific — check before assuming.** Whether a pad appears
+in `describe_ui` depends on how it is drawn, not on it being a PIN pad:
+
+- A pad built from **real native views** (e.g. a Kotlin view with `Button`
+  digits) is *fully visible*: digits arrive as `Button` elements with
+  `text: "1"…"0"`, auxiliary keys by `content_desc` (e.g. `"Cancel"`). Such
+  pads often expose **no view ids** — match by text/content-desc, and plain
+  `enter_pin` with no grid/coords just works.
+- A pad **drawn on a canvas** (RN / Flutter / Skia) is *invisible* — see below.
+
+Run `describe_ui` once on the pad screen: if the digits are listed, use the
+hierarchy path; only reach for grid/coords when they are not.
+
 ### If the pad is invisible to describe_ui (RN / Skia pads)
 
 Some SDK pads draw their keys on a **canvas**, so they are absent from the
@@ -59,6 +72,26 @@ already open*, it won't notice. The sequence that works:
 (Setting a PIN also *locks the screen*; if a relaunch seems to "still fail",
 the screen may just be locked — take a `screenshot` to check, unlock if needed,
 then relaunch.)
+
+## Biometrics on the emulator — fingerprint_touch
+
+Apps whose primary unlock is biometric (BiometricPrompt auto-fires on top of
+the PIN pad) can be driven end-to-end on an emulator — don't settle for
+cancelling into the PIN fallback every run:
+
+1. **Enroll once per AVD:** a fingerprint requires a secure lock first
+   (`set_device_lock`). Then Settings → Security → Fingerprint: walk the
+   wizard, and every time it asks for a touch, call `fingerprint_touch` —
+   repeat until enrollment completes.
+2. **Unlock during tests:** when the BiometricPrompt is up (the `top window:`
+   line in `describe_ui` shows a systemui biometric window), call
+   `fingerprint_touch {finger_id: 1}` — the prompt resolves via the real
+   biometric path.
+
+`fingerprint_touch` is emulator-only (`adb emu finger touch`); physical
+devices cannot inject biometrics. While the prompt is up, the app's own
+hierarchy is occluded — `describe_ui` sees systemui's tree, and a `back`
+key press may be silently consumed (use `verify_change: true`).
 
 On emulators specifically: use a **Google Play ("gphone") system image**, not a
 plain AOSP/Google-APIs image — a `generic` build fingerprint trips many SDKs'

@@ -18,6 +18,7 @@ import (
 
 	"github.com/iksnerd/adb_mcp/internal/android"
 	"github.com/iksnerd/adb_mcp/internal/guides"
+	"github.com/iksnerd/adb_mcp/internal/selfupdate"
 	"github.com/iksnerd/adb_mcp/internal/tools"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,11 +26,28 @@ import (
 
 // version is overridable at build time via -ldflags "-X main.version=...".
 // The Makefile injects the value from the VERSION file / git.
-var version = "0.10.0"
+var version = "0.11.0"
 
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("adb-mcp: ")
+
+	// Subcommands come before flag parsing: `adb-mcp update` / `adb-mcp version`.
+	// Anything else falls through to the default mode — serving MCP over stdio.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "update":
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			if err := selfupdate.Run(ctx, version, os.Stdout); err != nil {
+				log.Fatalf("update failed: %v", err)
+			}
+			return
+		case "version":
+			fmt.Printf("adb-mcp %s\n", version)
+			return
+		}
+	}
 
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()

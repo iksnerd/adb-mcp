@@ -7,9 +7,17 @@ import (
 	"time"
 )
 
-// dumpOnce performs a single uiautomator dump + parse, retrying once on the
-// transient "could not get idle state" error that occurs mid-animation.
+// dumpOnce performs a single uiautomator dump + parse with the default filter,
+// for callers that only need elements for text lookup.
 func dumpOnce(ctx context.Context, serial string) ([]Element, error) {
+	elems, _, err := dumpFiltered(ctx, serial, FilterAuto)
+	return elems, err
+}
+
+// dumpFiltered performs a single uiautomator dump + parse, retrying once on the
+// transient "could not get idle state" error that occurs mid-animation. It
+// also reports how many bounded nodes the filter hid.
+func dumpFiltered(ctx context.Context, serial string, filter UIFilter) ([]Element, int, error) {
 	const remote = "/sdcard/window_dump.xml"
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
@@ -29,14 +37,24 @@ func dumpOnce(ctx context.Context, serial string) ([]Element, error) {
 		if i := strings.Index(xmlStr, "<?xml"); i > 0 {
 			xmlStr = xmlStr[i:]
 		}
-		elems, err := ParseHierarchy(xmlStr)
+		elems, hidden, err := ParseHierarchyFiltered(xmlStr, filter)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		return elems, nil
+		return elems, hidden, nil
 	}
-	return nil, fmt.Errorf("uiautomator dump failed (device busy?): %w", lastErr)
+	return nil, 0, fmt.Errorf("uiautomator dump failed (device busy?): %w", lastErr)
+}
+
+// UISnapshot is a settled hierarchy read plus the context needed to trust it:
+// which window actually has focus (the hierarchy may belong to a system
+// overlay, not the app under test) and how many nodes the filter hid (so
+// "absent from Elements" is distinguishable from "filtered out").
+type UISnapshot struct {
+	TopWindow string
+	Elements  []Element
+	Hidden    int
 }
 
 // DescribeUI reads the UI hierarchy and returns a *settled* snapshot with
@@ -50,25 +68,46 @@ func dumpOnce(ctx context.Context, serial string) ([]Element, error) {
 // not appear in the hierarchy at all — no amount of settling surfaces it. For
 // those, use a screenshot to read state and tap by coordinate (see enter_pin's
 // grid/coords options for custom pads).
-func DescribeUI(ctx context.Context, serial string) ([]Element, error) {
-	first, err := dumpOnce(ctx, serial)
+func DescribeUI(ctx context.Context, serial string, filter UIFilter) (UISnapshot, error) {
+	elems, hidden, err := describeSettled(ctx, serial, filter)
 	if err != nil {
-		return nil, err
+		return UISnapshot{}, err
+	}
+	// Best-effort: an unreadable focus probe should not fail the whole read.
+	top, _ := TopWindow(ctx, serial)
+	return UISnapshot{TopWindow: top, Elements: elems, Hidden: hidden}, nil
+}
+
+func describeSettled(ctx context.Context, serial string, filter UIFilter) ([]Element, int, error) {
+	first, firstHidden, err := dumpFiltered(ctx, serial, filter)
+	if err != nil {
+		return nil, 0, err
 	}
 	time.Sleep(500 * time.Millisecond)
-	second, err := dumpOnce(ctx, serial)
+	second, secondHidden, err := dumpFiltered(ctx, serial, filter)
 	if err != nil {
-		return first, nil // a failed re-dump is non-fatal; return what we have
+		return first, firstHidden, nil // a failed re-dump is non-fatal; return what we have
 	}
 	if signature(first) == signature(second) {
-		return second, nil
+		return second, secondHidden, nil
 	}
 	time.Sleep(1000 * time.Millisecond)
-	third, err := dumpOnce(ctx, serial)
+	third, thirdHidden, err := dumpFiltered(ctx, serial, filter)
 	if err != nil {
-		return second, nil
+		return second, secondHidden, nil
 	}
-	return third, nil
+	return third, thirdHidden, nil
+}
+
+// UISignature returns a cheap fingerprint of the current hierarchy. Take one
+// before and one after an action to learn whether the action had any visible
+// effect (see the verify_change option on press_key/tap).
+func UISignature(ctx context.Context, serial string) (string, error) {
+	elems, err := dumpOnce(ctx, serial)
+	if err != nil {
+		return "", err
+	}
+	return signature(elems), nil
 }
 
 // signature is a cheap fingerprint of a hierarchy used to detect whether two

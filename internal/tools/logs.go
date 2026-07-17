@@ -13,7 +13,8 @@ import (
 
 type logcatArgs struct {
 	serialArg
-	Lines    int      `json:"lines,omitempty" jsonschema:"Number of recent lines to dump. Default 400."`
+	Lines    int      `json:"lines,omitempty" jsonschema:"Number of recent lines to dump. Default 400. Ignored when since is given."`
+	Since    string   `json:"since,omitempty" jsonschema:"Time window instead of a line count: only lines from the last e.g. \"2m\", \"90s\", \"1h30m\" (device clock). The right axis when the report is \"I just hit an error\" — on a chatty emulator 400 lines can span under ten seconds."`
 	Filter   string   `json:"filter,omitempty" jsonschema:"Case-insensitive substring to keep (e.g. an app tag or \"Exception\")."`
 	Priority string   `json:"priority,omitempty" jsonschema:"Minimum priority to keep: V, D, I, W, E, or F (matches adb's own \"*:E\"-style filter — E keeps Error and Fatal). Omit for no priority filtering."`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Keep only lines whose log tag contains one of these (case-insensitive, OR'd), e.g. [\"SessionStore\",\"AuthModule\"]. Omit for no tag filtering."`
@@ -44,7 +45,7 @@ func logcat(ctx context.Context, in logcatArgs) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.Logcat(ctx, serial, in.Lines, android.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
+	out, err := android.Logcat(ctx, serial, in.Lines, in.Since, android.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +53,17 @@ func logcat(ctx context.Context, in logcatArgs) (*mcp.CallToolResult, error) {
 		return text("(no matching log lines — if you're chasing a crash that already happened, it may have scrolled out of the ring buffer: wrap the repro in start_logcat_capture/stop_logcat_capture, or use last_crash for a fatal that hit the DropBox)"), nil
 	}
 	return text("%s", out), nil
+}
+
+func clearLogcat(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
+	serial, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := android.ClearLogcat(ctx, serial); err != nil {
+		return nil, err
+	}
+	return text("Logcat buffer cleared for %s — the next logcat read contains only lines logged from now on.", serial), nil
 }
 
 func startLogcatCapture(ctx context.Context, in startLogcatArgs) (*mcp.CallToolResult, error) {

@@ -58,6 +58,23 @@ know the label of what you want to press.
   sleeping display. Either way, **fall back to `describe_ui`** — it reads the
   hierarchy even when the pixels are blanked. Don't send a wake key on a black
   frame unless the caption says the screen is off.
+- **A SYSTEM window can replace the app's hierarchy wholesale.** When a
+  BiometricPrompt, permission dialog, or the shade has focus, `describe_ui`
+  returns *that* window's elements — the app's tree is gone, which reads like
+  "the app broke" if you don't notice. Check the `top window:` line at the top
+  of every `describe_ui` response: if it names `com.android.systemui` (or
+  another package than yours), dismiss/satisfy the overlay first (e.g.
+  `fingerprint_touch` for a biometric prompt, or tap its button). A key press
+  that "succeeds" while such a window is up may be consumed by it — pass
+  `verify_change: true` to `press_key`/`tap` to learn whether anything actually
+  changed.
+- **KEYCODE_HOME under automation doesn't reliably background the app.** Flows
+  that depend on a background-time threshold (e.g. "token clears after 15s in
+  background") reproduced only ~50% of the time via home-key automation — and
+  an apparent re-lock was sometimes a *cold process start* (new pid) rather
+  than the background timer firing. Confirm which one you got from logcat (a
+  fresh "Bootstrap starting"-style line + pid change = cold start) before
+  concluding the timer works or doesn't.
 
 ## When describe_ui can't see the element (RN / Flutter / Skia)
 

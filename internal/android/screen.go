@@ -99,6 +99,46 @@ func hasSecureWindow(ctx context.Context, serial string) bool {
 	return false
 }
 
+// TopWindow returns the name of the currently focused window, e.g.
+// "com.example.app/com.example.app.MainActivity" or
+// "com.android.systemui.biometrics.ui.BiometricPromptDialog". This is how a
+// caller tells that a SYSTEM overlay (biometric prompt, permission dialog,
+// notification shade) sits on top of the app it thinks it is driving — the
+// UI hierarchy then belongs to that overlay, not the app.
+func TopWindow(ctx context.Context, serial string) (string, error) {
+	out, err := runAdb(ctx, serial, "shell", "dumpsys", "window", "windows")
+	if err != nil {
+		return "", err
+	}
+	if w := parseCurrentFocus(out); w != "" {
+		return w, nil
+	}
+	return "", fmt.Errorf("no focused window reported by WindowManager")
+}
+
+// parseCurrentFocus extracts the window name from a WindowManager dump line of
+// the form "mCurrentFocus=Window{f8ec3b7 u0 com.pkg/com.pkg.Activity}". Falls
+// back to mFocusedWindow (some Android versions) with the same shape.
+func parseCurrentFocus(dump string) string {
+	for _, key := range []string{"mCurrentFocus=", "mFocusedWindow="} {
+		for _, line := range strings.Split(dump, "\n") {
+			line = strings.TrimSpace(line)
+			v, ok := strings.CutPrefix(line, key)
+			if !ok || !strings.HasPrefix(v, "Window{") {
+				continue
+			}
+			v = strings.TrimPrefix(v, "Window{")
+			v = strings.TrimSuffix(strings.TrimSpace(v), "}")
+			// "f8ec3b7 u0 com.pkg/com.pkg.Activity" — the name is everything
+			// after the identity hash and user id.
+			if fields := strings.Fields(v); len(fields) >= 3 {
+				return strings.Join(fields[2:], " ")
+			}
+		}
+	}
+	return ""
+}
+
 // isScreenAwake reports whether the display is on (mWakefulness=Awake). If the
 // state can't be read it assumes awake, so a probe failure never mislabels a
 // live screen as off.

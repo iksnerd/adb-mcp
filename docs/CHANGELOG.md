@@ -4,6 +4,52 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.11.0 — visibility round: occlusion, trustworthy absence, biometrics, self-update
+
+Driven by field-feedback rounds 3–4 (council-hub, 2026-07-17). Theme: the
+tools reported what they *did* well and what they *couldn't see* poorly —
+occluded windows, filtered nodes, no-op actions, rotated buffers all looked
+identical to "nothing there". 49 → 53 tools.
+
+- **`describe_ui` tells you what you're looking at.** The response header now
+  states the focused **top window** (a systemui biometric prompt / permission
+  dialog gets an explicit "the app underneath is occluded" warning) and how
+  many nodes the filter hid. New params: `filter` (`auto`/`clickable`/`all` —
+  `all` returns every bounded node, so absence finally *proves* an element
+  isn't in the hierarchy), `query` (cheap "is X on screen?"), and `compact`
+  (one line per element, ~10x fewer tokens). The `auto` filter also drops
+  label-less wrappers whose bounds equal their parent's (Material's 5-deep
+  `navigation_bar_item_*` chains), and the tool description no longer
+  overpromises what is filtered.
+- **`fingerprint_touch`** (new tool) — simulate a fingerprint touch on an
+  emulator (`adb emu finger touch`), so agents can drive the real biometric
+  unlock path (and enrollment) instead of cancelling into the PIN fallback
+  every run. Enrollment workflow documented in `android://guide/pin-and-lock`.
+- **`press_key`/`tap` `verify_change`** — opt-in `ui_changed: true/false`
+  (hierarchy fingerprint before/after), so a key press silently consumed by an
+  overlay no longer looks identical to one that worked.
+- **`wait`** (new tool) — plain sleep for time-based conditions (backgrounding
+  an app past a native auth timer) that `wait_for_text` can't express. Field
+  report: this single gap pushed entire sessions into raw bash.
+- **`logcat` `since`** — time-window dumps ("2m", "90s", device clock via
+  `logcat -t '<time>'`), the right axis for "the user just hit an error";
+  **`clear_logcat`** (new tool) — clear → act → read isolates what one action
+  logged, killing the rotated-buffer false negative.
+- **`adb_reverse`** (new tool) — device→host port forwarding; without
+  `tcp:8081` an RN/Expo dev client silently falls back to its embedded bundle
+  and ignores every edit (cost a reporter most of a session).
+- **`adb-mcp update`** (new subcommand, plus `version`) — self-update from
+  GitHub releases: resolves the latest tag, downloads the right OS/arch
+  archive, verifies its SHA-256 against `checksums.txt`, and atomically
+  replaces the running binary (old binary kept aside until the swap lands).
+  Stdlib only; verified live 0.1.0 → 0.10.1. Pure parts unit-tested.
+- **Guides corrected from the field:** PIN-pad visibility is pad-specific
+  (native Kotlin pads ARE fully in the hierarchy — match by label; only
+  canvas-drawn RN/Skia pads need `grid`/`coords`); system-window occlusion and
+  the KEYCODE_HOME cold-start-instead-of-background trap added to
+  `android://guide/driving`; biometrics-on-emulator section added to
+  `android://guide/pin-and-lock`.
+
 ## v0.10.0 — last_crash, bounded capture, clearer launch_app
 
 Clears the rest of the actionable field feedback.

@@ -73,6 +73,13 @@ On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
 `adb-mcp.exe` somewhere on your `PATH`.
 
+Once installed, stay current with the built-in updater — it fetches the latest
+release, verifies its checksum, and swaps the binary in place:
+
+```bash
+adb-mcp update
+```
+
 The registration below launches the server by the bare name `adb-mcp`, so it
 must be on your `$PATH` (`which adb-mcp` should resolve — the installer warns
 if `~/.local/bin` isn't on it). Otherwise point the client at the absolute
@@ -119,7 +126,7 @@ go build -o bin/adb-mcp .
 
 ## Tools
 
-49 tools across eight areas. Every device-facing tool takes an optional
+53 tools across eight areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 

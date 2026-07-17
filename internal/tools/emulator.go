@@ -99,10 +99,56 @@ func shutdownEmulator(ctx context.Context, in serialArg) (*mcp.CallToolResult, e
 	return text("Shutdown requested for %s.", serial), nil
 }
 
+type fingerTouchArgs struct {
+	serialArg
+	FingerID int `json:"finger_id,omitempty" jsonschema:"Id of the enrolled finger to touch with (must match a finger enrolled in Settings). Default 1."`
+}
+
+func fingerTouch(ctx context.Context, in fingerTouchArgs) (*mcp.CallToolResult, error) {
+	serial, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := android.FingerTouch(ctx, serial, in.FingerID); err != nil {
+		return nil, err
+	}
+	id := in.FingerID
+	if id <= 0 {
+		id = 1
+	}
+	return text("Simulated fingerprint touch (finger %d). If a BiometricPrompt was up it should resolve now — confirm with describe_ui (its top window line shows whether the prompt is gone).", id), nil
+}
+
 func connectWireless(ctx context.Context, in connectWirelessArgs) (*mcp.CallToolResult, error) {
 	out, err := android.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, out)
 	}
 	return text("%s", out), nil
+}
+
+type adbReverseArgs struct {
+	serialArg
+	DevicePort int   `json:"device_port" jsonschema:"TCP port on the DEVICE to forward, e.g. 8081 for Metro."`
+	HostPort   int   `json:"host_port,omitempty" jsonschema:"TCP port on the HOST to forward to. Defaults to device_port."`
+	Remove     *bool `json:"remove,omitempty" jsonschema:"Remove the forward for device_port instead of creating it."`
+}
+
+func adbReverse(ctx context.Context, in adbReverseArgs) (*mcp.CallToolResult, error) {
+	serial, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	remove := boolOr(in.Remove, false)
+	if err := android.Reverse(ctx, serial, in.DevicePort, in.HostPort, remove); err != nil {
+		return nil, err
+	}
+	if remove {
+		return text("Removed reverse forward for tcp:%d on %s.", in.DevicePort, serial), nil
+	}
+	host := in.HostPort
+	if host <= 0 {
+		host = in.DevicePort
+	}
+	return text("Device port tcp:%d now reaches host tcp:%d on %s. An already-running app may need a restart (or reload_app) to pick up the connection.", in.DevicePort, host, serial), nil
 }

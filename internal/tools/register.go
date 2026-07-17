@@ -44,7 +44,7 @@ func Register(s *mcp.Server) {
 		"Capture the current screen as a PNG so you can SEE the UI state. Call it after every action to confirm the screen changed before acting again — driving blind chains taps onto the wrong screen. The image is auto-downscaled (default max 760px) so it is accepted by the image reader; this is for seeing only — derive tap coordinates from describe_ui, not from this image. Auto-retries an all-black frame (an intermittent capture glitch) and, if it stays black, says why (FLAG_SECURE content like a native PIN pad, or a sleeping display) — when black, use describe_ui instead.",
 		screenshot)
 	add(s, "describe_ui",
-		"Read the on-screen UI hierarchy as a list of elements, each with its text, content_desc, resource_id, class, clickable flag, pixel bounds, and a precomputed center in TRUE DEVICE PIXELS. This is your source of truth for AIMING: pass an element's center straight to tap. Never guess coordinates from the screenshot (it is downscaled and you will miss). Pure-layout containers are filtered out to keep the list focused on actionable elements.",
+		"Read the on-screen UI hierarchy as a list of elements, each with its text, content_desc, resource_id, class, clickable flag, pixel bounds, and a precomputed center in TRUE DEVICE PIXELS. This is your source of truth for AIMING: pass an element's center straight to tap. Never guess coordinates from the screenshot (it is downscaled and you will miss). The response header states the FOCUSED WINDOW (if it's a system overlay — biometric prompt, permission dialog — the elements belong to that overlay, not your app) and how many nodes the filter hid. Default filter keeps labelled/clickable/id-carrying elements minus redundant wrappers; filter=\"clickable\" returns only tap targets (much smaller); filter=\"all\" returns every bounded node — the only mode where absence proves an element isn't in the hierarchy. Canvas-drawn (RN/Flutter/Skia) content appears in NO mode.",
 		describeUI)
 
 	// --- Interact ---
@@ -64,7 +64,7 @@ func Register(s *mcp.Server) {
 		"Type text into the currently focused input field via the IME. Tap the field first so it has focus. Afterwards the soft keyboard may cover buttons lower on screen — dismiss it with press_key escape (or back) before tapping them. For native non-IME PIN pads this does nothing; use enter_pin instead.",
 		inputText)
 	add(s, "press_key",
-		"Press a hardware/navigation key by name (enter, back, home, menu, tab, del, escape, up, down, left, right, dpad_center, app_switch, search, power, volume_up, volume_down, ...) or a raw Android keycode number. Handy to submit a form (enter), dismiss the keyboard (escape), or go back (back).",
+		"Press a hardware/navigation key by name (enter, back, home, menu, tab, del, escape, up, down, left, right, dpad_center, app_switch, search, power, volume_up, volume_down, ...) or a raw Android keycode number. Handy to submit a form (enter), dismiss the keyboard (escape), or go back (back). A key can be silently consumed with no effect (e.g. back while a biometric prompt is up) — pass verify_change=true to get ui_changed: true/false instead of guessing.",
 		pressKey)
 	add(s, "input_key_combo",
 		"Press several keys together as a chord (input keycombination, Android 11+). Use preset=\"select_all\" (or copy/paste/cut/undo/redo/save/find) for a named shortcut, or keys=[\"ctrl\",\"a\"] / [\"alt\",\"tab\"] to spell one out — modifier(s) first, then the action key; each is a key name (ctrl/alt/shift/meta, a-z, enter, tab, ...) or a raw keycode. For a single key use press_key instead.",
@@ -78,6 +78,9 @@ func Register(s *mcp.Server) {
 	add(s, "wait_for_text",
 		"Poll the UI until an element with the given text/content-description appears (or times out), then return it. Use this after an async action (network load, navigation, animation) instead of a blind wait-then-screenshot — it returns as soon as the element is present, with its tappable center. Note: canvas-drawn (RN/Skia) text never enters the hierarchy, so it will time out on those — screenshot instead.",
 		waitForText)
+	add(s, "wait",
+		"Sleep for a number of seconds (fractions ok, capped at 300), then return. For TIME-based conditions where wait_for_text's polling doesn't apply: backgrounding an app long enough to trip a native auth timer, waiting out a cooldown or rate limit, letting a long animation finish.",
+		wait)
 
 	// --- Device lock / Keystore ---
 	add(s, "set_device_lock",
@@ -89,11 +92,17 @@ func Register(s *mcp.Server) {
 	add(s, "is_device_secure",
 		"Report whether a secure lock screen is set (KeyguardManager.isDeviceSecure). Use it to verify set_device_lock worked before running a Keystore-gated flow.",
 		isDeviceSecure)
+	add(s, "fingerprint_touch",
+		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). To enroll: Settings > Security > Fingerprint, then call this tool for each required touch during the enrollment wizard. Emulator-only; physical devices cannot inject biometrics.",
+		fingerTouch)
 
 	// --- Logs & capture ---
 	add(s, "logcat",
-		"Dump recent native log lines (last N, default 400), optionally filtered by a case-insensitive substring, a minimum priority (V/D/I/W/E/F — e.g. priority=\"E\" for errors and up), and/or tags (OR'd). This is how you find the REAL reason a native call failed when the UI only shows a generic 'X failed' alert: filter by your app tag or 'Exception'/'Caused by' and read the 'Caused by:' line — that is the root cause. Dumps and exits (does not stream); chatty spam is stripped.",
+		"Dump recent native log lines — the last N (default 400) or, with since=\"2m\"/\"90s\", everything from that long ago on the device clock (the right axis when the report is 'I just hit an error'; on a chatty emulator 400 lines can span seconds). Optionally filtered by a case-insensitive substring, a minimum priority (V/D/I/W/E/F — e.g. priority=\"E\" for errors and up), and/or tags (OR'd). This is how you find the REAL reason a native call failed when the UI only shows a generic 'X failed' alert: filter by your app tag or 'Exception'/'Caused by' and read the 'Caused by:' line — that is the root cause. Dumps and exits (does not stream); chatty spam is stripped.",
 		logcat)
+	add(s, "clear_logcat",
+		"Empty the device's logcat ring buffer (adb logcat -c). The sharpest isolation primitive for a press→observe loop: clear, perform ONE action, then logcat — every line you read was caused by that action. Without it, a filter hit may be minutes old and an empty result may just mean the buffer rotated. (For reaching BACK in time instead, use logcat's since param.)",
+		clearLogcat)
 	add(s, "start_logcat_capture",
 		"Begin streaming logcat into a buffer for this device (optionally clearing first). Pair with stop_logcat_capture to get everything logged DURING a flow — use this instead of the one-shot 'logcat' when you need logs across an interaction.",
 		startLogcatCapture)
@@ -155,6 +164,9 @@ func Register(s *mcp.Server) {
 		pullFile)
 
 	// --- Device discovery ---
+	add(s, "adb_reverse",
+		"Forward a DEVICE TCP port to a HOST port (adb reverse) so the emulator/device can reach a server on this machine — the canonical use is tcp:8081 for Metro. CRITICAL for RN/Expo dev clients: if the app can't reach its dev server it may SILENTLY fall back to the embedded bundle and ignore every code edit you make — set this up before a dev-client session, and suspect it whenever edits seem to have no effect. remove=true undoes the forward.",
+		adbReverse)
 	add(s, "connect_wireless",
 		"Connect to a device over Wi-Fi/TCP (adb connect), optionally pairing first (adb pair) with the 6-digit code from Android 11+ Wireless debugging. Pass host:port; for pairing also pass the pairing address + code shown on the device.",
 		connectWireless)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/iksnerd/adb_mcp/internal/android"
 
@@ -15,8 +16,9 @@ import (
 
 type tapArgs struct {
 	serialArg
-	X int `json:"x" jsonschema:"X coordinate in true device pixels."`
-	Y int `json:"y" jsonschema:"Y coordinate in true device pixels."`
+	X            int   `json:"x" jsonschema:"X coordinate in true device pixels."`
+	Y            int   `json:"y" jsonschema:"Y coordinate in true device pixels."`
+	VerifyChange *bool `json:"verify_change,omitempty" jsonschema:"Also report whether the UI hierarchy changed after the tap (ui_changed: true/false). Costs two extra hierarchy reads (~2-3s); use when a tap silently doing nothing would send you down the wrong path."`
 }
 
 type tapTextArgs struct {
@@ -58,7 +60,8 @@ type inputTextArgs struct {
 
 type pressKeyArgs struct {
 	serialArg
-	Key string `json:"key" jsonschema:"Key name (enter, back, home, menu, tab, del, escape, up, down, left, right, ...) or a raw keycode number."`
+	Key          string `json:"key" jsonschema:"Key name (enter, back, home, menu, tab, del, escape, up, down, left, right, ...) or a raw keycode number."`
+	VerifyChange *bool  `json:"verify_change,omitempty" jsonschema:"Also report whether the UI hierarchy changed after the key press (ui_changed: true/false). Costs two extra hierarchy reads (~2-3s); use when the key may be silently consumed (e.g. back while a biometric prompt is up)."`
 }
 
 type longPressArgs struct {
@@ -89,10 +92,13 @@ func tap(ctx context.Context, in tapArgs) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := android.Tap(ctx, serial, in.X, in.Y); err != nil {
+	verdict, err := withChangeCheck(ctx, serial, boolOr(in.VerifyChange, false), func() error {
+		return android.Tap(ctx, serial, in.X, in.Y)
+	})
+	if err != nil {
 		return nil, err
 	}
-	return text("Tapped (%d,%d).", in.X, in.Y), nil
+	return text("Tapped (%d,%d).%s", in.X, in.Y, verdict), nil
 }
 
 func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error) {
@@ -100,12 +106,15 @@ func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error)
 	if err != nil {
 		return nil, err
 	}
-	elems, err := android.DescribeUI(ctx, serial)
+	snap, err := android.DescribeUI(ctx, serial, android.FilterAuto)
 	if err != nil {
 		return nil, err
 	}
-	e, ok := android.FindByText(elems, in.Text, boolOr(in.Partial, true))
+	e, ok := android.FindByText(snap.Elements, in.Text, boolOr(in.Partial, true))
 	if !ok {
+		if snap.TopWindow != "" {
+			return nil, fmt.Errorf("no element matching %q found on screen (focused window: %s — if that is a system overlay, the app's UI is occluded)", in.Text, snap.TopWindow)
+		}
 		return nil, fmt.Errorf("no element matching %q found on screen", in.Text)
 	}
 	if err := android.Tap(ctx, serial, e.Center.X, e.Center.Y); err != nil {
@@ -198,10 +207,58 @@ func pressKey(ctx context.Context, in pressKeyArgs) (*mcp.CallToolResult, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.PressKey(ctx, serial, code); err != nil {
+	verdict, err := withChangeCheck(ctx, serial, boolOr(in.VerifyChange, false), func() error {
+		return android.PressKey(ctx, serial, code)
+	})
+	if err != nil {
 		return nil, err
 	}
-	return text("Pressed %s (keycode %d).", in.Key, code), nil
+	return text("Pressed %s (keycode %d).%s", in.Key, code, verdict), nil
+}
+
+type waitArgs struct {
+	Seconds float64 `json:"seconds" jsonschema:"How long to wait, in seconds. Fractions allowed; capped at 300."`
+}
+
+func wait(ctx context.Context, in waitArgs) (*mcp.CallToolResult, error) {
+	secs := in.Seconds
+	if secs <= 0 {
+		return nil, fmt.Errorf("seconds must be positive")
+	}
+	if secs > 300 {
+		secs = 300
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(time.Duration(secs * float64(time.Second))):
+	}
+	return text("Waited %gs.", secs), nil
+}
+
+// withChangeCheck runs act and, when verify is set, compares a UI-hierarchy
+// fingerprint from before and after so the caller learns whether the action
+// had any visible effect — a success-shaped reply for a swallowed event (e.g.
+// back while a BiometricPrompt is up) is indistinguishable from a real one
+// otherwise. The verdict string is empty when verify is off.
+func withChangeCheck(ctx context.Context, serial string, verify bool, act func() error) (string, error) {
+	if !verify {
+		return "", act()
+	}
+	before, beforeErr := android.UISignature(ctx, serial)
+	if err := act(); err != nil {
+		return "", err
+	}
+	time.Sleep(600 * time.Millisecond)
+	after, afterErr := android.UISignature(ctx, serial)
+	switch {
+	case beforeErr != nil || afterErr != nil:
+		return " ui_changed: unknown (hierarchy read failed).", nil
+	case before == after:
+		return " ui_changed: false — the UI looks identical, so the event likely had no effect; check describe_ui's top window for a system overlay consuming input.", nil
+	default:
+		return " ui_changed: true.", nil
+	}
 }
 
 func longPress(ctx context.Context, in longPressArgs) (*mcp.CallToolResult, error) {

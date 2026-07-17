@@ -116,7 +116,7 @@ func EnterPIN(ctx context.Context, serial, digits string, grid *Bounds, coords m
 		default:
 			if elems == nil {
 				var err error
-				elems, err = DescribeUI(ctx, serial)
+				elems, _, err = describeSettled(ctx, serial, FilterAuto)
 				if err != nil {
 					return err
 				}

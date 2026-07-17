@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -130,4 +131,28 @@ func WaitForBoot(ctx context.Context, serial string, timeout time.Duration) erro
 func Shutdown(ctx context.Context, serial string) error {
 	_, err := runAdb(ctx, serial, "emu", "kill")
 	return err
+}
+
+// FingerTouch simulates a fingerprint sensor touch on an emulator
+// (adb emu finger touch <id>). With a fingerprint enrolled this satisfies a
+// BiometricPrompt, letting a flow exercise the real biometric path instead of
+// cancelling into the PIN fallback. Emulator-only: physical devices have no
+// way to inject biometrics.
+func FingerTouch(ctx context.Context, serial string, fingerID int) error {
+	if fingerID <= 0 {
+		fingerID = 1
+	}
+	if !strings.HasPrefix(serial, "emulator-") {
+		return fmt.Errorf("fingerprint simulation only works on emulators (serial %q is not emulator-*): physical devices cannot inject biometrics", serial)
+	}
+	out, err := runAdb(ctx, serial, "emu", "finger", "touch", strconv.Itoa(fingerID))
+	if err != nil {
+		return err
+	}
+	// `adb emu` reports failures in stdout with a KO: prefix rather than a
+	// non-zero exit, so surface those as errors.
+	if strings.Contains(out, "KO:") {
+		return fmt.Errorf("emulator rejected finger touch: %s", strings.TrimSpace(out))
+	}
+	return nil
 }

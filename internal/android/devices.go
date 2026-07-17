@@ -3,6 +3,7 @@ package android
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -81,4 +82,25 @@ func ConnectWireless(ctx context.Context, hostPort, pairAddr, pairingCode string
 	res, err := runAdb(ctx, "", "connect", hostPort)
 	out.WriteString(res)
 	return strings.TrimSpace(out.String()), err
+}
+
+// Reverse forwards a device-side TCP port to a host-side one
+// (adb reverse tcp:<devicePort> tcp:<hostPort>), so the device can reach a
+// server running on the host — e.g. tcp:8081→tcp:8081 lets an RN/Expo dev
+// client reach Metro. Without it, a dev client may SILENTLY fall back to its
+// embedded bundle and ignore every edit. remove=true undoes the forward.
+func Reverse(ctx context.Context, serial string, devicePort, hostPort int, remove bool) error {
+	if devicePort <= 0 {
+		return fmt.Errorf("device_port must be positive, got %d", devicePort)
+	}
+	dev := "tcp:" + strconv.Itoa(devicePort)
+	if remove {
+		_, err := runAdb(ctx, serial, "reverse", "--remove", dev)
+		return err
+	}
+	if hostPort <= 0 {
+		hostPort = devicePort
+	}
+	_, err := runAdb(ctx, serial, "reverse", dev, "tcp:"+strconv.Itoa(hostPort))
+	return err
 }

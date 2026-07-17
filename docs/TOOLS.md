@@ -14,24 +14,26 @@ single device is attached; with several, pass one from `list_devices`.
 | `wait_for_boot` | Block until `sys.boot_completed=1` |
 | `shutdown_emulator` | Power off (`adb emu kill`) |
 | `connect_wireless` | Connect/pair a device over Wi-Fi (`adb connect`/`pair`) |
+| `adb_reverse` | Forward a device port to a host port (`adb reverse`) — required for RN/Expo dev clients to reach Metro (else they silently run the embedded bundle) |
 
 ### Observe
 | Tool | Purpose |
 |---|---|
 | `screenshot` | Capture the screen as a PNG (auto-downscaled) — to *see* state; retries an all-black frame and flags why (FLAG_SECURE / screen off) |
-| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim* |
+| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all` — `all` proves absence), `query` ("is X on screen?"), `compact` (~10x smaller) |
 
 ### Interact
 | Tool | Purpose |
 |---|---|
-| `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center) |
+| `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed` |
 | `tap_on_text` | Find an element by label/desc and tap its center |
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center |
+| `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
 | `swipe` | Swipe/drag (scroll down = high y → low y); `x`/`y` alias `x1`/`y1` |
 | `drag` | Press-hold-move-release drag (`draganddrop`) — for drag handles & reorder |
 | `input_text` | Type into the focused field via the IME |
-| `press_key` | Press a named key (`enter`,`back`,`home`,`escape`,…) or raw keycode |
+| `press_key` | Press a named key (`enter`,`back`,`home`,`escape`,…) or raw keycode; `verify_change` reports `ui_changed` (a key can be silently consumed by an overlay) |
 | `input_key_combo` | Press a chord together — `keys=["ctrl","a"]` or `preset="select_all"`/`copy`/`paste`/… |
 | `enter_pin` | Enter digits on a PIN pad — with `grid`/`coords` for canvas-drawn pads |
 
@@ -41,6 +43,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `set_device_lock` | Set a pin/pattern/password (needed for Keystore-backed crypto) |
 | `clear_device_lock` | Remove the lock (supply the current credential) |
 | `is_device_secure` | Whether a secure lock is set |
+| `fingerprint_touch` | Simulate a fingerprint touch (emulator-only, `adb emu finger touch`) — satisfy a BiometricPrompt instead of cancelling to the PIN fallback |
 
 ### App lifecycle
 | Tool | Purpose |
@@ -60,7 +63,8 @@ single device is attached; with several, pass one from `list_devices`.
 ### Logs & capture
 | Tool | Purpose |
 |---|---|
-| `logcat` | One-shot dump of recent log lines, filterable by substring/`priority`/`tags` — find the native `Caused by:` |
+| `logcat` | One-shot dump of recent log lines — last N or `since` a time window ("2m", device clock), filterable by substring/`priority`/`tags` — find the native `Caused by:` |
+| `clear_logcat` | Empty the ring buffer (`logcat -c`) — clear → act → read isolates what ONE action logged |
 | `start_logcat_capture` / `stop_logcat_capture` | Stream logs across a flow, then return them (substring/`priority`/`tags` filters; last 500 lines by default, override with `tail`) |
 | `start_screen_record` / `stop_screen_record` | Record the screen to mp4 and pull it |
 

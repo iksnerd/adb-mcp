@@ -102,3 +102,36 @@ func TestParseLogLine(t *testing.T) {
 		t.Error("parseLogLine() on a malformed line: expected ok=false")
 	}
 }
+
+func TestSinceCutoff(t *testing.T) {
+	// 1784721600 = 2026-07-22 12:00:00 UTC; device in +0200 sees 14:00 local.
+	const epoch = "1784721600"
+	cases := []struct{ now, since, want string }{
+		{epoch + " +0200", "2m", "07-22 13:58:00.000"},
+		{epoch + " +0200", "90s", "07-22 13:58:30.000"},
+		{epoch + " +0000", "1h30m", "07-22 10:30:00.000"},
+		{epoch + " -0530", "45", "07-22 06:29:15.000"}, // bare number = seconds
+	}
+	for _, c := range cases {
+		got, err := sinceCutoff(c.now, c.since)
+		if err != nil || got != c.want {
+			t.Errorf("sinceCutoff(%q, %q) = %q, %v; want %q", c.now, c.since, got, err, c.want)
+		}
+	}
+}
+
+func TestSinceCutoffErrors(t *testing.T) {
+	bad := []struct{ now, since string }{
+		{"1784721600 +0200", "soon"}, // unparseable duration
+		{"1784721600 +0200", "-5m"},  // negative
+		{"1784721600 +0200", "0"},    // zero
+		{"1784721600", "2m"},         // missing tz offset
+		{"1784721600 GMT+2", "2m"},   // malformed tz offset
+		{"yesterday +0200", "2m"},    // malformed epoch
+	}
+	for _, c := range bad {
+		if got, err := sinceCutoff(c.now, c.since); err == nil {
+			t.Errorf("sinceCutoff(%q, %q) = %q, want error", c.now, c.since, got)
+		}
+	}
+}
