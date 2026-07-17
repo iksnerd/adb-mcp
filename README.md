@@ -67,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | s
 The script ([install.sh](install.sh)) picks the right archive for your
 OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
-with `VERSION=v0.10.1`).
+with `VERSION=v0.11.0`).
 
 On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
@@ -130,12 +130,12 @@ go build -o bin/adb-mcp .
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
-- **Emulator / device** — boot, list, wait-for-boot, shut down, connect over Wi-Fi
-- **Observe** — `screenshot` to see, `describe_ui` for true-pixel element centers
-- **Interact** — tap, swipe, drag, long-press, type, key combos, PIN pads
-- **Lock / Keystore** — set/clear a secure lock screen, check lock state
+- **Emulator / device** — boot, list, wait-for-boot, shut down, connect over Wi-Fi, `adb_reverse` port forwarding (Metro!)
+- **Observe** — `screenshot` to see, `describe_ui` for true-pixel element centers — with the focused **top window** (spot a biometric prompt occluding your app), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
+- **Interact** — tap, swipe, drag, long-press, type, key combos, PIN pads, `wait`; opt-in `verify_change` tells you whether a tap/key actually changed the UI
+- **Lock / Keystore / Biometrics** — set/clear a secure lock screen, check lock state, `fingerprint_touch` to satisfy a BiometricPrompt on the emulator
 - **App lifecycle** — install/uninstall, launch/stop, `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
-- **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters), `last_crash`, screen recording
+- **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics** — dark mode, mock location, clean status bar, `doctor`
 - **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task discovery
 
@@ -160,10 +160,11 @@ make run       # run over stdio for manual JSON-RPC poking
 Layout:
 
 ```
-main.go                    entry: build server, register tools + resources, Run(stdio)
+main.go                    entry: subcommands (update/version) or serve MCP over stdio
 internal/android/          pure adb/emulator execution + uiautomator parsing (unit-tested)
 internal/tools/            thin MCP tool bindings
 internal/guides/           the skill guides, embedded and served as MCP resources
+internal/selfupdate/       the `adb-mcp update` release fetch/verify/swap
 ```
 
 The two layers follow a **mirror convention** — each `internal/tools/<domain>.go`
