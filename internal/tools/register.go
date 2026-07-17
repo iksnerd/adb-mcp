@@ -99,6 +99,29 @@ func Register(s *mcp.Server) {
 	add(s, "fingerprint_touch",
 		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). GOTCHA: the command reports OK even when the id matches nothing — if the prompt doesn't resolve, the enrolled id differs (re-enrollments increment it): try finger_id 2..5, send a second touch after ~1s, or re-enroll deterministically at session start (Settings > Security > Fingerprint, calling this tool for each wizard touch). Emulator-only; physical devices cannot inject biometrics.",
 		fingerTouch)
+	add(s, "finger_remove",
+		"Lift the simulated finger off the sensor (adb emu finger remove) — the complement to fingerprint_touch, for flows that watch for the finger-up event. Emulator-only.",
+		fingerRemove)
+
+	// --- Extended Controls (emulator console) ---
+	// These drive the emulator's Extended Controls panel (a window of the emulator
+	// process itself, invisible to describe_ui/tap) through the emulator console.
+	// All are emulator-only; a physical device has no console equivalent.
+	add(s, "send_sms",
+		"Deliver an incoming SMS to the emulator (adb emu sms send) — the standard way to drive OTP / 2FA flows without a second phone. Pass a sender number (from) and the message text (e.g. the code). Emulator-only.",
+		sendSMS)
+	add(s, "phone_call",
+		"Drive an emulated voice call (adb emu gsm). action=\"call\" (default) rings an incoming call from number; \"accept\"/\"cancel\"/\"busy\"/\"hold\" transition an in-progress call. Use to test call-interruption behaviour and CALL_PHONE flows. Emulator-only.",
+		phoneCall)
+	add(s, "set_battery",
+		"Set the emulated battery level (0-100) and/or charging state (adb emu power) — test low-battery UI and charging-only logic deterministically. Provide level, charging, or both. Emulator-only. (For a fake battery in a clean SCREENSHOT status bar, use set_status_bar instead.)",
+		setBattery)
+	add(s, "rotate_screen",
+		"Rotate the emulator to its next orientation (adb emu rotate) — the quick way to exercise landscape/portrait layout and rotation-driven state loss. Emulator-only.",
+		rotateScreen)
+	add(s, "avd_snapshot",
+		"Manage emulator AVD snapshots (adb emu avd snapshot): action=save|load|delete a named snapshot, or list them. Save a known-good state, then load it to reset the device deterministically between runs — faster than a wipe_data cold boot. Emulator-only.",
+		avdSnapshot)
 
 	// --- Logs & capture ---
 	add(s, "logcat",

@@ -3,7 +3,7 @@
 The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP).
 This file is the lean hub — details live in linked docs so it stays readable.
 
-**Current:** v0.11.2 · 53 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.12.0 · 61 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Installed + smoke-tested live on an emulator (last_crash verified against a real recorded crash; launch_app failure/component echo verified; screenshot black-frame detection verified).
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
@@ -39,15 +39,16 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 **Enhancements**
 - [ ] Multi-touch / pinch-zoom (needs `sendevent`; single-pointer `drag` already shipped) — parked, no reliable cross-device approach yet
 
-**Emulator Extended-Controls surface** (via the emulator console — `adb emu <cmd>`, no auth token needed; the same bridge `fingerprint_touch`/`set_location` already use). The Extended Controls panel is the emulator's own Qt window, invisible to `describe_ui`/`tap`, so these must go through the console, not screen taps. Emulator-only (physical devices have no console) unless an `adb shell` path exists. Candidate tools, in rough priority for testing auth/2FA/telephony flows:
-- [ ] `battery` — `adb emu power capacity <pct>` / `power ac on|off` / `power status`; also has a real-device `adb shell dumpsys battery set …` path worth using when available
-- [ ] `send_sms` — `adb emu sms send <number> <text>` (inject an incoming SMS — OTP/2FA flows)
-- [ ] `phone_call` — `adb emu gsm call|accept|busy|cancel <number>` (incoming call / interruption testing)
-- [ ] `cellular` — `adb emu gsm data|voice|signal`, `network speed|delay` (signal loss, throttling)
-- [ ] `sensors` / `rotate` — `adb emu sensor set <name> <x> <y> <z>`, `adb emu rotate`
-- [ ] `finger_remove` — `adb emu finger remove` (complement to `fingerprint_touch`)
-- [ ] Snapshots — `adb emu avd snapshot save|load|list`, `avd pause|stop` (deterministic session reset)
-- Note: all follow the exact `FingerTouch`/`SetLocation` pattern in `internal/android/emulator.go`/`environment.go` — small, uniform additions.
+**Emulator Extended-Controls surface** (via the emulator console — `adb emu <cmd>`; the Extended Controls panel is the emulator's own window, invisible to `describe_ui`/`tap`). Shipped v0.12.0 via a shared `Client.emu()` helper (emulator-guard + `KO:` scan), each with a builder test:
+- [x] `set_battery` — `adb emu power capacity <pct>` / `power ac on|off`
+- [x] `send_sms` — `adb emu sms send <number> <text>` (OTP/2FA flows)
+- [x] `phone_call` — `adb emu gsm call|accept|cancel|busy|hold <number>`
+- [x] `rotate_screen` — `adb emu rotate`
+- [x] `finger_remove` — `adb emu finger remove` (complement to `fingerprint_touch`)
+- [x] `avd_snapshot` — `adb emu avd snapshot save|load|delete|list` (deterministic session reset)
+- [ ] `cellular` — `adb emu gsm data|voice|signal`, `network speed|delay` (signal loss, throttling) — still open; multi-subcommand, lower priority
+- [ ] `sensors` — `adb emu sensor set <name> <x> <y> <z>` (accelerometer etc.) — still open
+- [ ] Battery also has a real-device `adb shell dumpsys battery set …` path worth adding when a physical device is the target
 
 **Code review round** (2026-07-17, 8-angle review of the layout move + `tap_element` + `build_and_run`; all fixed same day)
 - [x] `build_and_run` could install a stale/androidTest APK: `FindAPKs` sorted lexically despite its "newest first" comment. Now sorts by mtime newest-first, prunes `node_modules`/dot-dirs from the walk, and `PickAPK` skips androidTest APKs — all unit-tested.

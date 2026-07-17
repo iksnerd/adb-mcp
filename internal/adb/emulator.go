@@ -135,6 +135,26 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// emu runs one emulator-console command (adb emu <args...>) — the bridge to the
+// emulator's Extended Controls (fingerprint, battery, telephony, sensors, …),
+// which live in the emulator process's own window and are invisible to
+// adb/uiautomator. The console only exists on emulators, and it reports
+// failures as a "KO:" stdout line rather than a non-zero exit, so both the
+// wrong-target and the KO cases are turned into errors here.
+func (c *Client) emu(ctx context.Context, what string, args ...string) (string, error) {
+	if !strings.HasPrefix(c.Serial, "emulator-") {
+		return "", fmt.Errorf("%s only works on an emulator (serial %q is not emulator-*): the emulator console has no physical-device equivalent", what, c.Serial)
+	}
+	out, err := c.adb(ctx, append([]string{"emu"}, args...)...)
+	if err != nil {
+		return out, err
+	}
+	if strings.Contains(out, "KO:") {
+		return out, fmt.Errorf("emulator rejected %s: %s", what, strings.TrimSpace(out))
+	}
+	return out, nil
+}
+
 // FingerTouch simulates a fingerprint sensor touch on an emulator
 // (adb emu finger touch <id>). With a fingerprint enrolled this satisfies a
 // BiometricPrompt, letting a flow exercise the real biometric path instead of
@@ -144,17 +164,96 @@ func (c *Client) FingerTouch(ctx context.Context, fingerID int) error {
 	if fingerID <= 0 {
 		fingerID = 1
 	}
-	if !strings.HasPrefix(c.Serial, "emulator-") {
-		return fmt.Errorf("fingerprint simulation only works on emulators (serial %q is not emulator-*): physical devices cannot inject biometrics", c.Serial)
+	_, err := c.emu(ctx, "fingerprint simulation", "finger", "touch", strconv.Itoa(fingerID))
+	return err
+}
+
+// FingerRemove lifts the simulated finger off the sensor (adb emu finger
+// remove) — the complement to FingerTouch for flows that watch for the
+// finger-up event.
+func (c *Client) FingerRemove(ctx context.Context) error {
+	_, err := c.emu(ctx, "fingerprint removal", "finger", "remove")
+	return err
+}
+
+// SendSMS injects an incoming SMS from number with the given body
+// (adb emu sms send <number> <text>) — drives OTP/2FA flows without a second
+// device.
+func (c *Client) SendSMS(ctx context.Context, number, text string) error {
+	if strings.TrimSpace(number) == "" || strings.TrimSpace(text) == "" {
+		return fmt.Errorf("both a sender number and message text are required")
 	}
-	out, err := c.adb(ctx, "emu", "finger", "touch", strconv.Itoa(fingerID))
-	if err != nil {
-		return err
+	_, err := c.emu(ctx, "sms send", "sms", "send", number, text)
+	return err
+}
+
+// gsmActions are the telephony verbs the emulator console accepts.
+var gsmActions = map[string]bool{"call": true, "accept": true, "cancel": true, "busy": true, "hold": true}
+
+// GSMCall drives an emulated voice call: "call" rings an incoming call from
+// number, and "accept"/"cancel"/"busy"/"hold" transition it
+// (adb emu gsm <action> <number>).
+func (c *Client) GSMCall(ctx context.Context, action, number string) error {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if !gsmActions[action] {
+		return fmt.Errorf("unknown call action %q (use call, accept, cancel, busy, or hold)", action)
 	}
-	// `adb emu` reports failures in stdout with a KO: prefix rather than a
-	// non-zero exit, so surface those as errors.
-	if strings.Contains(out, "KO:") {
-		return fmt.Errorf("emulator rejected finger touch: %s", strings.TrimSpace(out))
+	if strings.TrimSpace(number) == "" {
+		return fmt.Errorf("a phone number is required")
+	}
+	_, err := c.emu(ctx, "gsm "+action, "gsm", action, number)
+	return err
+}
+
+// SetBattery sets the emulated battery: level is 0-100 (nil leaves it), and
+// charging toggles the AC line (nil leaves it) — via adb emu power capacity /
+// power ac. At least one must be set.
+func (c *Client) SetBattery(ctx context.Context, level *int, charging *bool) error {
+	if level == nil && charging == nil {
+		return fmt.Errorf("set a battery level and/or charging state")
+	}
+	if level != nil {
+		if *level < 0 || *level > 100 {
+			return fmt.Errorf("battery level must be 0-100, got %d", *level)
+		}
+		if _, err := c.emu(ctx, "power capacity", "power", "capacity", strconv.Itoa(*level)); err != nil {
+			return err
+		}
+	}
+	if charging != nil {
+		state := "off"
+		if *charging {
+			state = "on"
+		}
+		if _, err := c.emu(ctx, "power ac", "power", "ac", state); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// Rotate rotates the emulator to its next orientation (adb emu rotate).
+func (c *Client) Rotate(ctx context.Context) error {
+	_, err := c.emu(ctx, "rotate", "rotate")
+	return err
+}
+
+// snapshotActions are the avd-snapshot verbs (list takes no name).
+var snapshotActions = map[string]bool{"save": true, "load": true, "delete": true, "list": true}
+
+// Snapshot manages emulator AVD snapshots (adb emu avd snapshot <action>
+// [name]): save/load/delete a named snapshot, or list them — the deterministic
+// way to reset a device to a known state between runs.
+func (c *Client) Snapshot(ctx context.Context, action, name string) (string, error) {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if !snapshotActions[action] {
+		return "", fmt.Errorf("unknown snapshot action %q (use save, load, delete, or list)", action)
+	}
+	if action == "list" {
+		return c.emu(ctx, "avd snapshot list", "avd", "snapshot", "list")
+	}
+	if strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("a snapshot name is required for %s", action)
+	}
+	return c.emu(ctx, "avd snapshot "+action, "avd", "snapshot", action, name)
 }

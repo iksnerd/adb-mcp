@@ -119,6 +119,113 @@ func fingerTouch(ctx context.Context, in fingerTouchArgs) (*mcp.CallToolResult, 
 	return text("Simulated fingerprint touch (finger %d). If a BiometricPrompt was up it should resolve now — confirm with describe_ui (its top window line shows whether the prompt is gone).", id), nil
 }
 
+// ---- Extended Controls (emulator console) ----
+
+func fingerRemove(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.FingerRemove(ctx); err != nil {
+		return nil, err
+	}
+	return text("Lifted the simulated finger off the sensor on %s.", c.Serial), nil
+}
+
+type sendSMSArgs struct {
+	serialArg
+	From string `json:"from" jsonschema:"Sender phone number the SMS appears to come from, e.g. \"+15551234567\"."`
+	Text string `json:"text" jsonschema:"Message body (e.g. an OTP code) delivered to the device's SMS inbox."`
+}
+
+func sendSMS(ctx context.Context, in sendSMSArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.SendSMS(ctx, in.From, in.Text); err != nil {
+		return nil, err
+	}
+	return text("Delivered an SMS from %s to %s.", in.From, c.Serial), nil
+}
+
+type phoneCallArgs struct {
+	serialArg
+	Number string `json:"number" jsonschema:"Phone number for the call, e.g. \"+15551234567\"."`
+	Action string `json:"action,omitempty" jsonschema:"What to do: \"call\" (default — ring an incoming call), \"accept\", \"cancel\" (hang up), \"busy\", or \"hold\"."`
+}
+
+func phoneCall(ctx context.Context, in phoneCallArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	action := in.Action
+	if action == "" {
+		action = "call"
+	}
+	if err := c.GSMCall(ctx, action, in.Number); err != nil {
+		return nil, err
+	}
+	return text("Telephony %s for %s on %s.", action, in.Number, c.Serial), nil
+}
+
+type batteryArgs struct {
+	serialArg
+	Level    *int  `json:"level,omitempty" jsonschema:"Battery charge level 0-100. Omit to leave the level unchanged."`
+	Charging *bool `json:"charging,omitempty" jsonschema:"true = plugged into AC, false = on battery. Omit to leave the charging state unchanged."`
+}
+
+func setBattery(ctx context.Context, in batteryArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.SetBattery(ctx, in.Level, in.Charging); err != nil {
+		return nil, err
+	}
+	parts := []string{}
+	if in.Level != nil {
+		parts = append(parts, fmt.Sprintf("level %d%%", *in.Level))
+	}
+	if in.Charging != nil {
+		parts = append(parts, map[bool]string{true: "charging", false: "on battery"}[*in.Charging])
+	}
+	return text("Battery set (%s) on %s.", strings.Join(parts, ", "), c.Serial), nil
+}
+
+func rotateScreen(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Rotate(ctx); err != nil {
+		return nil, err
+	}
+	return text("Rotated %s to its next orientation.", c.Serial), nil
+}
+
+type snapshotArgs struct {
+	serialArg
+	Action string `json:"action" jsonschema:"One of: \"save\", \"load\", \"delete\", or \"list\"."`
+	Name   string `json:"name,omitempty" jsonschema:"Snapshot name. Required for save/load/delete; ignored for list."`
+}
+
+func avdSnapshot(ctx context.Context, in snapshotArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	out, err := c.Snapshot(ctx, in.Action, in.Name)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(out) == "" {
+		return text("Snapshot %s done on %s.", in.Action, c.Serial), nil
+	}
+	return text("%s", strings.TrimSpace(out)), nil
+}
+
 func connectWireless(ctx context.Context, in connectWirelessArgs) (*mcp.CallToolResult, error) {
 	out, err := adb.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
 	if err != nil {

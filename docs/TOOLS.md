@@ -45,6 +45,17 @@ single device is attached; with several, pass one from `list_devices`.
 | `clear_device_lock` | Remove the lock (supply the current credential) |
 | `is_device_secure` | Whether a secure lock is set |
 | `fingerprint_touch` | Simulate a fingerprint touch (emulator-only, `adb emu finger touch`) — satisfy a BiometricPrompt instead of cancelling to the PIN fallback |
+| `finger_remove` | Lift the simulated finger off the sensor (emulator-only) — complement to `fingerprint_touch` |
+
+### Extended Controls (emulator console)
+These drive the emulator's Extended Controls panel — a window of the emulator process itself, invisible to `describe_ui`/`tap` — through the emulator console. All emulator-only.
+| Tool | Purpose |
+|---|---|
+| `send_sms` | Deliver an incoming SMS (`from`, `text`) — drive OTP / 2FA flows without a second phone |
+| `phone_call` | Ring or transition an emulated voice call (`action`: call/accept/cancel/busy/hold) |
+| `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI |
+| `rotate_screen` | Rotate the emulator to its next orientation |
+| `avd_snapshot` | `save`/`load`/`delete`/`list` AVD snapshots — reset to a known state faster than a cold wipe |
 
 ### App lifecycle
 | Tool | Purpose |

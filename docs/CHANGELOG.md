@@ -4,6 +4,48 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.12.0 — Extended Controls tools + adb.Client refactor
+
+**New — Extended Controls (emulator console).** Six tools drive the emulator's
+Extended Controls panel, which lives in the emulator process's own window and is
+invisible to `describe_ui`/`tap`. All route through the `adb emu` console bridge
+(the same one `fingerprint_touch`/`set_location` already used) and are
+emulator-only:
+
+- **`send_sms`** — deliver an incoming SMS (`from`, `text`): the standard way to
+  drive OTP / 2FA flows without a second phone.
+- **`phone_call`** — ring or transition an emulated voice call
+  (`action`: call/accept/cancel/busy/hold).
+- **`set_battery`** — set battery `level` (0-100) and/or `charging` state, for
+  low-battery and charging-only UI.
+- **`rotate_screen`** — rotate the emulator to its next orientation.
+- **`avd_snapshot`** — `save`/`load`/`delete`/`list` AVD snapshots: reset to a
+  known state faster than a cold `wipe_data` boot.
+- **`finger_remove`** — lift the simulated finger off the sensor (complement to
+  `fingerprint_touch`).
+
+**Architecture — `adb.Client` + package split (internal, no behavior change).**
+`internal/android` became four inward-pointing packages: `internal/sdk` (SDK
+paths/env), `internal/uiauto` (the `Element` model + pure parsing),
+`internal/adb` (an `adb.Client` whose methods are the device commands over an
+injectable `Runner`), and `internal/gradle` (build/APKs/test reports).
+`internal/tools` stays the thin MCP layer. The `Runner` seam means command
+builders are now unit-tested by asserting exact adb argv with **no device**.
+
+**Fixes — `tap_element` / `build_and_run`** (from a review of the v0.11 additions):
+
+- `build_and_run` selected the installed APK lexicographically, so a stale
+  `androidTest` or wrong-variant APK could be installed and launched. It now
+  picks the newest-by-mtime non-test APK, and `FindAPKs` prunes
+  `node_modules`/dot-dirs from its walk.
+- `tap_element` searched an auto-filtered snapshot, which drops the unlabeled
+  id-carrying wrapper nodes it exists to find; it now searches `filter=all`.
+- An empty/whitespace `text`/`resource_id` no longer substring-matches (and taps)
+  an arbitrary element.
+- `install_app`/`build_and_run` now error on an adb `Failure [...]` printed with
+  a zero exit code (older platform-tools), instead of reporting a phantom success.
+- Both tap tools gained `verify_change`.
+
 ## v0.11.2 — biometric-loop fixes + doctor version reporting
 
 Round-5 field feedback (`android-mcp-papercuts` #019f709b / #019f70d1).

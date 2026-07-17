@@ -166,6 +166,79 @@ func TestInstallAppFailureScan(t *testing.T) {
 	}
 }
 
+// TestConsoleControls covers the emulator-console (Extended Controls) builders:
+// each must produce the right `adb emu ...` argv.
+func TestConsoleControls(t *testing.T) {
+	ctx := context.Background()
+	lvl := 15
+	charging := true
+	cases := []struct {
+		name string
+		call func(*Client) error
+		want []string
+	}{
+		{"send sms", func(c *Client) error { return c.SendSMS(ctx, "+15551234567", "code 123") },
+			[]string{"emu", "sms", "send", "+15551234567", "code 123"}},
+		{"phone call rings", func(c *Client) error { return c.GSMCall(ctx, "call", "+15550000") },
+			[]string{"emu", "gsm", "call", "+15550000"}},
+		{"phone accept", func(c *Client) error { return c.GSMCall(ctx, "accept", "+15550000") },
+			[]string{"emu", "gsm", "accept", "+15550000"}},
+		{"battery level", func(c *Client) error { return c.SetBattery(ctx, &lvl, nil) },
+			[]string{"emu", "power", "capacity", "15"}},
+		{"battery charging", func(c *Client) error { return c.SetBattery(ctx, nil, &charging) },
+			[]string{"emu", "power", "ac", "on"}},
+		{"rotate", func(c *Client) error { return c.Rotate(ctx) },
+			[]string{"emu", "rotate"}},
+		{"finger remove", func(c *Client) error { return c.FingerRemove(ctx) },
+			[]string{"emu", "finger", "remove"}},
+		{"snapshot save", func(c *Client) error { _, err := c.Snapshot(ctx, "save", "clean"); return err },
+			[]string{"emu", "avd", "snapshot", "save", "clean"}},
+		{"snapshot list ignores name", func(c *Client) error { _, err := c.Snapshot(ctx, "list", ""); return err },
+			[]string{"emu", "avd", "snapshot", "list"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, f := newFake("OK")
+			if err := tc.call(c); err != nil {
+				t.Fatalf("call: %v", err)
+			}
+			wantArgv(t, f.last(), tc.want)
+		})
+	}
+}
+
+// TestConsoleValidation covers the guards: emulator-only, bad enums, missing
+// args, and a console KO: reply.
+func TestConsoleValidation(t *testing.T) {
+	ctx := context.Background()
+
+	// A physical device has no console.
+	phys := &Client{Serial: "1a2b3c4d", run: (&fakeRun{reply: "OK"}).run}
+	if err := phys.SendSMS(ctx, "+1555", "hi"); err == nil {
+		t.Error("expected send_sms on a non-emulator to be rejected")
+	}
+
+	c, _ := newFake("OK")
+	if err := c.GSMCall(ctx, "explode", "+1555"); err == nil {
+		t.Error("expected an unknown call action to be rejected")
+	}
+	if err := c.SetBattery(ctx, nil, nil); err == nil {
+		t.Error("expected set_battery with no fields to be rejected")
+	}
+	bad := 150
+	if err := c.SetBattery(ctx, &bad, nil); err == nil {
+		t.Error("expected an out-of-range battery level to be rejected")
+	}
+	if _, err := c.Snapshot(ctx, "save", ""); err == nil {
+		t.Error("expected a nameless save to be rejected")
+	}
+
+	ko, _ := newFake("KO: no finger enrolled")
+	if err := ko.FingerRemove(ctx); err == nil {
+		t.Error("expected a KO: console reply to surface as an error")
+	}
+}
+
 // TestLaunchApp checks both the component parse and the no-launchable-activity
 // path (monkey prints that and exits, and we turn it into a clear error).
 func TestLaunchApp(t *testing.T) {
