@@ -3,7 +3,7 @@
 The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP).
 This file is the lean hub — details live in linked docs so it stays readable.
 
-**Current:** v0.11.0 · 53 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.11.1 · 53 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Installed + smoke-tested live on an emulator (last_crash verified against a real recorded crash; launch_app failure/component echo verified; screenshot black-frame detection verified).
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 

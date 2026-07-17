@@ -73,7 +73,7 @@ func Register(s *mcp.Server) {
 		"Press and hold a coordinate (true device pixels) for a duration — for context menus, drag handles, and long-press actions.",
 		longPress)
 	add(s, "enter_pin",
-		"Enter digits on a numeric PIN pad by tapping each key with a settle delay. Use when input_text does nothing because the pad renders its own key views. By default it finds each digit in the UI hierarchy — but CUSTOM-DRAWN pads (React Native / Skia SDK pads) draw their keys on a canvas that is invisible to describe_ui, so that lookup fails. For those, pass 'grid' (the pad's bounding box; digits are placed on a standard 3x4 dialpad) or 'coords' (explicit per-digit x,y). Read the pad's bounds/coordinates off a screenshot.",
+		"Enter digits on a numeric PIN pad by tapping each key with a settle delay. Use when input_text does nothing because the pad renders its own key views. Visibility is PAD-SPECIFIC — run describe_ui on the pad screen first: a native-view pad (digits listed as Buttons with text) works with the default hierarchy lookup, no extra args. Only CANVAS-DRAWN pads (React Native / Skia SDK pads, whose keys are invisible to describe_ui) need 'grid' (the pad's bounding box; digits placed on a standard 3x4 dialpad) or 'coords' (explicit per-digit x,y) — read those bounds off a screenshot.",
 		enterPIN)
 	add(s, "wait_for_text",
 		"Poll the UI until an element with the given text/content-description appears (or times out), then return it. Use this after an async action (network load, navigation, animation) instead of a blind wait-then-screenshot — it returns as soon as the element is present, with its tappable center. Note: canvas-drawn (RN/Skia) text never enters the hierarchy, so it will time out on those — screenshot instead.",
@@ -130,7 +130,7 @@ func Register(s *mcp.Server) {
 		"Force-stop an app by package name. Pair with launch_app to reset an app to a clean start when reproducing a bug.",
 		stopApp)
 	add(s, "reload_app",
-		"Best-effort: trigger a Metro/JS reload on a React Native dev-client build via the classic <package>.RELOAD_APP_ACTION broadcast. Only works on debug builds of classic (non-bridgeless) RN architectures that register the receiver — on newer RN/Expo dev clients it may silently no-op with no error. If the app doesn't visibly reload, use open_dev_menu then tap_on_text(\"Reload\") instead.",
+		"Best-effort: trigger a Metro/JS reload on a React Native dev-client build via the classic <package>.RELOAD_APP_ACTION broadcast. Only works on debug builds of classic (non-bridgeless) RN architectures that register the receiver — on newer RN/Expo dev clients it may silently no-op with no error. If the app doesn't visibly reload, use open_dev_menu then tap_on_text(\"Reload\") instead. PREREQUISITE: the app must be able to reach Metro at all — run adb_reverse {device_port: 8081} first, or a reload lands you back on the EMBEDDED bundle and your edits still won't appear.",
 		reloadApp)
 	add(s, "open_dev_menu",
 		"Open the React Native dev menu (KEYCODE_MENU) on the foreground app — the reliable way to reach a dev build's Reload/Debug JS Remotely/etc. options when reload_app's broadcast doesn't apply. Follow with tap_on_text or describe_ui to pick a menu item.",

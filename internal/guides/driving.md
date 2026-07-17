@@ -28,6 +28,14 @@ taps landing on the wrong screen.
 visible label or content-description, and taps its center. Prefer it when you
 know the label of what you want to press.
 
+Loop economy: in a long drive, `describe_ui {compact: true}` gives the same
+aiming information at ~10x fewer tokens, and `{query: "..."}` answers "is X
+on screen?" without the whole tree. When an action might be silently consumed
+(a key press with an overlay up), `verify_change: true` on `press_key`/`tap`
+replaces a full re-observe with a built-in `ui_changed` answer. For purely
+time-based conditions (an app must stay backgrounded 18s to trip a native
+timer), use `wait` — `wait_for_text` can't express elapsed time.
+
 ## Coordinate rule
 
 `tap`/`swipe` always use **true device pixels**. The `center` values from

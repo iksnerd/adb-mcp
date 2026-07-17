@@ -4,6 +4,25 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.11.1 — guides & descriptions caught up with v0.10–v0.11 reality
+
+Doc-drift audit after the v0.11.0 visibility round; no behavior changes.
+
+- **`android://guide/crash-triage` rewritten** — it still taught the pre-v0.10
+  substring-only workflow. Now: `last_crash` first for crashes; isolate before
+  reading (`since` window, `clear_logcat` → act → read, or the capture flow);
+  filter by the right axis (`tags`/`priority`/substring); and "an empty result
+  is only meaningful if you isolated".
+- **`android://guide/getting-started`** — new "RN/Expo dev build? `adb_reverse`
+  8081 first" section covering the silent embedded-bundle fallback.
+- **`android://guide/driving`** — loop-economy note: `compact`/`query` for
+  cheap re-observes, `verify_change` instead of a full re-observe,
+  `wait` for elapsed-time conditions.
+- **`enter_pin` description** — pad visibility is pad-specific: check
+  `describe_ui` first; only canvas-drawn pads need `grid`/`coords`.
+- **`reload_app` description** — states the `adb_reverse` prerequisite so a
+  "successful" reload doesn't land back on the embedded bundle.
+
 ## v0.11.0 — visibility round: occlusion, trustworthy absence, biometrics, self-update
 
 Driven by field-feedback rounds 3–4 (council-hub, 2026-07-17). Theme: the

@@ -27,6 +27,21 @@ tap_on_text {text: "Settings"}           → opens Settings
 screenshot                               → confirm the screen changed
 ```
 
+## Driving an RN/Expo dev build? Do this first
+
+A dev client that cannot reach its Metro dev server **silently falls back to
+the embedded bundle** — the app runs, but none of your code edits are in it,
+and you can burn a whole session "testing" code that was never loaded. Before
+driving a dev build:
+
+```
+adb_reverse {device_port: 8081}     → emulator can reach Metro on the host
+launch_app / reload_app             → pick up the dev-server connection
+```
+
+Suspect this whenever edits appear to have no effect or expected logs are
+absent.
+
 ## Tips
 
 - `screenshot` auto-downscales large screens (default max dimension 760px) so the
