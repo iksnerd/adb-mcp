@@ -61,6 +61,18 @@ absence-of-logs being unverifiable (buffer rotation / embedded bundle).
 - [ ] **Verify `reload_app`/`open_dev_menu` against real Expo dev clients.** Reporter (on an older tool build) found keycode-82 and the RELOAD broadcast both no-ops on an Expo dev build; our v0.8.0 tools use the same mechanisms. Confirm they work on a current dev client, and document which reload path applies where.
 - [x] **Guide: KEYCODE_HOME under automation may cold-start instead of backgrounding.** Backgrounding 18-19s produced the expected lifecycle transition only ~50% of the time; when the app "re-locked" it was actually a cold process start. Now noted in `android://guide/driving`.
 
+## Field feedback, round 5 (biometric-loop + stale-install reports, 2026-07-17 afternoon)
+
+From `android-mcp-papercuts` #019f709b and #019f70d1.
+
+- [x] **`enter_pin` blind-tap guard.** With `grid`/`coords` it tapped straight into a BiometricPrompt (no pad on screen). Now refuses when a biometric window has focus, pointing at `fingerprint_touch` / cancel-to-PIN. (v0.11.2)
+- [x] **Fingerprint id troubleshooting.** `emu finger touch 1` returns OK without authenticating when the enrolled id ≠ 1 (re-enrollments increment it). Tool description + pin-and-lock guide now cover: try ids 2..5, double-touch timing, deterministic re-enrollment. (v0.11.2)
+- [x] **`doctor` reports the server version.** Reporter burned a session concluding v0.11.0 params "regressed" when their install was simply pre-v0.11.0. `doctor` now leads with the serving binary's version + the `adb-mcp update` pointer. (v0.11.2)
+- [ ] **`biometric_auth` that knows the enrolled id.** The robust version of `fingerprint_touch`: discover enrolled finger ids (needs a verified probe — `dumpsys fingerprint`/`biometric` output varies by image) and touch the right one, maybe `success|fail` semantics. Needs a live-emulator verification pass before shipping.
+- [ ] **Force-PIN path.** An `auth_prefer_pin`-style way to reliably reach the PIN pad instead of the biometric prompt. App-controlled in general (the app decides to auto-fire biometrics); may reduce to a documented cancel loop. Investigate before promising a tool.
+- [ ] **Batch tap.** XcodeBuildMCP has a batched same-screen tap; each of ours is a round trip. Low severity; fold into the `run_sequence` decision rather than shipping a one-off.
+- [ ] **Residual `auto`-filter noise.** The identical-bounds rule kills only part of Material's `navigation_bar_item_*` chain (nested wrappers have distinct sub-bounds). Remaining idea from round 3: collapse single-child layout chains to their meaningful leaf. `filter=clickable`/`query`/`compact` are the practical answer today.
+
 ## Conventions (read before adding a tool)
 
 - Every device-facing tool takes an optional `serial`; single-device sessions can omit it.

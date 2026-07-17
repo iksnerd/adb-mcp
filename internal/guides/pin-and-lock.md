@@ -93,6 +93,16 @@ devices cannot inject biometrics. While the prompt is up, the app's own
 hierarchy is occluded — `describe_ui` sees systemui's tree, and a `back`
 key press may be silently consumed (use `verify_change: true`).
 
+**If the prompt doesn't resolve on touch:** the command reports OK even when
+the finger id matches nothing enrolled. Re-enrollments increment the id, so a
+stale AVD may be on 2+ — try `finger_id: 2..5`, send a second touch ~1s after
+the first (some images want two), or re-enroll deterministically at the start
+of the session so you *know* the id. If you instead want the PIN pad, cancel
+the prompt (its negative button is in `describe_ui` by content-desc/text) —
+apps that auto-refire the prompt on every resume may need the cancel repeated
+once after each relaunch. Note `enter_pin` refuses blind `grid`/`coords` taps
+while a biometric prompt has focus (they'd land on the prompt, not a pad).
+
 On emulators specifically: use a **Google Play ("gphone") system image**, not a
 plain AOSP/Google-APIs image — a `generic` build fingerprint trips many SDKs'
 emulator detection, whereas the Play image's `sdk_gphone…` fingerprint passes.

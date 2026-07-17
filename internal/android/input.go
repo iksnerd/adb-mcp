@@ -97,7 +97,16 @@ func PressKey(ctx context.Context, serial string, code int) error {
 // The grid and coords paths exist because custom-drawn pads (React Native /
 // Skia SDK pads) render their keys on a canvas that uiautomator cannot see, so
 // the hierarchy lookup (3) finds nothing. For those, pass grid or coords.
+//
+// Blind-tap guard: grid/coords tap coordinates with no idea what is on screen.
+// If the focused window is a system BiometricPrompt, those taps would land on
+// the prompt — not a PIN pad — so EnterPIN refuses and says how to proceed.
 func EnterPIN(ctx context.Context, serial, digits string, grid *Bounds, coords map[rune]Point) error {
+	if grid != nil || len(coords) > 0 {
+		if top, err := TopWindow(ctx, serial); err == nil && strings.Contains(strings.ToLower(top), "biometric") {
+			return fmt.Errorf("a system biometric prompt has focus (%s) — there is no PIN pad to tap, and blind grid/coords taps would hit the prompt. Satisfy it with fingerprint_touch, or cancel it (tap its negative button via describe_ui/tap_on_text) to fall back to the PIN pad, then retry", top)
+		}
+	}
 	var elems []Element // lazily loaded only if we fall through to the hierarchy
 	for _, d := range digits {
 		if d < '0' || d > '9' {

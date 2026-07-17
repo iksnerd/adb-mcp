@@ -93,7 +93,7 @@ func Register(s *mcp.Server) {
 		"Report whether a secure lock screen is set (KeyguardManager.isDeviceSecure). Use it to verify set_device_lock worked before running a Keystore-gated flow.",
 		isDeviceSecure)
 	add(s, "fingerprint_touch",
-		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). To enroll: Settings > Security > Fingerprint, then call this tool for each required touch during the enrollment wizard. Emulator-only; physical devices cannot inject biometrics.",
+		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). GOTCHA: the command reports OK even when the id matches nothing — if the prompt doesn't resolve, the enrolled id differs (re-enrollments increment it): try finger_id 2..5, send a second touch after ~1s, or re-enroll deterministically at session start (Settings > Security > Fingerprint, calling this tool for each wizard touch). Emulator-only; physical devices cannot inject biometrics.",
 		fingerTouch)
 
 	// --- Logs & capture ---

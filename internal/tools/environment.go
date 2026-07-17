@@ -84,6 +84,11 @@ func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, e
 	return text("Status bar demo mode off for %s (live bar restored).", serial), nil
 }
 
+// ServerVersion is set by main at startup so doctor can report which build is
+// actually serving — the first question when a documented tool or param seems
+// to be missing is "is this install current?", and this answers it in-band.
+var ServerVersion = "unknown"
+
 func doctor(ctx context.Context, _ doctorArgs) (*mcp.CallToolResult, error) {
-	return text("%s", android.Doctor(ctx)), nil
+	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb_mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, android.Doctor(ctx)), nil
 }

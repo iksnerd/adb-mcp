@@ -4,6 +4,23 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.11.2 — biometric-loop fixes + doctor version reporting
+
+Round-5 field feedback (`android-mcp-papercuts` #019f709b / #019f70d1).
+
+- **`enter_pin` blind-tap guard** — with `grid`/`coords` it happily tapped
+  into a focused BiometricPrompt (no pad on screen). It now refuses when a
+  biometric window has focus and says how to proceed (`fingerprint_touch`, or
+  cancel to fall back to the PIN pad).
+- **`doctor` leads with the serving binary's version** + an `adb-mcp update`
+  pointer — a reporter concluded shipped params had "regressed" when their
+  install was simply stale; now one call answers "is this install current?".
+- **Fingerprint id troubleshooting** — `emu finger touch` reports OK even for
+  an id that matches nothing enrolled. The `fingerprint_touch` description and
+  `android://guide/pin-and-lock` now cover: re-enrollments increment the id
+  (try 2..5), double-touch timing, and deterministic re-enrollment at session
+  start.
+
 ## v0.11.1 — guides & descriptions caught up with v0.10–v0.11 reality
 
 Doc-drift audit after the v0.11.0 visibility round; no behavior changes.
