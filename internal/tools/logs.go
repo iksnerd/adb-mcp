@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -41,11 +41,11 @@ type stopRecordArgs struct {
 // ---- Handlers ----
 
 func logcat(ctx context.Context, in logcatArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.Logcat(ctx, serial, in.Lines, in.Since, android.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
+	out, err := c.Logcat(ctx, in.Lines, in.Since, adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
 	if err != nil {
 		return nil, err
 	}
@@ -56,33 +56,33 @@ func logcat(ctx context.Context, in logcatArgs) (*mcp.CallToolResult, error) {
 }
 
 func clearLogcat(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.ClearLogcat(ctx, serial); err != nil {
+	if err := c.ClearLogcat(ctx); err != nil {
 		return nil, err
 	}
-	return text("Logcat buffer cleared for %s — the next logcat read contains only lines logged from now on.", serial), nil
+	return text("Logcat buffer cleared for %s — the next logcat read contains only lines logged from now on.", c.Serial), nil
 }
 
 func startLogcatCapture(ctx context.Context, in startLogcatArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.StartLogcatCapture(ctx, serial, boolOr(in.Clear, true)); err != nil {
+	if err := c.StartLogcatCapture(ctx, boolOr(in.Clear, true)); err != nil {
 		return nil, err
 	}
-	return text("Logcat capture started for %s. Drive your flow, then stop_logcat_capture.", serial), nil
+	return text("Logcat capture started for %s. Drive your flow, then stop_logcat_capture.", c.Serial), nil
 }
 
 func stopLogcatCapture(ctx context.Context, in stopLogcatArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.StopLogcatCapture(serial, android.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
+	out, err := c.StopLogcatCapture(adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
 	if err != nil {
 		return nil, err
 	}
@@ -97,22 +97,22 @@ func stopLogcatCapture(ctx context.Context, in stopLogcatArgs) (*mcp.CallToolRes
 }
 
 func startScreenRecord(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.StartScreenRecord(ctx, serial); err != nil {
+	if err := c.StartScreenRecord(ctx); err != nil {
 		return nil, err
 	}
-	return text("Recording %s (max ~180s). Drive your flow, then stop_screen_record.", serial), nil
+	return text("Recording %s (max ~180s). Drive your flow, then stop_screen_record.", c.Serial), nil
 }
 
 func stopScreenRecord(ctx context.Context, in stopRecordArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	path, err := android.StopScreenRecord(ctx, serial, in.LocalPath)
+	path, err := c.StopScreenRecord(ctx, in.LocalPath)
 	if err != nil {
 		return nil, err
 	}

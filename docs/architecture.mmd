@@ -1,77 +1,42 @@
-%% adb_mcp — two-layer mirror architecture.
-%% Each internal/tools adapter (right) maps to an internal/android
-%% execution file (left) of the matching domain. Render with any
-%% Mermaid tool (e.g. https://mermaid.live) or a Markdown viewer.
-flowchart LR
-    client["MCP client<br/>(agent)"]
+%% adb_mcp — package architecture (dependencies point inward only).
+%% tools (MCP adapters) → adb.Client / gradle / uiauto → sdk.
+%% Render with any Mermaid tool (e.g. https://mermaid.live) or a Markdown viewer.
+flowchart TB
+    client["MCP client (agent)"]
 
-    subgraph entry["main.go"]
-        server["build server<br/>Register(tools) + resources<br/>Run(stdio)"]
+    subgraph entry["cmd/adb-mcp/main.go"]
+        server["build server · Register(tools) + resources · Run(stdio)"]
     end
 
     subgraph tools["internal/tools — MCP adapters (thin)"]
-        direction TB
         register["register.go<br/><i>tool catalog: add(name, desc, handler)</i>"]
-        t_emulator["emulator.go"]
-        t_observe["observe.go"]
-        t_interact["interact.go"]
-        t_lock["lock.go"]
-        t_logs["logs.go"]
-        t_apps["apps.go"]
-        t_env["environment.go"]
-        t_gradle["gradle.go"]
-        t_helpers["helpers.go<br/><i>serialArg, text, jsonResult, resolve, boolOr</i>"]
+        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle"]
+        t_helpers["helpers.go<br/><i>resolve → *adb.Client, text, jsonResult, boolOr</i>"]
     end
 
-    subgraph android["internal/android — pure execution (no MCP, unit-tested)"]
-        direction TB
-        a_adb["adb.go<br/><i>runAdb / runAdbBytes</i>"]
-        a_devices["devices.go"]
-        a_emulator["emulator.go"]
-        a_screen["screen.go + image.go"]
-        a_ui["ui.go + uiauto.go"]
-        a_input["input.go + keyevent.go"]
-        a_lock["lock.go"]
-        a_logs["logcat.go + capture.go"]
-        a_packages["packages.go"]
-        a_perms["permissions.go"]
-        a_files["files.go"]
-        a_env["environment.go + doctor.go"]
-        a_gradle["gradle.go"]
-        a_sdk["sdk.go<br/><i>SDK paths, commandEnv</i>"]
+    subgraph adb["internal/adb — device layer (adb.Client)"]
+        client_t["adb.go<br/><i>Client{Serial, run Runner} · New · c.adb/c.adbBytes</i>"]
+        a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
+    uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
+    sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
+    register --> t_files
+    t_files --> t_helpers
 
-    %% domain mirror: each adapter -> its execution file(s)
-    t_emulator --> a_devices
-    t_emulator --> a_emulator
-    t_observe --> a_screen
-    t_observe --> a_ui
-    t_interact --> a_input
-    t_lock --> a_lock
-    t_logs --> a_logs
-    t_apps --> a_packages
-    t_apps --> a_perms
-    t_apps --> a_files
-    t_env --> a_env
-    t_gradle --> a_gradle
+    %% adapters call the device client / build / parse layers
+    t_helpers --> client_t
+    t_files --> gradle
+    t_files --> uiauto
 
-    %% shared foundations
-    a_devices -. uses .-> a_adb
-    a_emulator -. uses .-> a_adb
-    a_screen -. uses .-> a_adb
-    a_ui -. uses .-> a_adb
-    a_input -. uses .-> a_adb
-    a_lock -. uses .-> a_adb
-    a_logs -. uses .-> a_adb
-    a_packages -. uses .-> a_adb
-    a_perms -. uses .-> a_adb
-    a_files -. uses .-> a_adb
-    a_env -. uses .-> a_adb
-    a_adb -. paths/env .-> a_sdk
-    a_gradle -. paths/env .-> a_sdk
+    %% device commands are Client methods; they parse via uiauto and shell out via sdk
+    a_cmds -. "c.adb(...)" .-> client_t
+    a_cmds --> uiauto
+    client_t --> sdk
+    gradle --> sdk

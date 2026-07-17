@@ -49,7 +49,7 @@ jobs:
             [ "$os" = windows ] && out=adb-mcp.exe
             echo "building $os/$arch"
             GOOS=$os GOARCH=$arch CGO_ENABLED=0 \
-              go build -trimpath -ldflags "-s -w -X main.version=${VERSION#v}" -o "$out" .
+              go build -trimpath -ldflags "-s -w -X main.version=${VERSION#v}" -o "$out" ./cmd/adb-mcp
             base="adb-mcp_${VERSION}_${os}_${arch}"
             if [ "$os" = windows ]; then
               zip -q "dist/${base}.zip" "$out"

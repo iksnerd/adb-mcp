@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- Models Material's navigation_bar_item_* pattern: deep chains of
+     id-carrying, non-clickable containers, several with bounds identical to
+     their parent's. -->
+<hierarchy rotation="0">
+  <node text="" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node text="" resource-id="app:id/navigation_bar_item_content_container" clickable="false" bounds="[221,2182][416,2361]">
+      <node text="" resource-id="app:id/navigation_bar_item_icon_container" clickable="false" bounds="[234,2182][402,2266]">
+        <node text="" resource-id="app:id/navigation_bar_item_active_indicator_view" clickable="false" bounds="[234,2182][402,2266]"/>
+        <node text="" resource-id="app:id/navigation_bar_item_icon_view" clickable="false" bounds="[286,2192][349,2255]"/>
+      </node>
+      <node text="Settings" resource-id="app:id/navigation_bar_item_large_label_view" clickable="false" bounds="[221,2277][416,2361]"/>
+    </node>
+    <node text="" resource-id="app:id/tab_settings" clickable="true" bounds="[221,2182][416,2361]"/>
+  </node>
+</hierarchy>

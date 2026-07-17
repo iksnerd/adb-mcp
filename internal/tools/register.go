@@ -1,10 +1,11 @@
-// Package tools binds the pure android execution layer to MCP tools. Each
-// handler is a thin adapter: resolve the target device, call internal/android,
-// and format the result. Keeping it thin means the real logic stays testable in
-// internal/android without any MCP dependency.
+// Package tools binds the execution layers to MCP tools. Each handler is a thin
+// adapter: resolve the target device into an *adb.Client, call one client
+// method (or a gradle/uiauto function), and format the result. Keeping it thin
+// means the real logic stays testable in internal/adb, internal/gradle, and
+// internal/uiauto without any MCP dependency.
 //
 // This file is the tool CATALOG. Handlers and their argument types live in
-// domain files that mirror internal/android: emulator.go, observe.go,
+// domain files that mirror the execution packages: emulator.go, observe.go,
 // interact.go, lock.go, logs.go, apps.go, environment.go, gradle.go. Shared
 // adapter helpers live in helpers.go.
 package tools
@@ -54,6 +55,9 @@ func Register(s *mcp.Server) {
 	add(s, "tap_on_text",
 		"Find an element by its visible text or content-description and tap its center — the one-shot way to press a labelled button/row without computing coordinates yourself. Runs describe_ui internally and prefers a clickable match. Use exact match (partial=false) to avoid hitting the wrong item when labels overlap.",
 		tapOnText)
+	add(s, "tap_element",
+		"Find an element by resource_id and tap its center — the id-addressed sibling of tap_on_text, for elements with no visible label. Runs describe_ui internally (filter=all, so even unlabeled wrapper nodes are findable) and re-resolves the element right before tapping, narrowing the window where a stale coordinate lands on an overlay (e.g. an Expo dev-menu bubble) the a11y tree never reported. Use exact match (partial=false) to avoid hitting the wrong item when ids overlap; verify_change reports whether the tap had any visible effect.",
+		tapElement)
 	add(s, "swipe",
 		"Swipe/drag from a start point to an end point. Params: x1,y1 (start) and x2,y2 (end) in true device pixels — x and y are accepted aliases for x1 and y1. To SCROLL DOWN a list, swipe from a HIGH y to a LOW y (drag the content up); reverse to scroll up. A longer duration_ms gives a slower, controlled drag; a short one flings.",
 		swipe)
@@ -189,6 +193,9 @@ func Register(s *mcp.Server) {
 	add(s, "gradle_build",
 		"Build the app with Gradle (default task assembleDebug) in project_dir, and report the produced APK path(s). project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device.",
 		gradleBuild)
+	add(s, "build_and_run",
+		"One-shot build → install → launch: runs Gradle (default task assembleDebug) in project_dir, installs the resulting APK on the device, and launches package. Equivalent to gradle_build + install_app + launch_app but in a single call. If several APKs exist under build/outputs (multi-flavor projects, leftover androidTest APKs), the newest non-test one is installed — the artifact the build just produced.",
+		buildAndRun)
 	add(s, "run_unit_tests",
 		"Run Gradle JVM unit tests (default task 'test') in project_dir and return the result summary, including per-suite timing and failing-test stack traces. Pass json=true for a structured JSON summary instead of the text form.",
 		runUnitTests)

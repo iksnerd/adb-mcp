@@ -12,7 +12,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 build: ## Compile the server binary into ./bin
 	@mkdir -p bin
-	go build $(LDFLAGS) -o bin/$(BINARY) .
+	go build $(LDFLAGS) -o bin/$(BINARY) ./cmd/adb-mcp
 
 install: build ## Build and install to $(INSTALL_DIR), re-signing so macOS doesn't SIGKILL it
 	@mkdir -p $(INSTALL_DIR)

@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/uiauto"
 )
 
 func TestParseCoords(t *testing.T) {
@@ -11,7 +11,7 @@ func TestParseCoords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseCoords: %v", err)
 	}
-	want := map[rune]android.Point{
+	want := map[rune]uiauto.Point{
 		'1': {X: 540, Y: 1600},
 		'2': {X: 640, Y: 1600},
 		'3': {X: 740, Y: 1600},

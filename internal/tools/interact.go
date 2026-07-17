@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
+	"github.com/iksnerd/adb_mcp/internal/uiauto"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -23,8 +24,16 @@ type tapArgs struct {
 
 type tapTextArgs struct {
 	serialArg
-	Text    string `json:"text" jsonschema:"Text or content-description to find."`
-	Partial *bool  `json:"partial,omitempty" jsonschema:"Substring match instead of exact. Default true."`
+	Text         string `json:"text" jsonschema:"Text or content-description to find."`
+	Partial      *bool  `json:"partial,omitempty" jsonschema:"Substring match instead of exact. Default true."`
+	VerifyChange *bool  `json:"verify_change,omitempty" jsonschema:"Also report whether the UI hierarchy changed after the tap (ui_changed: true/false). Costs two extra hierarchy reads (~2-3s); use when a tap silently doing nothing would send you down the wrong path."`
+}
+
+type tapElementArgs struct {
+	serialArg
+	ResourceID   string `json:"resource_id" jsonschema:"Resource id to find and tap, e.g. \"com.example.app:id/submit_button\" or just \"submit_button\" (matches by substring by default)."`
+	Partial      *bool  `json:"partial,omitempty" jsonschema:"Substring match instead of exact. Default true."`
+	VerifyChange *bool  `json:"verify_change,omitempty" jsonschema:"Also report whether the UI hierarchy changed after the tap (ui_changed: true/false). Costs two extra hierarchy reads (~2-3s); use when a tap silently doing nothing would send you down the wrong path."`
 }
 
 type swipeArgs struct {
@@ -88,12 +97,12 @@ type gridArg struct {
 // ---- Handlers ----
 
 func tap(ctx context.Context, in tapArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	verdict, err := withChangeCheck(ctx, serial, boolOr(in.VerifyChange, false), func() error {
-		return android.Tap(ctx, serial, in.X, in.Y)
+	verdict, err := withChangeCheck(ctx, c, boolOr(in.VerifyChange, false), func() error {
+		return c.Tap(ctx, in.X, in.Y)
 	})
 	if err != nil {
 		return nil, err
@@ -101,34 +110,75 @@ func tap(ctx context.Context, in tapArgs) (*mcp.CallToolResult, error) {
 	return text("Tapped (%d,%d).%s", in.X, in.Y, verdict), nil
 }
 
-func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+// findAndTap is the shared engine of tap_on_text and tap_element: snapshot the
+// UI with filter, locate the target via find, tap its center (optionally with
+// the change check), and return the matched element plus the check's verdict.
+// noun names the search key in error messages ("" for text, "with resource_id "
+// for ids).
+func findAndTap(ctx context.Context, c *adb.Client, query, noun string, filter uiauto.UIFilter, verify bool, find func([]uiauto.Element) (uiauto.Element, bool)) (uiauto.Element, string, error) {
+	snap, err := c.DescribeUI(ctx, filter)
 	if err != nil {
-		return nil, err
+		return uiauto.Element{}, "", err
 	}
-	snap, err := android.DescribeUI(ctx, serial, android.FilterAuto)
-	if err != nil {
-		return nil, err
-	}
-	e, ok := android.FindByText(snap.Elements, in.Text, boolOr(in.Partial, true))
+	e, ok := find(snap.Elements)
 	if !ok {
 		if snap.TopWindow != "" {
-			return nil, fmt.Errorf("no element matching %q found on screen (focused window: %s — if that is a system overlay, the app's UI is occluded)", in.Text, snap.TopWindow)
+			return uiauto.Element{}, "", fmt.Errorf("no element %smatching %q found on screen (focused window: %s — if that is a system overlay, the app's UI is occluded)", noun, query, snap.TopWindow)
 		}
-		return nil, fmt.Errorf("no element matching %q found on screen", in.Text)
+		return uiauto.Element{}, "", fmt.Errorf("no element %smatching %q found on screen", noun, query)
 	}
-	if err := android.Tap(ctx, serial, e.Center.X, e.Center.Y); err != nil {
+	verdict, err := withChangeCheck(ctx, c, verify, func() error {
+		return c.Tap(ctx, e.Center.X, e.Center.Y)
+	})
+	if err != nil {
+		return uiauto.Element{}, "", err
+	}
+	return e, verdict, nil
+}
+
+func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(in.Text) == "" {
+		return nil, fmt.Errorf("text is required")
+	}
+	e, verdict, err := findAndTap(ctx, c, in.Text, "", uiauto.FilterAuto, boolOr(in.VerifyChange, false), func(elems []uiauto.Element) (uiauto.Element, bool) {
+		return uiauto.FindByText(elems, in.Text, boolOr(in.Partial, true))
+	})
+	if err != nil {
 		return nil, err
 	}
 	label := e.Text
 	if label == "" {
 		label = e.Desc
 	}
-	return text("Tapped %q at (%d,%d).", label, e.Center.X, e.Center.Y), nil
+	return text("Tapped %q at (%d,%d).%s", label, e.Center.X, e.Center.Y, verdict), nil
+}
+
+func tapElement(ctx context.Context, in tapElementArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(in.ResourceID) == "" {
+		return nil, fmt.Errorf("resource_id is required")
+	}
+	// FilterAll, not FilterAuto: the auto filter prunes non-clickable wrapper
+	// nodes with parent-equal bounds even when they carry a resource id —
+	// exactly the unlabeled elements this tool exists to address.
+	e, verdict, err := findAndTap(ctx, c, in.ResourceID, "with resource_id ", uiauto.FilterAll, boolOr(in.VerifyChange, false), func(elems []uiauto.Element) (uiauto.Element, bool) {
+		return uiauto.FindByResourceID(elems, in.ResourceID, boolOr(in.Partial, true))
+	})
+	if err != nil {
+		return nil, err
+	}
+	return text("Tapped %q at (%d,%d).%s", e.ResourceID, e.Center.X, e.Center.Y, verdict), nil
 }
 
 func swipe(ctx context.Context, in swipeArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
@@ -137,32 +187,32 @@ func swipe(ctx context.Context, in swipeArgs) (*mcp.CallToolResult, error) {
 	if x1 == nil || y1 == nil {
 		return nil, fmt.Errorf("swipe needs a start point — provide x1, y1 (x and y are accepted aliases for x1 and y1)")
 	}
-	if err := android.Swipe(ctx, serial, *x1, *y1, in.X2, in.Y2, in.DurationMS); err != nil {
+	if err := c.Swipe(ctx, *x1, *y1, in.X2, in.Y2, in.DurationMS); err != nil {
 		return nil, err
 	}
 	return text("Swiped (%d,%d)->(%d,%d).", *x1, *y1, in.X2, in.Y2), nil
 }
 
 func drag(ctx context.Context, in dragArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.Drag(ctx, serial, in.X1, in.Y1, in.X2, in.Y2, in.DurationMS); err != nil {
+	if err := c.Drag(ctx, in.X1, in.Y1, in.X2, in.Y2, in.DurationMS); err != nil {
 		return nil, err
 	}
 	return text("Dragged (%d,%d)->(%d,%d).", in.X1, in.Y1, in.X2, in.Y2), nil
 }
 
 func inputKeyCombo(ctx context.Context, in keyComboArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
 	var codes []int
 	var label string
 	if in.Preset != "" {
-		codes, err = android.ResolveCombo(in.Preset)
+		codes, err = adb.ResolveCombo(in.Preset)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +223,7 @@ func inputKeyCombo(ctx context.Context, in keyComboArgs) (*mcp.CallToolResult, e
 		}
 		codes = make([]int, 0, len(in.Keys))
 		for _, k := range in.Keys {
-			code, err := android.ResolveKey(k)
+			code, err := adb.ResolveKey(k)
 			if err != nil {
 				return nil, err
 			}
@@ -181,34 +231,34 @@ func inputKeyCombo(ctx context.Context, in keyComboArgs) (*mcp.CallToolResult, e
 		}
 		label = strings.Join(in.Keys, "+")
 	}
-	if err := android.KeyCombo(ctx, serial, codes); err != nil {
+	if err := c.KeyCombo(ctx, codes); err != nil {
 		return nil, err
 	}
 	return text("Pressed %s together.", label), nil
 }
 
 func inputText(ctx context.Context, in inputTextArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.InputText(ctx, serial, in.Text); err != nil {
+	if err := c.InputText(ctx, in.Text); err != nil {
 		return nil, err
 	}
 	return text("Typed %q. (If a button below is now hidden by the keyboard, press_key escape or back first.)", in.Text), nil
 }
 
 func pressKey(ctx context.Context, in pressKeyArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	code, err := android.ResolveKey(in.Key)
+	code, err := adb.ResolveKey(in.Key)
 	if err != nil {
 		return nil, err
 	}
-	verdict, err := withChangeCheck(ctx, serial, boolOr(in.VerifyChange, false), func() error {
-		return android.PressKey(ctx, serial, code)
+	verdict, err := withChangeCheck(ctx, c, boolOr(in.VerifyChange, false), func() error {
+		return c.PressKey(ctx, code)
 	})
 	if err != nil {
 		return nil, err
@@ -241,16 +291,16 @@ func wait(ctx context.Context, in waitArgs) (*mcp.CallToolResult, error) {
 // had any visible effect — a success-shaped reply for a swallowed event (e.g.
 // back while a BiometricPrompt is up) is indistinguishable from a real one
 // otherwise. The verdict string is empty when verify is off.
-func withChangeCheck(ctx context.Context, serial string, verify bool, act func() error) (string, error) {
+func withChangeCheck(ctx context.Context, c *adb.Client, verify bool, act func() error) (string, error) {
 	if !verify {
 		return "", act()
 	}
-	before, beforeErr := android.UISignature(ctx, serial)
+	before, beforeErr := c.UISignature(ctx)
 	if err := act(); err != nil {
 		return "", err
 	}
 	time.Sleep(600 * time.Millisecond)
-	after, afterErr := android.UISignature(ctx, serial)
+	after, afterErr := c.UISignature(ctx)
 	switch {
 	case beforeErr != nil || afterErr != nil:
 		return " ui_changed: unknown (hierarchy read failed).", nil
@@ -262,42 +312,42 @@ func withChangeCheck(ctx context.Context, serial string, verify bool, act func()
 }
 
 func longPress(ctx context.Context, in longPressArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.LongPress(ctx, serial, in.X, in.Y, in.DurationMS); err != nil {
+	if err := c.LongPress(ctx, in.X, in.Y, in.DurationMS); err != nil {
 		return nil, err
 	}
 	return text("Long-pressed (%d,%d).", in.X, in.Y), nil
 }
 
 func enterPIN(ctx context.Context, in enterPINArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	var grid *android.Bounds
+	var grid *uiauto.Bounds
 	if in.Grid != nil {
-		grid = &android.Bounds{X1: in.Grid.X1, Y1: in.Grid.Y1, X2: in.Grid.X2, Y2: in.Grid.Y2}
+		grid = &uiauto.Bounds{X1: in.Grid.X1, Y1: in.Grid.Y1, X2: in.Grid.X2, Y2: in.Grid.Y2}
 	}
 	coords, err := parseCoords(in.Coords)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.EnterPIN(ctx, serial, in.Digits, grid, coords); err != nil {
+	if err := c.EnterPIN(ctx, in.Digits, grid, coords); err != nil {
 		return nil, err
 	}
 	return text("Entered %d digit(s).", len(in.Digits)), nil
 }
 
 // parseCoords turns "1:540,1600;2:640,1600" into a digit→point map.
-func parseCoords(s string) (map[rune]android.Point, error) {
+func parseCoords(s string) (map[rune]uiauto.Point, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil, nil
 	}
-	m := make(map[rune]android.Point)
+	m := make(map[rune]uiauto.Point)
 	for _, pair := range strings.Split(s, ";") {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -320,7 +370,7 @@ func parseCoords(s string) (map[rune]android.Point, error) {
 		if err1 != nil || err2 != nil {
 			return nil, fmt.Errorf("non-integer coordinate in %q", pair)
 		}
-		m[rune(digit[0])] = android.Point{X: x, Y: y}
+		m[rune(digit[0])] = uiauto.Point{X: x, Y: y}
 	}
 	return m, nil
 }

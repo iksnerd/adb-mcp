@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -29,9 +29,15 @@ func jsonResult(v any) (*mcp.CallToolResult, error) {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil
 }
 
-// resolve wraps android.ResolveSerial for the common serial-defaulting pattern.
-func resolve(ctx context.Context, serial string) (string, error) {
-	return android.ResolveSerial(ctx, serial)
+// resolve turns an optional serial argument into a ready adb Client: it applies
+// the single-device default (adb.ResolveSerial) and returns a client bound
+// to that device. Handlers read c.Serial for messages and call c.Method(...).
+func resolve(ctx context.Context, serial string) (*adb.Client, error) {
+	s, err := adb.ResolveSerial(ctx, serial)
+	if err != nil {
+		return nil, err
+	}
+	return adb.New(s), nil
 }
 
 // boolOr returns *p, or def when p is nil (for optional bool arguments).

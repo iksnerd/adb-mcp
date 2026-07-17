@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -37,7 +37,7 @@ type connectWirelessArgs struct {
 // ---- Handlers ----
 
 func listAVDs(ctx context.Context, _ listAVDsArgs) (*mcp.CallToolResult, error) {
-	avds, err := android.ListAVDs(ctx)
+	avds, err := adb.ListAVDs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func bootEmulator(ctx context.Context, in bootArgs) (*mcp.CallToolResult, error)
 	if in.TimeoutS > 0 {
 		timeout = time.Duration(in.TimeoutS) * time.Second
 	}
-	serial, err := android.BootEmulator(ctx, in.AVD, boolOr(in.NoSnapshot, true), boolOr(in.WaitForBoot, true), boolOr(in.WipeData, false), timeout)
+	serial, err := adb.BootEmulator(ctx, in.AVD, boolOr(in.NoSnapshot, true), boolOr(in.WaitForBoot, true), boolOr(in.WipeData, false), timeout)
 	if err != nil {
 		if serial != "" {
 			return nil, fmt.Errorf("emulator %s came up as %s but %w", in.AVD, serial, err)
@@ -66,7 +66,7 @@ func bootEmulator(ctx context.Context, in bootArgs) (*mcp.CallToolResult, error)
 }
 
 func listDevices(ctx context.Context, _ serialArg) (*mcp.CallToolResult, error) {
-	devices, err := android.ListDevices(ctx)
+	devices, err := adb.ListDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,26 +77,26 @@ func listDevices(ctx context.Context, _ serialArg) (*mcp.CallToolResult, error) 
 }
 
 func waitForBoot(ctx context.Context, in waitBootArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
 	timeout := time.Duration(in.TimeoutS) * time.Second
-	if err := android.WaitForBoot(ctx, serial, timeout); err != nil {
+	if err := c.WaitForBoot(ctx, timeout); err != nil {
 		return nil, err
 	}
-	return text("%s is booted.", serial), nil
+	return text("%s is booted.", c.Serial), nil
 }
 
 func shutdownEmulator(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.Shutdown(ctx, serial); err != nil {
+	if err := c.Shutdown(ctx); err != nil {
 		return nil, err
 	}
-	return text("Shutdown requested for %s.", serial), nil
+	return text("Shutdown requested for %s.", c.Serial), nil
 }
 
 type fingerTouchArgs struct {
@@ -105,11 +105,11 @@ type fingerTouchArgs struct {
 }
 
 func fingerTouch(ctx context.Context, in fingerTouchArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.FingerTouch(ctx, serial, in.FingerID); err != nil {
+	if err := c.FingerTouch(ctx, in.FingerID); err != nil {
 		return nil, err
 	}
 	id := in.FingerID
@@ -120,7 +120,7 @@ func fingerTouch(ctx context.Context, in fingerTouchArgs) (*mcp.CallToolResult, 
 }
 
 func connectWireless(ctx context.Context, in connectWirelessArgs) (*mcp.CallToolResult, error) {
-	out, err := android.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
+	out, err := adb.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, out)
 	}
@@ -135,20 +135,20 @@ type adbReverseArgs struct {
 }
 
 func adbReverse(ctx context.Context, in adbReverseArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
 	remove := boolOr(in.Remove, false)
-	if err := android.Reverse(ctx, serial, in.DevicePort, in.HostPort, remove); err != nil {
+	if err := c.Reverse(ctx, in.DevicePort, in.HostPort, remove); err != nil {
 		return nil, err
 	}
 	if remove {
-		return text("Removed reverse forward for tcp:%d on %s.", in.DevicePort, serial), nil
+		return text("Removed reverse forward for tcp:%d on %s.", in.DevicePort, c.Serial), nil
 	}
 	host := in.HostPort
 	if host <= 0 {
 		host = in.DevicePort
 	}
-	return text("Device port tcp:%d now reaches host tcp:%d on %s. An already-running app may need a restart (or reload_app) to pick up the connection.", in.DevicePort, host, serial), nil
+	return text("Device port tcp:%d now reaches host tcp:%d on %s. An already-running app may need a restart (or reload_app) to pick up the connection.", in.DevicePort, host, c.Serial), nil
 }

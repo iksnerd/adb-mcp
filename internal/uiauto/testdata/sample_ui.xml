@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" text="" content-desc="Continue" class="android.view.ViewGroup" clickable="true" bounds="[100,2000][980,2120]">
+      <node index="0" text="Continue" class="android.widget.TextView" clickable="false" bounds="[400,2040][680,2080]"/>
+    </node>
+    <node index="1" text="Enter your PIN" class="android.widget.TextView" clickable="false" bounds="[300,400][780,460]"/>
+    <node index="2" text="" content-desc="" class="android.widget.LinearLayout" clickable="false" bounds="[0,500][1080,600]"/>
+    <node index="3" resource-id="com.example:id/field" text="" class="android.widget.EditText" focused="true" clickable="true" bounds="[100,700][980,780]"/>
+  </node>
+</hierarchy>

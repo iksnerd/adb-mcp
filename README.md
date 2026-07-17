@@ -121,23 +121,25 @@ confirm everything is wired up.
 ```bash
 make install                 # builds ./bin/adb-mcp and copies it to ~/.local/bin
 # or:
-go build -o bin/adb-mcp .
+go build -o bin/adb-mcp ./cmd/adb-mcp
+# or straight from the module (note the /cmd/adb-mcp suffix):
+go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 ```
 
 ## Tools
 
-53 tools across eight areas. Every device-facing tool takes an optional
+55 tools across eight areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
 - **Emulator / device** — boot, list, wait-for-boot, shut down, connect over Wi-Fi, `adb_reverse` port forwarding (Metro!)
 - **Observe** — `screenshot` to see, `describe_ui` for true-pixel element centers — with the focused **top window** (spot a biometric prompt occluding your app), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
-- **Interact** — tap, swipe, drag, long-press, type, key combos, PIN pads, `wait`; opt-in `verify_change` tells you whether a tap/key actually changed the UI
+- **Interact** — tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`; opt-in `verify_change` tells you whether a tap/key actually changed the UI
 - **Lock / Keystore / Biometrics** — set/clear a secure lock screen, check lock state, `fingerprint_touch` to satisfy a BiometricPrompt on the emulator
 - **App lifecycle** — install/uninstall, launch/stop, `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
 - **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics** — dark mode, mock location, clean status bar, `doctor`
-- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task discovery
+- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task discovery, one-shot `build_and_run`
 
 The driving know-how itself ships as four MCP **resources** (`android://guide/*`)
 the client can list and read — see [docs/TOOLS.md](docs/TOOLS.md) for the URIs,
@@ -160,16 +162,20 @@ make run       # run over stdio for manual JSON-RPC poking
 Layout:
 
 ```
-main.go                    entry: subcommands (update/version) or serve MCP over stdio
-internal/android/          pure adb/emulator execution + uiautomator parsing (unit-tested)
+cmd/adb-mcp/main.go        entry: subcommands (update/version) or serve MCP over stdio
 internal/tools/            thin MCP tool bindings
+internal/adb/              the device layer: an adb.Client whose methods are the commands
+internal/gradle/           host-side Gradle: build, find APKs, parse test reports
+internal/uiauto/           pure uiautomator-hierarchy model + parsing (unit-tested)
+internal/sdk/              resolves the Android SDK (adb/emulator paths, PATH env)
 internal/guides/           the skill guides, embedded and served as MCP resources
 internal/selfupdate/       the `adb-mcp update` release fetch/verify/swap
 ```
 
-The two layers follow a **mirror convention** — each `internal/tools/<domain>.go`
-adapter maps to an `internal/android/<domain>.go` execution file of the same
-name. Full map and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.md).
+Dependencies point inward only (`tools → adb, gradle, uiauto → sdk`), and each
+`internal/tools/<domain>.go` adapter **mirrors** an execution file of the same
+name (device commands are `adb.Client` methods). Full map, the package graph,
+and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
 

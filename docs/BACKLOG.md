@@ -8,7 +8,7 @@ Core driving/build/test/automate is at parity (and ahead on screen recording,
 device-lock/Keystore, custom PIN pads, `tap_on_text`/`wait_for_text`,
 `set_status_bar`). These are the remaining gaps vs XcodeBuildMCP:
 
-- [ ] **`build_and_run`** — one-shot `gradle_build` → `install_app` → `launch_app` (optionally on a chosen variant). Currently composable from three calls; XcodeBuildMCP exposes it as a single tool. Highest value / lowest lift.
+- [x] **`build_and_run`** — one-shot `gradle_build` → `install_app` → `launch_app`. Shipped: installs the first APK the build produces; pass a variant-specific `task` to disambiguate multi-flavor projects.
 - [ ] **Deeper project discovery** — no analogue of "list schemes / dump build settings". Add `list_gradle_variants` (parse `./gradlew tasks`/`app:properties` or the `assemble*` task list) and a module/build-info dump, complementing `list_gradle_tasks` + `get_app_details`.
 - [ ] **Project scaffolding** — no "create a new Android project from a template" tool (XcodeBuildMCP has `scaffold`). Biggest lift; would need a bundled template + Gradle wrapper generation.
 - [x] **Embedded runtime-crash telemetry (`last_crash`)** — shipped v0.10.0. `last_crash` pulls `dumpsys dropbox --print` (data_app_crash + native) so the whole fatal comes back in one call. A live streaming variant (vs. on-demand pull) is still open if it proves useful.
@@ -56,7 +56,7 @@ absence-of-logs being unverifiable (buffer rotation / embedded bundle).
 - [x] **`describe_ui` query + compact mode.** Payload is ~10x the information needed for geometry work (~2k tokens for a 20-element screen vs a ~150-token `text | bounds` table). Add `query` (substring on text/content_desc/resource_id — answers "is X on screen?" cheaply, incl. with filter=all for trustworthy absence) and `compact: true` (one line per element).
 - [x] **`adb_reverse` / port forwarding.** Nothing in the server touches emulator↔host networking; a dev client that can't reach Metro silently falls back to its embedded bundle — reporter burned most of a session testing code that was never running. Workaround was one command: `adb reverse tcp:8081 tcp:8081`.
 - [ ] **App/bundle state probe (the most expensive gap).** No way to tell a Metro-connected process from one running its embedded bundle, or to see that presses and log-reads were hitting *different* processes. Proposal: extend `doctor`/`get_app_details` with per-app runtime state — pid, process uptime, install time, bundle source (Metro URL vs embedded), HMR connected. Heuristics: `HMRClient`/`DevSupport` presence in logs, `dumpsys package` lastUpdateTime.
-- [ ] **`tap_element(resource_id)`.** A center-coordinate tap can land on an overlay (Expo dev-menu bubble) the a11y tree never reported. Re-resolving the element at tap time — and surfacing overlay windows — narrows the window for that class of miss. (`tap_on_text` covers labelled elements today; this is the id-addressed sibling.)
+- [x] **`tap_element(resource_id)`.** Shipped: mirrors `tap_on_text` but matches by resource_id (substring by default, `partial=false` for exact), re-resolving the element right before tapping to narrow the window where a stale coordinate lands on an overlay.
 - [ ] **DECISION NEEDED — `run_sequence` batching.** `home → sleep 19 → launch → sleep 9 → if-present(cancel) → dump`: 6+ round trips today, and for native-timer flows (background token clears, biometric auto-fire on RESUME) the round trips *change the timing being tested*. Even a minimal steps+sleeps version (no branching) would move those flows back onto the server. Related to (but smaller than) the Maestro question above — decide together.
 - [ ] **Verify `reload_app`/`open_dev_menu` against real Expo dev clients.** Reporter (on an older tool build) found keycode-82 and the RELOAD broadcast both no-ops on an Expo dev build; our v0.8.0 tools use the same mechanisms. Confirm they work on a current dev client, and document which reload path applies where.
 - [x] **Guide: KEYCODE_HOME under automation may cold-start instead of backgrounding.** Backgrounding 18-19s produced the expected lifecycle transition only ~50% of the time; when the app "re-locked" it was actually a cold process start. Now noted in `android://guide/driving`.
@@ -76,6 +76,6 @@ From `android-mcp-papercuts` #019f709b and #019f70d1.
 ## Conventions (read before adding a tool)
 
 - Every device-facing tool takes an optional `serial`; single-device sessions can omit it.
-- Keep `internal/android` pure/testable; `internal/tools` stays a thin MCP binding. Each `tools/<domain>.go` mirrors an `android/<domain>.go` — see [../ARCHITECTURE.md](../ARCHITECTURE.md).
+- Keep the execution layers (`internal/adb` device client, `internal/uiauto` parsing, `internal/gradle` builds) pure/testable; `internal/tools` stays a thin MCP binding. Device commands are `adb.Client` methods; each `tools/<domain>.go` mirrors its execution file — see [../ARCHITECTURE.md](../ARCHITECTURE.md).
 - Add unit tests for any new pure logic (parsers, coordinate math, arg parsing).
 - Open a [GitHub issue](https://github.com/iksnerd/adb_mcp/issues) for feedback, bugs, or tool requests.

@@ -1,0 +1,187 @@
+package adb
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+// fakeRun is a Runner that records every adb argv it is handed and replies with
+// a canned stdout/err — the seam that lets us assert what command a builder
+// produces without a device.
+type fakeRun struct {
+	calls [][]string
+	reply string
+	err   error
+}
+
+func (f *fakeRun) run(_ context.Context, args ...string) ([]byte, error) {
+	f.calls = append(f.calls, args)
+	return []byte(f.reply), f.err
+}
+
+func newFake(reply string) (*Client, *fakeRun) {
+	f := &fakeRun{reply: reply}
+	return &Client{Serial: "emulator-5554", run: f.run}, f
+}
+
+// last returns the argv of the most recent adb call.
+func (f *fakeRun) last() []string {
+	if len(f.calls) == 0 {
+		return nil
+	}
+	return f.calls[len(f.calls)-1]
+}
+
+func wantArgv(t *testing.T, got, want []string) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("argv =\n  %q\nwant\n  %q", got, want)
+	}
+}
+
+func TestInputBuilders(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		call func(*Client) error
+		want []string
+	}{
+		{"tap", func(c *Client) error { return c.Tap(ctx, 10, 20) },
+			[]string{"shell", "input", "tap", "10", "20"}},
+		{"swipe default duration", func(c *Client) error { return c.Swipe(ctx, 1, 2, 3, 4, 0) },
+			[]string{"shell", "input", "swipe", "1", "2", "3", "4", "300"}},
+		{"drag default duration", func(c *Client) error { return c.Drag(ctx, 1, 2, 3, 4, 0) },
+			[]string{"shell", "input", "draganddrop", "1", "2", "3", "4", "400"}},
+		{"long press same point", func(c *Client) error { return c.LongPress(ctx, 5, 6, 0) },
+			[]string{"shell", "input", "swipe", "5", "6", "5", "6", "600"}},
+		{"key combo", func(c *Client) error { return c.KeyCombo(ctx, []int{113, 29}) },
+			[]string{"shell", "input", "keycombination", "113", "29"}},
+		{"press key", func(c *Client) error { return c.PressKey(ctx, 4) },
+			[]string{"shell", "input", "keyevent", "4"}},
+		{"dev menu is keycode 82", func(c *Client) error { return c.OpenDevMenu(ctx) },
+			[]string{"shell", "input", "keyevent", "82"}},
+		{"dark mode on", func(c *Client) error { return c.SetDarkMode(ctx, true) },
+			[]string{"shell", "cmd", "uimode", "night", "yes"}},
+		{"dark mode off", func(c *Client) error { return c.SetDarkMode(ctx, false) },
+			[]string{"shell", "cmd", "uimode", "night", "no"}},
+		{"grant permission", func(c *Client) error { return c.GrantPermission(ctx, "com.x", "android.permission.CAMERA") },
+			[]string{"shell", "pm", "grant", "com.x", "android.permission.CAMERA"}},
+		{"reverse create defaults host to device", func(c *Client) error { return c.Reverse(ctx, 8081, 0, false) },
+			[]string{"reverse", "tcp:8081", "tcp:8081"}},
+		{"reverse remove", func(c *Client) error { return c.Reverse(ctx, 8081, 0, true) },
+			[]string{"reverse", "--remove", "tcp:8081"}},
+		{"lock defaults to pin", func(c *Client) error { return c.SetDeviceLock(ctx, "", "1234", "") },
+			[]string{"shell", "locksettings", "set-pin", "1234"}},
+		{"lock change supplies old", func(c *Client) error { return c.SetDeviceLock(ctx, "pin", "1234", "0000") },
+			[]string{"shell", "locksettings", "set-pin", "--old", "0000", "1234"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, f := newFake("")
+			if err := tc.call(c); err != nil {
+				t.Fatalf("call: %v", err)
+			}
+			wantArgv(t, f.last(), tc.want)
+		})
+	}
+}
+
+// TestInputTextEscaping locks in the shell-quoting: a bare string with a space
+// and an embedded single quote must reach the device as one single-quoted arg.
+func TestInputTextEscaping(t *testing.T) {
+	c, f := newFake("")
+	if err := c.InputText(context.Background(), "a b'c"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"shell", "input", "text", `'a b'\''c'`}
+	wantArgv(t, f.last(), want)
+}
+
+// TestSetLocationLonLatOrder guards the easy-to-flip argument order: adb's
+// `emu geo fix` takes longitude first, then latitude.
+func TestSetLocationLonLatOrder(t *testing.T) {
+	c, f := newFake("")
+	if err := c.SetLocation(context.Background(), 13.4, 52.5); err != nil { // Berlin
+		t.Fatal(err)
+	}
+	wantArgv(t, f.last(), []string{"emu", "geo", "fix", "13.4", "52.5"})
+}
+
+func TestKeyComboNeedsTwoKeys(t *testing.T) {
+	c, _ := newFake("")
+	if err := c.KeyCombo(context.Background(), []int{29}); err == nil {
+		t.Error("expected an error for a single-key combo")
+	}
+}
+
+// TestFingerTouch covers the three interesting outcomes: rejects a physical
+// device, defaults finger id to 1, and turns a console KO: reply into an error.
+func TestFingerTouch(t *testing.T) {
+	ctx := context.Background()
+
+	phys := &Client{Serial: "1a2b3c4d", run: (&fakeRun{reply: "OK"}).run}
+	if err := phys.FingerTouch(ctx, 1); err == nil {
+		t.Error("expected fingerprint on a non-emulator serial to be rejected")
+	}
+
+	c, f := newFake("OK")
+	if err := c.FingerTouch(ctx, 0); err != nil {
+		t.Fatalf("finger touch: %v", err)
+	}
+	wantArgv(t, f.last(), []string{"emu", "finger", "touch", "1"}) // 0 → default 1
+
+	ko, _ := newFake("KO: no enrolled finger")
+	if err := ko.FingerTouch(ctx, 2); err == nil {
+		t.Error("expected a KO: console reply to surface as an error")
+	}
+}
+
+// TestInstallAppFailureScan pins the regression fix: adb that prints
+// "Failure [...]" with a zero exit still yields an error.
+func TestInstallAppFailureScan(t *testing.T) {
+	ctx := context.Background()
+	apk := filepath.Join(t.TempDir(), "app.apk")
+	if err := os.WriteFile(apk, []byte("not-a-real-apk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, f := newFake("Success")
+	if _, err := ok.InstallApp(ctx, apk); err != nil {
+		t.Fatalf("clean install: %v", err)
+	}
+	wantArgv(t, f.last(), []string{"install", "-r", apk})
+
+	bad, _ := newFake("Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]")
+	if _, err := bad.InstallApp(ctx, apk); err == nil {
+		t.Error("expected exit-0 Failure output to be treated as an install failure")
+	}
+
+	missing, _ := newFake("Success")
+	if _, err := missing.InstallApp(ctx, filepath.Join(t.TempDir(), "nope.apk")); err == nil {
+		t.Error("expected a missing apk path to error before shelling out")
+	}
+}
+
+// TestLaunchApp checks both the component parse and the no-launchable-activity
+// path (monkey prints that and exits, and we turn it into a clear error).
+func TestLaunchApp(t *testing.T) {
+	ctx := context.Background()
+
+	ok, _ := newFake("bla bla cmp=com.example/.MainActivity bla")
+	component, err := ok.LaunchApp(ctx, "com.example")
+	if err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	if component != "com.example/.MainActivity" {
+		t.Errorf("component = %q, want com.example/.MainActivity", component)
+	}
+
+	noAct, _ := newFake("** No activities found to run, monkey aborted.")
+	if _, err := noAct.LaunchApp(ctx, "com.example"); err == nil || !strings.Contains(err.Error(), "no launchable activity") {
+		t.Errorf("expected a no-launchable-activity error, got %v", err)
+	}
+}

@@ -26,7 +26,8 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed` |
-| `tap_on_text` | Find an element by label/desc and tap its center |
+| `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed` |
+| `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed` |
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center |
 | `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
@@ -80,6 +81,7 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `gradle_build` | `./gradlew assembleDebug` (or a given task) → APK path |
+| `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced) |
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
 | `list_gradle_tasks` | Discover available Gradle tasks |

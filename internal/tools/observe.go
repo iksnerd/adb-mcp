@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
+	"github.com/iksnerd/adb_mcp/internal/uiauto"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,7 +37,7 @@ type waitForTextArgs struct {
 // ---- Handlers ----
 
 func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
@@ -44,11 +45,11 @@ func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, er
 	if in.MaxDim != nil {
 		maxDim = *in.MaxDim
 	}
-	cap, err := android.CaptureScreen(ctx, serial, maxDim)
+	cap, err := c.CaptureScreen(ctx, maxDim)
 	if err != nil {
 		return nil, err
 	}
-	caption := fmt.Sprintf("Screenshot of %s (%dx%d).", serial, cap.Width, cap.Height)
+	caption := fmt.Sprintf("Screenshot of %s (%dx%d).", c.Serial, cap.Width, cap.Height)
 	if cap.AllBlack {
 		caption += " " + blackCaptureNote(cap)
 	}
@@ -63,7 +64,7 @@ func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, er
 // blackCaptureNote explains an all-black frame and points at describe_ui, so
 // the caller doesn't misread "black" as "screen asleep" when it isn't. It ends
 // with a compact machine-readable status the model can branch on.
-func blackCaptureNote(c android.ScreenCapture) string {
+func blackCaptureNote(c adb.ScreenCapture) string {
 	var reason string
 	switch {
 	case c.SecureWindow:
@@ -79,22 +80,22 @@ func blackCaptureNote(c android.ScreenCapture) string {
 }
 
 func describeUI(ctx context.Context, in describeUIArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	filter, err := android.ParseUIFilter(in.Filter)
+	filter, err := uiauto.ParseUIFilter(in.Filter)
 	if err != nil {
 		return nil, err
 	}
-	snap, err := android.DescribeUI(ctx, serial, filter)
+	snap, err := c.DescribeUI(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 	header := uiHeader(snap, filter)
 	shown := snap.Elements
 	if in.Query != "" {
-		shown = android.FilterByQuery(shown, in.Query)
+		shown = uiauto.FilterByQuery(shown, in.Query)
 		header += fmt.Sprintf("\n%d of %d element(s) match query %q:", len(shown), len(snap.Elements), in.Query)
 	}
 	var body string
@@ -114,7 +115,7 @@ func describeUI(ctx context.Context, in describeUIArgs) (*mcp.CallToolResult, er
 
 // compactUI renders elements one per line — the same aiming information as the
 // JSON form at a fraction of the tokens.
-func compactUI(elems []android.Element) string {
+func compactUI(elems []uiauto.Element) string {
 	if len(elems) == 0 {
 		return "(no elements)"
 	}
@@ -144,7 +145,7 @@ func compactUI(elems []android.Element) string {
 
 // uiHeader gives the two facts needed to trust (or distrust) the element list:
 // whose window the hierarchy belongs to, and how much the filter hid.
-func uiHeader(snap android.UISnapshot, filter android.UIFilter) string {
+func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter) string {
 	var b strings.Builder
 	if snap.TopWindow != "" {
 		fmt.Fprintf(&b, "top window: %s", snap.TopWindow)
@@ -164,12 +165,12 @@ func uiHeader(snap android.UISnapshot, filter android.UIFilter) string {
 }
 
 func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
 	timeout := time.Duration(in.TimeoutS) * time.Second
-	e, err := android.WaitForText(ctx, serial, in.Text, boolOr(in.Partial, true), timeout)
+	e, err := c.WaitForText(ctx, in.Text, boolOr(in.Partial, true), timeout)
 	if err != nil {
 		return nil, err
 	}

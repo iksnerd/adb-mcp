@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -25,33 +23,33 @@ type clearLockArgs struct {
 // ---- Handlers ----
 
 func setDeviceLock(ctx context.Context, in setLockArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.SetDeviceLock(ctx, serial, in.Type, in.Value, in.OldValue); err != nil {
+	if err := c.SetDeviceLock(ctx, in.Type, in.Value, in.OldValue); err != nil {
 		return nil, err
 	}
-	return text("Lock screen set on %s.", serial), nil
+	return text("Lock screen set on %s.", c.Serial), nil
 }
 
 func clearDeviceLock(ctx context.Context, in clearLockArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.ClearDeviceLock(ctx, serial, in.OldValue); err != nil {
+	if err := c.ClearDeviceLock(ctx, in.OldValue); err != nil {
 		return nil, err
 	}
-	return text("Lock screen cleared on %s.", serial), nil
+	return text("Lock screen cleared on %s.", c.Serial), nil
 }
 
 func isDeviceSecure(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	secure, err := android.IsDeviceSecure(ctx, serial)
+	secure, err := c.IsDeviceSecure(ctx)
 	if err != nil {
 		return nil, err
 	}

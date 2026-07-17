@@ -1,15 +1,22 @@
 # Architecture
 
-Two layers, one convention: **every MCP tool file mirrors an execution file of
-the same name.** Find a tool and its real logic sits one package down under the
-matching filename.
+Five packages in a strict dependency line, and one convention: **every MCP tool
+file mirrors an execution file of the same name.** Find a tool and its real
+logic sits one layer down under the matching filename.
 
 ```
-main.go                entry: build server, register tools + resources, Run(stdio)
-internal/android/      pure adb/emulator execution + uiautomator parsing (no MCP, unit-tested)
-internal/tools/        thin MCP adapters over internal/android
+cmd/adb-mcp/main.go    entry: build server, register tools + resources, Run(stdio)
+internal/tools/        thin MCP adapters — resolve a device, call adb/gradle, format
+internal/adb/          the device layer: an adb.Client whose methods are the commands
+internal/gradle/       host-side Gradle: build, find APKs, parse test reports
+internal/uiauto/       pure uiautomator-hierarchy model + parsing (Element, filters, find)
+internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
 internal/guides/       the skill guides, embedded and served as MCP resources
 ```
+
+Dependencies point inward only: `sdk` and `uiauto` are leaves; `gradle → sdk`;
+`adb → sdk, uiauto`; `tools → adb, gradle, uiauto`. Nothing imports `tools`, and
+no execution package imports the MCP SDK.
 
 ## Diagram
 
@@ -17,127 +24,115 @@ Source: [`docs/architecture.mmd`](docs/architecture.mmd) (rendered below; GitHub
 renders the Mermaid block natively).
 
 ```mermaid
-flowchart LR
-    client["MCP client<br/>(agent)"]
+flowchart TB
+    client["MCP client (agent)"]
 
-    subgraph entry["main.go"]
-        server["build server<br/>Register(tools) + resources<br/>Run(stdio)"]
+    subgraph entry["cmd/adb-mcp/main.go"]
+        server["build server · Register(tools) + resources · Run(stdio)"]
     end
 
     subgraph tools["internal/tools — MCP adapters (thin)"]
-        direction TB
         register["register.go<br/><i>tool catalog: add(name, desc, handler)</i>"]
-        t_emulator["emulator.go"]
-        t_observe["observe.go"]
-        t_interact["interact.go"]
-        t_lock["lock.go"]
-        t_logs["logs.go"]
-        t_apps["apps.go"]
-        t_env["environment.go"]
-        t_gradle["gradle.go"]
-        t_helpers["helpers.go<br/><i>serialArg, text, jsonResult, resolve, boolOr</i>"]
+        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle"]
+        t_helpers["helpers.go<br/><i>resolve → *adb.Client, text, jsonResult, boolOr</i>"]
     end
 
-    subgraph android["internal/android — pure execution (no MCP, unit-tested)"]
-        direction TB
-        a_adb["adb.go<br/><i>runAdb / runAdbBytes</i>"]
-        a_devices["devices.go"]
-        a_emulator["emulator.go"]
-        a_screen["screen.go + image.go"]
-        a_ui["ui.go + uiauto.go"]
-        a_input["input.go + keyevent.go"]
-        a_lock["lock.go"]
-        a_logs["logcat.go + capture.go"]
-        a_packages["packages.go"]
-        a_perms["permissions.go"]
-        a_files["files.go"]
-        a_env["environment.go + doctor.go"]
-        a_gradle["gradle.go"]
-        a_sdk["sdk.go<br/><i>SDK paths, commandEnv</i>"]
+    subgraph adb["internal/adb — device layer (adb.Client)"]
+        client_t["adb.go<br/><i>Client{Serial, run Runner} · New · c.adb/c.adbBytes</i>"]
+        a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
+    uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
+    sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
+    register --> t_files
+    t_files --> t_helpers
 
-    t_emulator --> a_devices
-    t_emulator --> a_emulator
-    t_observe --> a_screen
-    t_observe --> a_ui
-    t_interact --> a_input
-    t_lock --> a_lock
-    t_logs --> a_logs
-    t_apps --> a_packages
-    t_apps --> a_perms
-    t_apps --> a_files
-    t_env --> a_env
-    t_gradle --> a_gradle
+    t_helpers --> client_t
+    t_files --> gradle
+    t_files --> uiauto
 
-    a_devices -. uses .-> a_adb
-    a_emulator -. uses .-> a_adb
-    a_screen -. uses .-> a_adb
-    a_ui -. uses .-> a_adb
-    a_input -. uses .-> a_adb
-    a_lock -. uses .-> a_adb
-    a_logs -. uses .-> a_adb
-    a_packages -. uses .-> a_adb
-    a_perms -. uses .-> a_adb
-    a_files -. uses .-> a_adb
-    a_env -. uses .-> a_adb
-    a_adb -. paths/env .-> a_sdk
-    a_gradle -. paths/env .-> a_sdk
+    a_cmds -. "c.adb(...)" .-> client_t
+    a_cmds --> uiauto
+    client_t --> sdk
+    gradle --> sdk
 ```
 
-## The two layers
+## The layers
 
-**`internal/android/` — execution.** Pure Go over `adb`/`emulator`. Knows
-nothing about MCP, so it stays independently unit-testable. Every device call
-funnels through `runAdb`/`runAdbBytes` in `adb.go`.
+**`internal/sdk` — SDK resolution.** Where `adb` and `emulator` live and the
+`PATH` they need. The leaf both the device and build layers share, so neither
+re-derives SDK paths.
 
-**`internal/tools/` — MCP adapters.** Each handler is deliberately thin: resolve
-the target device, call one `internal/android` function, format the result.
-Keeping it thin is what keeps the real logic testable without MCP. `register.go`
-is *only* the tool catalog (`add(name, description, handler)`); it holds no
-handler bodies.
+**`internal/uiauto` — the UI model.** `Element`/`Bounds`/`Point`/`UIFilter` and
+the pure functions over them: parse a uiautomator XML dump, filter it, find an
+element by text or resource id. No I/O, no adb — trivially unit-testable, and
+the type vocabulary the device layer returns.
+
+**`internal/adb` — the device layer.** An `adb.Client` holds a device serial and
+a `Runner` (the one seam that shells out). Every device command is a **method**
+(`c.Tap`, `c.InstallApp`, `c.DescribeUI`, …) that builds an argv and calls
+`c.adb`/`c.adbBytes`. `New(serial)` wires the real adb binary; a test wires a
+fake `Runner` and asserts the exact argv — so command builders are unit-tested
+with **no device** (see `client_test.go`). Hostless helpers that have no serial
+(`ListDevices`, `BootEmulator`, `ConnectWireless`, `Doctor`) stay package funcs.
+
+**`internal/gradle` — host-side builds.** `Gradle` runs the wrapper; `FindAPKs`
+locates outputs (newest-first, `node_modules`/dot-dirs pruned); `PickAPK` skips
+androidTest APKs; `ParseTestResults` reads the JUnit XML. Depends only on `sdk`.
+
+**`internal/tools` — MCP adapters.** Each handler is deliberately thin: `resolve`
+the target device into an `*adb.Client`, call one method (or a gradle/uiauto
+function), format the result. `register.go` is *only* the tool catalog
+(`add(name, description, handler)`); it holds no handler bodies.
 
 ## The mirror
 
-Each domain has a file in both packages. To change a tool, you touch two files
-with the same name — one for the wire/argument shape, one for the behavior.
+Each domain has a file in `internal/tools` and a matching execution file. To
+change a tool, you touch two same-named files — one for the wire/argument shape,
+one for the behavior.
 
-| Domain | `internal/android/` (execution) | `internal/tools/` (MCP adapter) |
+| Domain | execution | `internal/tools/` (MCP adapter) |
 |---|---|---|
-| adb exec core | `adb.go` | — |
-| device enumerate / resolve / connect | `devices.go` | `emulator.go` |
-| emulator lifecycle | `emulator.go` | `emulator.go` |
-| screen capture | `screen.go`, `image.go` | `observe.go` |
-| runtime UI observe | `ui.go`, `uiauto.go` | `observe.go` |
-| input / gestures / PIN | `input.go`, `keyevent.go` | `interact.go` |
-| device lock | `lock.go` | `lock.go` |
-| logs & recording | `logcat.go`, `capture.go` | `logs.go` |
-| app lifecycle | `packages.go` | `apps.go` |
-| permissions | `permissions.go` | `apps.go` |
-| file transfer | `files.go` | `apps.go` |
-| environment (dark / geo / doctor) | `environment.go`, `doctor.go` | `environment.go` |
-| gradle | `gradle.go` | `gradle.go` |
-| SDK paths / shared helpers | `sdk.go` | `helpers.go` |
+| adb client core | `adb/adb.go` | `helpers.go` (`resolve → *adb.Client`) |
+| device enumerate / resolve / connect | `adb/devices.go` | `emulator.go` |
+| emulator lifecycle | `adb/emulator.go` | `emulator.go` |
+| screen capture | `adb/screen.go`, `adb/image.go` | `observe.go` |
+| runtime UI observe | `adb/ui.go` + `uiauto/uiauto.go` | `observe.go` |
+| input / gestures / PIN | `adb/input.go`, `adb/keyevent.go` | `interact.go` |
+| device lock | `adb/lock.go` | `lock.go` |
+| logs & recording | `adb/logcat.go`, `adb/capture.go` | `logs.go` |
+| app lifecycle | `adb/packages.go` | `apps.go` |
+| permissions | `adb/permissions.go` | `apps.go` |
+| file transfer | `adb/files.go` | `apps.go` |
+| environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` | `environment.go` |
+| gradle build & test | `gradle/gradle.go`, `gradle/testreport.go` | `gradle.go` |
+| SDK paths / shared helpers | `sdk/sdk.go` | `helpers.go` |
 
 ## Conventions
 
+- **Device commands are `adb.Client` methods; pure logic is a plain function.**
+  Anything that shells out becomes a method on `*Client` so it is injectable and
+  testable; parsing/geometry lives in `uiauto` (or a pure func) with its own test.
 - **Handlers own their argument structs.** Each `tools/<domain>.go` declares the
   `…Args` structs (with `jsonschema` tags) for the handlers in that file.
 - **Truly shared adapter helpers live in `helpers.go`:** `serialArg`, `text`,
   `jsonResult`, `resolve`, `boolOr`. Domain-specific helpers stay with their
-  domain (`parseCoords`/`firstInt` in `interact.go`, `tailLines` in `gradle.go`).
-- **The layer boundary is one-directional.** `internal/android` never imports
-  `internal/tools` or the MCP SDK. Logic that needs testing belongs in
-  `internal/android`; only wire-format glue belongs in `internal/tools`.
+  domain (`parseCoords` in `interact.go`, `tailLines` in `gradle.go`).
+- **Dependencies point inward only.** No execution package imports `internal/tools`
+  or the MCP SDK. Logic that needs testing belongs below `internal/tools`; only
+  wire-format glue belongs in it.
 
 ## Adding a tool
 
-1. Implement the behavior as a function in the matching `internal/android/<domain>.go`
-   (or a new domain file), and unit-test it there.
+1. Implement the behavior where it belongs: a device command → a method on
+   `adb.Client` in the matching `internal/adb/<domain>.go`; pure parsing →
+   `internal/uiauto`; a build step → `internal/gradle`. Unit-test it there (a
+   command builder with a fake `Runner`; pure logic directly).
 2. Add the argument struct and a thin handler to the matching `internal/tools/<domain>.go`.
 3. Register it in `internal/tools/register.go` with a model-facing description.

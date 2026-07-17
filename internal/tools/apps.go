@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -58,11 +56,11 @@ type pullArgs struct {
 // ---- Handlers ----
 
 func listPackages(ctx context.Context, in listPackagesArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	pkgs, err := android.ListPackages(ctx, serial, in.Filter)
+	pkgs, err := c.ListPackages(ctx, in.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +71,11 @@ func listPackages(ctx context.Context, in listPackagesArgs) (*mcp.CallToolResult
 }
 
 func installApp(ctx context.Context, in installArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.InstallApp(ctx, serial, in.APKPath)
+	out, err := c.InstallApp(ctx, in.APKPath)
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +83,11 @@ func installApp(ctx context.Context, in installArgs) (*mcp.CallToolResult, error
 }
 
 func launchApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	component, err := android.LaunchApp(ctx, serial, in.Package)
+	component, err := c.LaunchApp(ctx, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -100,44 +98,44 @@ func launchApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) 
 }
 
 func stopApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.StopApp(ctx, serial, in.Package); err != nil {
+	if err := c.StopApp(ctx, in.Package); err != nil {
 		return nil, err
 	}
 	return text("Force-stopped %s.", in.Package), nil
 }
 
 func reloadApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.ReloadApp(ctx, serial, in.Package); err != nil {
+	if err := c.ReloadApp(ctx, in.Package); err != nil {
 		return nil, err
 	}
 	return text("Sent a reload broadcast to %s. Best-effort — if it didn't visibly reload (common on newer RN/Expo dev clients), use open_dev_menu then tap_on_text(\"Reload\") instead.", in.Package), nil
 }
 
 func openDevMenu(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.OpenDevMenu(ctx, serial); err != nil {
+	if err := c.OpenDevMenu(ctx); err != nil {
 		return nil, err
 	}
-	return text("Opened the dev menu on %s. Use tap_on_text or describe_ui to pick an option (Reload, Debug JS Remotely, ...).", serial), nil
+	return text("Opened the dev menu on %s. Use tap_on_text or describe_ui to pick an option (Reload, Debug JS Remotely, ...).", c.Serial), nil
 }
 
 func uninstallApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.UninstallApp(ctx, serial, in.Package)
+	out, err := c.UninstallApp(ctx, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -145,11 +143,11 @@ func uninstallApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, erro
 }
 
 func clearAppData(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.ClearAppData(ctx, serial, in.Package)
+	out, err := c.ClearAppData(ctx, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -157,33 +155,33 @@ func clearAppData(ctx context.Context, in packageArg) (*mcp.CallToolResult, erro
 }
 
 func grantPermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.GrantPermission(ctx, serial, in.Package, in.Permission); err != nil {
+	if err := c.GrantPermission(ctx, in.Package, in.Permission); err != nil {
 		return nil, err
 	}
 	return text("Granted %s to %s.", in.Permission, in.Package), nil
 }
 
 func revokePermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.RevokePermission(ctx, serial, in.Package, in.Permission); err != nil {
+	if err := c.RevokePermission(ctx, in.Package, in.Permission); err != nil {
 		return nil, err
 	}
 	return text("Revoked %s from %s.", in.Permission, in.Package), nil
 }
 
 func openURL(ctx context.Context, in openURLArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.OpenURL(ctx, serial, in.URL, in.Package)
+	out, err := c.OpenURL(ctx, in.URL, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -191,11 +189,11 @@ func openURL(ctx context.Context, in openURLArgs) (*mcp.CallToolResult, error) {
 }
 
 func lastCrash(ctx context.Context, in lastCrashArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	crash, found, err := android.LastCrash(ctx, serial, in.Package)
+	crash, found, err := c.LastCrash(ctx, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -209,11 +207,11 @@ func lastCrash(ctx context.Context, in lastCrashArgs) (*mcp.CallToolResult, erro
 }
 
 func getAppDetails(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	d, err := android.GetAppDetails(ctx, serial, in.Package)
+	d, err := c.GetAppDetails(ctx, in.Package)
 	if err != nil {
 		return nil, err
 	}
@@ -221,11 +219,11 @@ func getAppDetails(ctx context.Context, in packageArg) (*mcp.CallToolResult, err
 }
 
 func pushFile(ctx context.Context, in pushArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.PushFile(ctx, serial, in.LocalPath, in.DevicePath)
+	out, err := c.PushFile(ctx, in.LocalPath, in.DevicePath)
 	if err != nil {
 		return nil, err
 	}
@@ -233,11 +231,11 @@ func pushFile(ctx context.Context, in pushArgs) (*mcp.CallToolResult, error) {
 }
 
 func pullFile(ctx context.Context, in pullArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	out, err := android.PullFile(ctx, serial, in.DevicePath, in.LocalPath)
+	out, err := c.PullFile(ctx, in.DevicePath, in.LocalPath)
 	if err != nil {
 		return nil, err
 	}

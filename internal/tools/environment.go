@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -39,33 +39,33 @@ type doctorArgs struct{}
 // ---- Handlers ----
 
 func setDarkMode(ctx context.Context, in darkModeArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.SetDarkMode(ctx, serial, in.Enabled); err != nil {
+	if err := c.SetDarkMode(ctx, in.Enabled); err != nil {
 		return nil, err
 	}
 	return text("Dark mode: %v", in.Enabled), nil
 }
 
 func setLocation(ctx context.Context, in locationArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	if err := android.SetLocation(ctx, serial, in.Longitude, in.Latitude); err != nil {
+	if err := c.SetLocation(ctx, in.Longitude, in.Latitude); err != nil {
 		return nil, err
 	}
 	return text("Location set to (lon %v, lat %v).", in.Longitude, in.Latitude), nil
 }
 
 func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, error) {
-	serial, err := resolve(ctx, in.Serial)
+	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	opts := android.StatusBarOptions{
+	opts := adb.StatusBarOptions{
 		Clock:                in.Clock,
 		Battery:              in.Battery,
 		NetworkType:          in.NetworkType,
@@ -75,13 +75,13 @@ func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, e
 		NotificationsVisible: in.NotificationsVisible,
 		NotificationIcon:     in.NotificationIcon,
 	}
-	if err := android.StatusBarDemo(ctx, serial, in.Enabled, opts); err != nil {
+	if err := c.StatusBarDemo(ctx, in.Enabled, opts); err != nil {
 		return nil, err
 	}
 	if in.Enabled {
-		return text("Status bar demo mode on for %s (clean bar for screenshots). Call again with enabled=false to restore.", serial), nil
+		return text("Status bar demo mode on for %s (clean bar for screenshots). Call again with enabled=false to restore.", c.Serial), nil
 	}
-	return text("Status bar demo mode off for %s (live bar restored).", serial), nil
+	return text("Status bar demo mode off for %s (live bar restored).", c.Serial), nil
 }
 
 // ServerVersion is set by main at startup so doctor can report which build is
@@ -90,5 +90,5 @@ func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, e
 var ServerVersion = "unknown"
 
 func doctor(ctx context.Context, _ doctorArgs) (*mcp.CallToolResult, error) {
-	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb_mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, android.Doctor(ctx)), nil
+	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb_mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, adb.Doctor(ctx)), nil
 }

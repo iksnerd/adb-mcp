@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/android"
+	"github.com/iksnerd/adb_mcp/internal/gradle"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,23 +19,71 @@ type gradleArgs struct {
 	JSON       bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
 }
 
+type buildAndRunArgs struct {
+	serialArg
+	ProjectDir string   `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
+	Package    string   `json:"package" jsonschema:"Application package name to install and launch, e.g. com.example.app."`
+	Task       string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to assembleDebug."`
+	Args       []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
+}
+
 // ---- Handlers ----
 
-func gradleBuild(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
-	task := in.Task
+// buildAPKs is the shared build phase of gradle_build and build_and_run: run
+// the task (defaulting to assembleDebug) and locate the produced APKs, newest
+// first. Keeping it in one place means the two tools cannot drift.
+func buildAPKs(ctx context.Context, projectDir, task string, extra []string) (resolvedTask string, apks []string, out string, err error) {
 	if task == "" {
 		task = "assembleDebug"
 	}
-	out, err := android.Gradle(ctx, in.ProjectDir, append([]string{task}, in.Args...)...)
+	out, err = gradle.Gradle(ctx, projectDir, append([]string{task}, extra...)...)
+	if err != nil {
+		return task, nil, out, err
+	}
+	return task, gradle.FindAPKs(projectDir), out, nil
+}
+
+func gradleBuild(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+	task, apks, out, err := buildAPKs(ctx, in.ProjectDir, in.Task, in.Args)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
-	apks := android.FindAPKs(in.ProjectDir)
 	msg := "Build succeeded (" + task + ")."
 	if len(apks) > 0 {
 		msg += "\nAPK(s):\n" + strings.Join(apks, "\n")
 	}
 	return text("%s\n\n%s", msg, tailLines(out, 20)), nil
+}
+
+func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	task, apks, out, err := buildAPKs(ctx, in.ProjectDir, in.Task, in.Args)
+	if err != nil {
+		return nil, fmt.Errorf("build failed: %v\n%s", err, tailLines(out, 40))
+	}
+	if len(apks) == 0 {
+		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one", task, in.ProjectDir)
+	}
+	apk := gradle.PickAPK(apks)
+	if _, err := c.InstallApp(ctx, apk); err != nil {
+		return nil, fmt.Errorf("build succeeded (%s) but install of %s failed: %v", task, apk, err)
+	}
+	component, err := c.LaunchApp(ctx, in.Package)
+	if err != nil {
+		return nil, fmt.Errorf("build+install succeeded but launch of %s failed: %v", in.Package, err)
+	}
+	msg := fmt.Sprintf("Built (%s), installed %s, and launched %s", task, apk, in.Package)
+	if component != "" {
+		msg += fmt.Sprintf(" (%s)", component)
+	}
+	msg += "."
+	if len(apks) > 1 {
+		msg += fmt.Sprintf("\nNote: %d APKs were found; installed the newest non-test one: %s\nAll (newest first): %s", len(apks), apk, strings.Join(apks, ", "))
+	}
+	return text("%s", msg), nil
 }
 
 func runUnitTests(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
@@ -51,11 +99,11 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 	if task == "" {
 		task = defaultTask
 	}
-	out, err := android.Gradle(ctx, in.ProjectDir, append([]string{task}, in.Args...)...)
+	out, err := gradle.Gradle(ctx, in.ProjectDir, append([]string{task}, in.Args...)...)
 	// Parse the JUnit XML regardless of exit code: a non-zero Gradle exit is
 	// exactly when the per-test breakdown (which tests failed and why) is most
 	// useful, so surface it in both the success and failure paths.
-	summary, found := android.ParseTestResults(in.ProjectDir)
+	summary, found := gradle.ParseTestResults(in.ProjectDir)
 	if err != nil {
 		msg := fmt.Sprintf("%v", err)
 		if found {
@@ -73,7 +121,7 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 }
 
 func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
-	out, err := android.Gradle(ctx, in.ProjectDir, "tasks")
+	out, err := gradle.Gradle(ctx, in.ProjectDir, "tasks")
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
