@@ -4,26 +4,26 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.14.0 · 65 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.15.0 · 66 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
 
 | Doc | What's in it |
 |---|---|
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.14.0) |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.15.0) |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.14.0)
+## Recently shipped (v0.15.0)
 
-See [CHANGELOG](docs/CHANGELOG.md) (v0.14.0): `list_gradle_variants` (the "list
-schemes" analogue — buildable variants parsed from the `assemble*` tasks) and a
-`tap` hit-test (`identify` reports which element a coordinate lands in, from the
-NativeTabs no-op field report). Both pure logic, unit-tested with no device.
+See [CHANGELOG](docs/CHANGELOG.md) (v0.15.0), all reproduced live on an Android 17
+AVD: `stay_awake` (stop a doze-happy screen blanking screenshots), `wakeup`/`sleep`
+`press_key` names, and an `enter_pin` retry for the keyguard bouncer's
+flickering-digit dumps. Guides refreshed for v0.13–v0.14 drift.
 
-v0.13.0 before it: `cellular` + `set_sensor` Extended-Controls tools and
-`launch_dev_client`.
+v0.14.0 before it: `list_gradle_variants` + `tap identify`. v0.13.0: `cellular`,
+`set_sensor`, `launch_dev_client`.
 
 ## Next up
 

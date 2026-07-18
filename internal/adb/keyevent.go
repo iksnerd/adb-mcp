@@ -28,6 +28,8 @@ var keyCodes = map[string]int{
 	"right":        22,
 	"dpad_center":  23,
 	"power":        26,
+	"wakeup":       224, // turn the screen ON without toggling (unlike power)
+	"sleep":        223, // turn the screen OFF without toggling
 	"volume_up":    24,
 	"volume_down":  25,
 	"camera":       27,

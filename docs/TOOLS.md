@@ -34,7 +34,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `swipe` | Swipe/drag (scroll down = high y → low y); `x`/`y` alias `x1`/`y1` |
 | `drag` | Press-hold-move-release drag (`draganddrop`) — for drag handles & reorder |
 | `input_text` | Type into the focused field via the IME |
-| `press_key` | Press a named key (`enter`,`back`,`home`,`escape`,…) or raw keycode; `verify_change` reports `ui_changed` (a key can be silently consumed by an overlay) |
+| `press_key` | Press a named key (`enter`,`back`,`home`,`escape`,`wakeup`,`sleep`,…) or raw keycode; `verify_change` reports `ui_changed` (a key can be silently consumed by an overlay) |
 | `input_key_combo` | Press a chord together — `keys=["ctrl","a"]` or `preset="select_all"`/`copy`/`paste`/… |
 | `enter_pin` | Enter digits on a PIN pad — with `grid`/`coords` for canvas-drawn pads |
 
@@ -89,6 +89,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `set_dark_mode` | Toggle the system dark theme |
 | `set_location` | Set the mock GPS location |
 | `set_status_bar` | Pin a clean status bar (SystemUI demo mode) — clock/battery/mobile signal+carrier+data-type/notifications — for tidy screenshots |
+| `stay_awake` | Keep the display on for a driving session (`svc power stayon`) — stops a doze-happy emulator blanking screenshots to black mid-flow |
 | `doctor` | Report SDK/adb/emulator/AVD/device health |
 
 ### Build & test (Gradle)

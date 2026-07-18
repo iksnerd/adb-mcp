@@ -35,12 +35,15 @@ and you can burn a whole session "testing" code that was never loaded. Before
 driving a dev build:
 
 ```
-adb_reverse {device_port: 8081}     → emulator can reach Metro on the host
-launch_app / reload_app             → pick up the dev-server connection
+adb_reverse {device_port: 8081}         → emulator can reach Metro on the host
+launch_dev_client {scheme: "myapp"}     → open the dev build straight at Metro,
+                                          skipping the Dev Launcher's server picker
 ```
 
-Suspect this whenever edits appear to have no effect or expected logs are
-absent.
+`launch_dev_client` builds the `<scheme>://expo-development-client/?url=…` deep
+link for you (host/port default to `localhost:8081`); for a plain Expo Go client
+use `open_url` with the `exp://` URL instead. Suspect an embedded-bundle fallback
+whenever edits appear to have no effect or expected logs are absent.
 
 ## Tips
 

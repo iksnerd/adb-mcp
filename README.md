@@ -128,7 +128,7 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-65 tools across nine areas. Every device-facing tool takes an optional
+66 tools across nine areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
@@ -139,7 +139,7 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 - **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery`, `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
 - **App lifecycle** — install/uninstall, launch/stop, `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
 - **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window), `clear_logcat`, `last_crash`, screen recording
-- **Environment & diagnostics** — dark mode, mock location, clean status bar, `doctor`
+- **Environment & diagnostics** — dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
 - **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task + variant discovery (`list_gradle_variants`), one-shot `build_and_run`
 
 The driving know-how itself ships as four MCP **resources** (`android://guide/*`)

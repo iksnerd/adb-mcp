@@ -15,8 +15,10 @@ func TestResolveKey(t *testing.T) {
 		{"escape", 111},
 		{"del", 67},
 		{"app_switch", 187},
-		{"66", 66},   // raw numeric passthrough
-		{"999", 999}, // arbitrary keycode
+		{"wakeup", 224}, // screen on without toggling
+		{"sleep", 223},  // screen off without toggling
+		{"66", 66},      // raw numeric passthrough
+		{"999", 999},    // arbitrary keycode
 	}
 	for _, c := range cases {
 		got, err := ResolveKey(c.in)

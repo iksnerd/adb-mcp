@@ -127,14 +127,14 @@ func (c *Client) EnterPIN(ctx context.Context, digits string, grid *uiauto.Bound
 		default:
 			if elems == nil {
 				var err error
-				elems, _, err = c.describeSettled(ctx, uiauto.FilterAuto)
+				elems, err = c.padHierarchy(ctx, digits)
 				if err != nil {
 					return err
 				}
 			}
 			e, ok := uiauto.FindByText(elems, string(d), false)
 			if !ok {
-				return fmt.Errorf("digit %q not found in the UI hierarchy; the pad may be custom-drawn (RN/Skia) and invisible to describe_ui. Pass 'grid' (the pad's bounding box, for a standard 3x4 layout) or 'coords' (explicit per-digit x,y)", string(d))
+				return fmt.Errorf("digit %q not found in the UI hierarchy after retries. Either the pad is custom-drawn (RN/Skia) and invisible to describe_ui — pass 'grid' (the pad's bounding box, for a standard 3x4 layout) or 'coords' (explicit per-digit x,y) — or a system window (e.g. a biometric prompt) is covering it; check describe_ui's top window", string(d))
 			}
 			pt = e.Center
 		}
@@ -144,6 +144,44 @@ func (c *Client) EnterPIN(ctx context.Context, digits string, grid *uiauto.Bound
 		time.Sleep(300 * time.Millisecond)
 	}
 	return nil
+}
+
+// padHierarchy reads the UI hierarchy for a PIN pad, retrying a few times: the
+// keyguard bouncer's digit buttons intermittently drop out of a uiautomator
+// dump (consecutive dumps of the same pad can disagree on whether a key is
+// present), so a single settled read can land on an empty moment and wrongly
+// look like a custom-drawn pad. It returns as soon as every needed digit is
+// present, otherwise the last dump after the retries.
+func (c *Client) padHierarchy(ctx context.Context, digits string) ([]uiauto.Element, error) {
+	var elems []uiauto.Element
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			time.Sleep(400 * time.Millisecond)
+		}
+		e, _, err := c.describeSettled(ctx, uiauto.FilterAuto)
+		if err != nil {
+			if attempt == 3 {
+				return nil, err
+			}
+			continue
+		}
+		elems = e
+		if allDigitsPresent(elems, digits) {
+			return elems, nil
+		}
+	}
+	return elems, nil
+}
+
+// allDigitsPresent reports whether every distinct digit in digits is findable
+// by exact text in elems.
+func allDigitsPresent(elems []uiauto.Element, digits string) bool {
+	for _, d := range digits {
+		if _, ok := uiauto.FindByText(elems, string(d), false); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func hasPoint(m map[rune]uiauto.Point, d rune) bool {

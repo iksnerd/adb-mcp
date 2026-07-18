@@ -4,6 +4,36 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.15.0 — stay_awake + wakeup/sleep keys + enter_pin retry
+
+Shipped from a live driving session on an Android 17 AVD — every item was
+reproduced on the device first.
+
+**New — `stay_awake`.** Keep the display from dozing during a driving session
+(`svc power stayon true`). Fixes the case where `screenshot` keeps coming back
+black with `screen_off:true` because a doze-happy emulator sleeps between steps —
+`describe_ui` sees through it, but any screenshot/coordinate flow needs the screen
+on. `enabled:false` restores the normal timeout.
+
+**New — `wakeup` / `sleep` key names.** `press_key` gained `wakeup` (keycode 224,
+turn the screen ON without toggling) and `sleep` (223). `power` toggles and can
+sleep an already-awake screen; `wakeup` is the unambiguous "turn it on."
+
+**Fix — `enter_pin` retries the hierarchy read.** The keyguard (system
+lock-screen) PIN bouncer's digit buttons intermittently drop out of a
+uiautomator dump — consecutive dumps of the same pad can disagree on whether a
+key is present. `enter_pin` did a single settled read, and when it landed on an
+empty moment it failed with a misleading *"the pad may be custom-drawn (RN/Skia)
+and invisible"*. It now retries the read until the requested digits resolve
+before giving up, and the error names the flaky-dump / covering-window cases too,
+not just the canvas-pad one.
+
+**Guides refreshed** (drift from v0.13–v0.14): `driving` now points at
+`wakeup`/`stay_awake` for a black/sleeping frame; `getting-started` uses
+`launch_dev_client` for RN/Expo dev builds; `pin-and-lock` notes the bouncer
+dump-flicker and warns that a wrong `finger_id` counts toward the biometric HAL
+lockout (so don't blind-sweep ids).
+
 ## v0.14.0 — list_gradle_variants + tap hit-test
 
 **New — `list_gradle_variants`.** The Android analogue of XcodeBuildMCP's "list

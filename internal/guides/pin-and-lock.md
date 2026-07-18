@@ -39,8 +39,14 @@ Coordinates are **true device pixels**. The `screenshot` is downscaled, so
 multiply what you read by the downscale factor, or grab a 1:1 image with
 `max_dim: 0` first.
 
-For the **system lock-screen** PIN the keys usually *are* in the hierarchy, so
-plain `enter_pin` with no grid/coords works once the pad is visible.
+For the **system lock-screen** (keyguard) PIN the keys usually *are* in the
+hierarchy, so plain `enter_pin` with no grid/coords works once the pad is
+visible. One caveat: the keyguard bouncer's digit buttons intermittently drop
+out of a uiautomator dump (consecutive dumps can disagree on whether a key is
+present), so `enter_pin` retries the read a few times before concluding the pad
+is absent. If it still reports a digit missing, the bouncer probably isn't up —
+the swipe-to-unlock didn't land — or a system window covers it; re-raise it and
+retry rather than reaching for grid/coords.
 
 ## Device lock — required for Keystore-backed crypto
 
@@ -97,7 +103,13 @@ key press may be silently consumed (use `verify_change: true`).
 the finger id matches nothing enrolled. Re-enrollments increment the id, so a
 stale AVD may be on 2+ — try `finger_id: 2..5`, send a second touch ~1s after
 the first (some images want two), or re-enroll deterministically at the start
-of the session so you *know* the id. If you instead want the PIN pad, cancel
+of the session so you *know* the id. Don't brute-force the id blindly, though:
+the fingerprint HAL locks out after a few wrong touches (a wrong `finger_id`
+counts as a failed auth), so a sweep of 1..5 can trip a ~30s lockout that makes
+every subsequent touch fail regardless of id. If touches suddenly all fail, wait
+~30s for the lockout to clear. (`dumpsys fingerprint` reports only an enrolled
+*count*, not the id, so there is no way to read the enrolled id back — knowing it
+comes from a clean re-enroll.) If you instead want the PIN pad, cancel
 the prompt (its negative button is in `describe_ui` by content-desc/text) —
 apps that auto-refire the prompt on every resume may need the cancel repeated
 once after each relaunch. Note `enter_pin` refuses blind `grid`/`coords` taps

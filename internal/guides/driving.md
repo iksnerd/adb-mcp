@@ -65,7 +65,11 @@ timer), use `wait` — `wait_for_text` can't express elapsed time.
   caption: a `FLAG_SECURE` window (e.g. a native PIN pad the OS blanks) or a
   sleeping display. Either way, **fall back to `describe_ui`** — it reads the
   hierarchy even when the pixels are blanked. Don't send a wake key on a black
-  frame unless the caption says the screen is off.
+  frame unless the caption says the screen is off. When it *does* say
+  `screen_off` — especially if it keeps recurring on a doze-happy emulator —
+  `press_key wakeup` turns the display on (not `power`, which toggles and can
+  sleep an awake screen), and **`stay_awake` holds it on for the whole session**
+  so screenshots stop coming back black between steps.
 - **A SYSTEM window can replace the app's hierarchy wholesale.** When a
   BiometricPrompt, permission dialog, or the shade has focus, `describe_ui`
   returns *that* window's elements — the app's tree is gone, which reads like

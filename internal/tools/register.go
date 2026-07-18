@@ -68,7 +68,7 @@ func Register(s *mcp.Server) {
 		"Type text into the currently focused input field via the IME. Tap the field first so it has focus. Afterwards the soft keyboard may cover buttons lower on screen — dismiss it with press_key escape (or back) before tapping them. For native non-IME PIN pads this does nothing; use enter_pin instead.",
 		inputText)
 	add(s, "press_key",
-		"Press a hardware/navigation key by name (enter, back, home, menu, tab, del, escape, up, down, left, right, dpad_center, app_switch, search, power, volume_up, volume_down, ...) or a raw Android keycode number. Handy to submit a form (enter), dismiss the keyboard (escape), or go back (back). A key can be silently consumed with no effect (e.g. back while a biometric prompt is up) — pass verify_change=true to get ui_changed: true/false instead of guessing.",
+		"Press a hardware/navigation key by name (enter, back, home, menu, tab, del, escape, up, down, left, right, dpad_center, app_switch, search, power, wakeup, sleep, volume_up, volume_down, ...) or a raw Android keycode number. Handy to submit a form (enter), dismiss the keyboard (escape), or go back (back). To turn the screen ON use wakeup (not power, which toggles and may sleep an awake screen); sleep turns it off. A key can be silently consumed with no effect (e.g. back while a biometric prompt is up) — pass verify_change=true to get ui_changed: true/false instead of guessing.",
 		pressKey)
 	add(s, "input_key_combo",
 		"Press several keys together as a chord (input keycombination, Android 11+). Use preset=\"select_all\" (or copy/paste/cut/undo/redo/save/find) for a named shortcut, or keys=[\"ctrl\",\"a\"] / [\"alt\",\"tab\"] to spell one out — modifier(s) first, then the action key; each is a key name (ctrl/alt/shift/meta, a-z, enter, tab, ...) or a raw keycode. For a single key use press_key instead.",
@@ -214,6 +214,9 @@ func Register(s *mcp.Server) {
 	add(s, "set_location",
 		"Set the emulator's mock GPS location (longitude, latitude) — for location-gated features.",
 		setLocation)
+	add(s, "stay_awake",
+		"Keep the display from dozing during a driving session (svc power stayon true) — the fix when screenshots keep coming back black with screen_off:true because the device sleeps between steps (common on emulators with a short timeout). enabled=true holds the screen on while charging (emulators always are); enabled=false restores the normal timeout. describe_ui works regardless, but any screenshot/coordinate flow needs the screen on.",
+		stayAwake)
 	add(s, "set_status_bar",
 		"Pin a clean status bar via SystemUI demo mode (enabled=true) — fixed clock, chosen signal/battery, no notification icons by default — so screenshots for docs don't leak the wall clock or a random signal state. Optionally set clock (HHMM), battery (0-100), network_type (wifi/mobile/none) with mobile_level/data_type/carrier for mobile, and notifications_visible/notification_icon. Call with enabled=false to restore the live bar.",
 		setStatusBar)

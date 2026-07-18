@@ -49,6 +49,25 @@ func setDarkMode(ctx context.Context, in darkModeArgs) (*mcp.CallToolResult, err
 	return text("Dark mode: %v", in.Enabled), nil
 }
 
+type stayAwakeArgs struct {
+	serialArg
+	Enabled bool `json:"enabled" jsonschema:"true = keep the screen on while charging (svc power stayon true); false = restore the normal display timeout."`
+}
+
+func stayAwake(ctx context.Context, in stayAwakeArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.StayAwake(ctx, in.Enabled); err != nil {
+		return nil, err
+	}
+	if in.Enabled {
+		return text("Screen will stay on while %s is charging (emulators always are). Call again with enabled=false to restore the normal timeout.", c.Serial), nil
+	}
+	return text("Restored the normal display timeout on %s.", c.Serial), nil
+}
+
 func setLocation(ctx context.Context, in locationArgs) (*mcp.CallToolResult, error) {
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {

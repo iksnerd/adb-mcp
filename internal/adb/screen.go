@@ -76,6 +76,21 @@ func (c *Client) Screenshot(ctx context.Context, maxDim int) (png []byte, w, h i
 	return out, w, h, nil
 }
 
+// StayAwake keeps the display from dozing while the device is plugged in
+// (svc power stayon true), or restores the normal timeout (false). Emulators
+// always report as charging, so `true` holds the screen on for a whole driving
+// session — the fix for an AVD whose framebuffer sleeps mid-flow and blanks
+// screenshots to black. On a real unplugged device it has no effect until the
+// device is charging.
+func (c *Client) StayAwake(ctx context.Context, on bool) error {
+	val := "false"
+	if on {
+		val = "true"
+	}
+	_, err := c.adb(ctx, "shell", "svc", "power", "stayon", val)
+	return err
+}
+
 // hasSecureWindow reports whether any window on screen carries FLAG_SECURE,
 // which the OS renders as a black region in a screenshot. WindowManager prints
 // each window's flags in human-readable form on an `fl=` line, where

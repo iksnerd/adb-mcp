@@ -29,6 +29,34 @@ func TestEscapeInputText(t *testing.T) {
 	}
 }
 
+// TestAllDigitsPresent covers the gate the PIN-pad read-retry loops on: it must
+// require EVERY distinct digit to be findable, so a dump that captured the pad
+// only partially (the keyguard bouncer flickers in uiautomator) triggers a retry
+// instead of a mis-tap.
+func TestAllDigitsPresent(t *testing.T) {
+	pad := func(digits ...string) []uiauto.Element {
+		var e []uiauto.Element
+		for _, d := range digits {
+			e = append(e, uiauto.Element{Text: d, Clickable: true})
+		}
+		return e
+	}
+	full := pad("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+	if !allDigitsPresent(full, "1234") {
+		t.Error("expected all of 1234 present in a full pad")
+	}
+	if allDigitsPresent(pad("1", "3", "4"), "1234") {
+		t.Error("expected a partial pad (missing 2) to fail the gate")
+	}
+	if allDigitsPresent(nil, "1") {
+		t.Error("expected an empty dump to fail the gate")
+	}
+	// Repeated digits only need the one key present.
+	if !allDigitsPresent(pad("0", "1"), "1111") {
+		t.Error("expected repeated digit 1 to pass when key 1 is present")
+	}
+}
+
 func TestDialpadPoint(t *testing.T) {
 	// A 300x400 pad at origin: colW=100, rowH=100, so centers land at 50/150/250
 	// horizontally and 50/150/250/350 vertically.
