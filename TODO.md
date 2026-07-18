@@ -33,9 +33,9 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 - [ ] Deeper project discovery — module/build-info dump (the `list_gradle_variants` half shipped v0.14.0; the per-module `projects`/`properties` dump is still open)
 - [ ] Project scaffolding — new Android project from a template (biggest lift)
 
-**Field feedback** (open items; most rounds shipped in v0.8.0–v0.13.0, see CHANGELOG)
+**Field feedback** (open items; most rounds shipped in v0.8.0–v0.15.0, see CHANGELOG)
 - [ ] App/bundle state probe — Metro vs embedded bundle, pid/uptime, HMR connected (most expensive gap)
-- [ ] `biometric_auth` that discovers the enrolled finger id — parser needs live-emulator `dumpsys fingerprint` output to write honestly; **held for a device pass** (this box has no SDK/adb)
+- [ ] `biometric_auth` — design settled by live probing (BACKLOG round 5/7): `dumpsys fingerprint` exposes only an enrolled *count*, never the finger id, and a wrong `finger_id` counts toward a HAL lockout after ~2-3 tries — so id-guessing is out. Build `has_biometric_enrolled` (count>0) + a deterministic re-enroll that captures the id from the enrollment HAL log, not a runtime sweep.
 - [ ] Verify `reload_app`/`open_dev_menu` on a real Expo dev client
 - [ ] Residual describe_ui auto-filter noise — single-child chain collapse (clickable/query/compact cover it today)
 - [ ] Accessibility-action tap for native surfaces — coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; the real fix needs a live-emulator pass (no simple adb command — likely a UiAutomator route)

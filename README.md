@@ -67,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | s
 The script ([install.sh](install.sh)) picks the right archive for your
 OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
-with `VERSION=v0.11.0`).
+with `VERSION=v0.15.0`).
 
 On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
