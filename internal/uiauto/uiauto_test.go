@@ -194,3 +194,29 @@ func TestFindByResourceID(t *testing.T) {
 		t.Errorf("expected the clickable tab_settings match, got %+v ok=%v", tab, ok)
 	}
 }
+
+func TestElementAt(t *testing.T) {
+	container := Element{ResourceID: "root", Bounds: Bounds{X1: 0, Y1: 0, X2: 1000, Y2: 2000}}
+	button := Element{ResourceID: "btn", Clickable: true, Bounds: Bounds{X1: 100, Y1: 100, X2: 300, Y2: 200}}
+	// A non-clickable wrapper with the SAME bounds as the button — the tie must
+	// break toward the clickable one.
+	wrapper := Element{ResourceID: "btn_wrapper", Bounds: Bounds{X1: 100, Y1: 100, X2: 300, Y2: 200}}
+	elems := []Element{container, wrapper, button}
+
+	// Inside the button: the smallest containing element wins (not the root).
+	if e, ok := ElementAt(elems, 200, 150); !ok || e.ResourceID != "btn" {
+		t.Errorf("hit inside button = %+v ok=%v, want btn (clickable tie-break over wrapper)", e, ok)
+	}
+	// Inside the container but outside the button: falls back to the container.
+	if e, ok := ElementAt(elems, 500, 1000); !ok || e.ResourceID != "root" {
+		t.Errorf("hit in container = %+v ok=%v, want root", e, ok)
+	}
+	// Off every element's bounds: no hit.
+	if _, ok := ElementAt(elems, 5000, 5000); ok {
+		t.Error("expected no hit for an off-screen coordinate")
+	}
+	// Edge inclusive: the bottom-right corner still counts as inside.
+	if _, ok := ElementAt(elems, 1000, 2000); !ok {
+		t.Error("expected the bottom-right boundary pixel to count as a hit")
+	}
+}

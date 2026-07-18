@@ -128,6 +128,22 @@ func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, e
 	return text("%s", tailLines(out, 120)), nil
 }
 
+func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+	variants, out, err := gradle.ListVariants(ctx, in.ProjectDir)
+	if err != nil {
+		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+	}
+	if len(variants) == 0 {
+		return text("No build variants found via `gradlew tasks` — point project_dir at an Android application/library module (the one whose build.gradle applies the android plugin).\n\n%s", tailLines(out, 40)), nil
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d build variant(s) — build with assemble<Variant>, install with install<Variant>:\n", len(variants))
+	for _, v := range variants {
+		b.WriteString("  " + v + "\n")
+	}
+	return text("%s", strings.TrimRight(b.String(), "\n")), nil
+}
+
 // tailLines keeps the last n non-trivial lines of possibly-huge tool output
 // (Gradle logs) so results stay readable.
 func tailLines(s string, n int) string {

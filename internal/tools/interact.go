@@ -20,6 +20,7 @@ type tapArgs struct {
 	X            int   `json:"x" jsonschema:"X coordinate in true device pixels."`
 	Y            int   `json:"y" jsonschema:"Y coordinate in true device pixels."`
 	VerifyChange *bool `json:"verify_change,omitempty" jsonschema:"Also report whether the UI hierarchy changed after the tap (ui_changed: true/false). Costs two extra hierarchy reads (~2-3s); use when a tap silently doing nothing would send you down the wrong path."`
+	Identify     *bool `json:"identify,omitempty" jsonschema:"Also report which UI element the coordinate lands in (a hit test against the hierarchy read just before tapping). Use when a tap seems to do nothing: it tells you whether the coordinate hit the element you expected, a non-clickable wrapper, or no reported element at all (an unseen overlay). Costs one extra hierarchy read."`
 }
 
 type tapTextArgs struct {
@@ -101,13 +102,48 @@ func tap(ctx context.Context, in tapArgs) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Hit-test BEFORE tapping so the report describes what was under the finger
+	// at tap time, even if the tap then changes the screen.
+	var idNote string
+	if boolOr(in.Identify, false) {
+		idNote = hitTest(ctx, c, in.X, in.Y)
+	}
 	verdict, err := withChangeCheck(ctx, c, boolOr(in.VerifyChange, false), func() error {
 		return c.Tap(ctx, in.X, in.Y)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return text("Tapped (%d,%d).%s", in.X, in.Y, verdict), nil
+	return text("Tapped (%d,%d).%s%s", in.X, in.Y, idNote, verdict), nil
+}
+
+// hitTest reads the full hierarchy and reports which element the coordinate
+// falls in — best-effort, so a failed read just yields an empty note. It uses
+// FilterAll so wrapper nodes (which a coordinate can land on) are considered.
+func hitTest(ctx context.Context, c *adb.Client, x, y int) string {
+	snap, err := c.DescribeUI(ctx, uiauto.FilterAll)
+	if err != nil {
+		return ""
+	}
+	e, ok := uiauto.ElementAt(snap.Elements, x, y)
+	if !ok {
+		return " Coordinate falls on no element the a11y tree reports — an unreported overlay (e.g. a dev-client bubble) may own that pixel, or the content is canvas-drawn (RN/Flutter/Skia)."
+	}
+	label := e.ResourceID
+	if label == "" {
+		label = e.Text
+	}
+	if label == "" {
+		label = e.Desc
+	}
+	if label == "" {
+		label = e.Class
+	}
+	clickNote := ""
+	if !e.Clickable {
+		clickNote = " — note this element is NOT clickable, which can be why the tap had no effect; aim for a clickable ancestor/sibling (try tap_on_text or tap_element), or the view may need an accessibility-action click a coordinate tap can't deliver"
+	}
+	return fmt.Sprintf(" Coordinate falls in %q (%s, clickable=%t)%s.", label, e.Class, e.Clickable, clickNote)
 }
 
 // findAndTap is the shared engine of tap_on_text and tap_element: snapshot the

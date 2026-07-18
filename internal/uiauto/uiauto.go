@@ -181,6 +181,33 @@ func FilterByQuery(elems []Element, query string) []Element {
 	return out
 }
 
+// ElementAt is a hit test: it returns the smallest (most specific) element
+// whose bounds contain the point (x,y), answering "what did this coordinate
+// land on?". Among containing elements it prefers the smallest area, breaking
+// ties toward a clickable one. It returns false when no element's bounds contain
+// the point — the coordinate is off-screen, or over an overlay the a11y tree
+// never reported (a common reason a raw coordinate tap silently does nothing).
+// Pass a FilterAll element list so wrapper nodes are considered.
+func ElementAt(elems []Element, x, y int) (Element, bool) {
+	best := -1
+	var bestArea int
+	for i := range elems {
+		b := elems[i].Bounds
+		if x < b.X1 || x > b.X2 || y < b.Y1 || y > b.Y2 {
+			continue
+		}
+		area := (b.X2 - b.X1) * (b.Y2 - b.Y1)
+		switch {
+		case best < 0, area < bestArea, area == bestArea && elems[i].Clickable && !elems[best].Clickable:
+			best, bestArea = i, area
+		}
+	}
+	if best < 0 {
+		return Element{}, false
+	}
+	return elems[best], true
+}
+
 // FindByText returns the first element whose text or content-description matches
 // query. When partial is true it does a case-insensitive substring match;
 // otherwise it requires a case-insensitive exact match. Clickable elements are

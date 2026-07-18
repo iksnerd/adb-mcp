@@ -4,6 +4,30 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.14.0 — list_gradle_variants + tap hit-test
+
+**New — `list_gradle_variants`.** The Android analogue of XcodeBuildMCP's "list
+schemes": parses the `assemble<Variant>` tasks out of `gradlew tasks` and returns
+the buildable build variants (e.g. `freeDebug`, `paidRelease`). Each maps to an
+`assemble<Variant>` / `install<Variant>` task, so the name feeds straight into
+`gradle_build`/`build_and_run`'s `task=` arg to disambiguate a multi-flavor
+project. Test-only APK tasks (`androidTest`/`unitTest`) are excluded. Closes the
+"deeper project discovery" parity gap's variant half. Pure parsing, unit-tested.
+
+**New — `tap` hit-test (`identify`).** From field feedback (`android-mcp`
+#019f75a8): a coordinate `tap` on a native `NativeTabs` bar returned success but
+navigated nowhere, and nothing distinguished "the tap missed" from "it landed
+but did nothing." `tap` now takes `identify: true`, which reports which element
+the coordinate lands in — or that it hit a **non-clickable wrapper** or **no
+reported element at all** (an unseen overlay). Pairs with the existing
+`verify_change` (did the UI change?) to tell the failure modes apart. The `tap`
+description now also notes that some native surfaces (Compose/RN NativeTabs)
+don't respond to coordinate taps — use `tap_on_text`/`tap_element` there.
+
+Still open: the underlying accessibility-`ACTION_CLICK` tap path (what Maestro's
+`tapOn` uses to reach those native views) needs a live-emulator pass before
+shipping — logged in BACKLOG.
+
 ## v0.13.0 — cellular / sensors console controls + Expo dev-client launch
 
 **New — more Extended Controls (emulator console).** Two tools extend the

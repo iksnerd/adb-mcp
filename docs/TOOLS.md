@@ -25,7 +25,7 @@ single device is attached; with several, pass one from `list_devices`.
 ### Interact
 | Tool | Purpose |
 |---|---|
-| `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed` |
+| `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed`, `identify` reports which element the coordinate hit (or that it hit a non-clickable wrapper / no reported element) |
 | `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed` |
 | `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed` |
 | `long_press` | Press and hold `(x,y)` for a duration |
@@ -99,6 +99,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
 | `list_gradle_tasks` | Discover available Gradle tasks |
+| `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run |
 
 ## Resources (the bundled "skill")
 

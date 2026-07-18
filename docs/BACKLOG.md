@@ -9,7 +9,7 @@ device-lock/Keystore, custom PIN pads, `tap_on_text`/`wait_for_text`,
 `set_status_bar`). These are the remaining gaps vs XcodeBuildMCP:
 
 - [x] **`build_and_run`** — one-shot `gradle_build` → `install_app` → `launch_app`. Shipped: installs the first APK the build produces; pass a variant-specific `task` to disambiguate multi-flavor projects.
-- [ ] **Deeper project discovery** — no analogue of "list schemes / dump build settings". Add `list_gradle_variants` (parse `./gradlew tasks`/`app:properties` or the `assemble*` task list) and a module/build-info dump, complementing `list_gradle_tasks` + `get_app_details`.
+- [~] **Deeper project discovery** — no analogue of "list schemes / dump build settings". **`list_gradle_variants` shipped v0.14.0** (parses the `assemble*` task list into the buildable variants). Still open: a per-module/build-info dump (`./gradlew projects` + `properties`), complementing `list_gradle_tasks` + `get_app_details`.
 - [ ] **Project scaffolding** — no "create a new Android project from a template" tool (XcodeBuildMCP has `scaffold`). Biggest lift; would need a bundled template + Gradle wrapper generation.
 - [x] **Embedded runtime-crash telemetry (`last_crash`)** — shipped v0.10.0. `last_crash` pulls `dumpsys dropbox --print` (data_app_crash + native) so the whole fatal comes back in one call. A live streaming variant (vs. on-demand pull) is still open if it proves useful.
 
@@ -72,6 +72,13 @@ From `android-mcp-papercuts` #019f709b and #019f70d1.
 - [ ] **Force-PIN path.** An `auth_prefer_pin`-style way to reliably reach the PIN pad instead of the biometric prompt. App-controlled in general (the app decides to auto-fire biometrics); may reduce to a documented cancel loop. Investigate before promising a tool.
 - [ ] **Batch tap.** XcodeBuildMCP has a batched same-screen tap; each of ours is a round trip. Low severity; fold into the `run_sequence` decision rather than shipping a one-off.
 - [ ] **Residual `auto`-filter noise.** The identical-bounds rule kills only part of Material's `navigation_bar_item_*` chain (nested wrappers have distinct sub-bounds). Remaining idea from round 3: collapse single-child layout chains to their meaningful leaf. `filter=clickable`/`query`/`compact` are the practical answer today.
+
+## Field feedback, round 6 (coordinate tap no-op on NativeTabs, 2026-07-18)
+
+From `android-mcp` #019f75a8 (a client app, Pixel_9a).
+
+- [x] **Tell the tap failure modes apart.** A coordinate `tap` on a native `NativeTabs` bottom bar (`expo-router/unstable-native-tabs`) returned success but navigated nowhere; three points inside the tab's clickable bounds, all no-ops, `describe_ui` after each byte-identical. Nothing distinguished "tap missed" from "landed but no effect" from "UI changed but describe_ui didn't see it". Shipped v0.14.0: `tap identify` reports which element the coordinate hit (or a non-clickable wrapper / no reported element); the existing `verify_change` answers "did the UI change?". Together they separate all three.
+- [ ] **Accessibility-action tap for native surfaces (the real fix).** Maestro's `tapOn` navigated the same bar first try — it clicks through UiAutomator (`AccessibilityNodeInfo.performAction(ACTION_CLICK)`), which reaches views that a low-level `input tap` coordinate event doesn't (Compose/RN `NativeTabs`, some overlays). There's no one-line adb equivalent, so this needs a UiAutomator route (instrumentation/`am instrument`, or driving via the accessibility service) and a live-emulator verification pass. Candidate: an accessibility-click path inside `tap_element`/`tap_on_text` (they already resolve the node) with a coordinate fallback. Highest-value driving gap now that diagnosis (above) is covered.
 
 ## Conventions (read before adding a tool)
 

@@ -50,7 +50,7 @@ func Register(s *mcp.Server) {
 
 	// --- Interact ---
 	add(s, "tap",
-		"Tap a single coordinate in true device pixels. Use a center value from describe_ui. If a tap seems to do nothing, the coordinate is almost always stale/misscaled — re-run describe_ui and use a fresh center. Prefer tap_on_text when you know the element's label.",
+		"Tap a single coordinate in true device pixels. Use a center value from describe_ui. If a tap seems to do nothing, the coordinate is almost always stale/misscaled — re-run describe_ui and use a fresh center. Prefer tap_on_text when you know the element's label. When a tap lands but nothing happens, pass identify=true (reports which element the coordinate hit — or that it hit a non-clickable wrapper / no reported element) and/or verify_change=true (reports whether the UI actually changed) to tell the failure modes apart. Note: some native views (e.g. Compose/RN NativeTabs bars) don't respond to coordinate taps at all — use tap_on_text/tap_element there.",
 		tap)
 	add(s, "tap_on_text",
 		"Find an element by its visible text or content-description and tap its center — the one-shot way to press a labelled button/row without computing coordinates yourself. Runs describe_ui internally and prefers a clickable match. Use exact match (partial=false) to avoid hitting the wrong item when labels overlap.",
@@ -237,6 +237,9 @@ func Register(s *mcp.Server) {
 	add(s, "list_gradle_tasks",
 		"List the available Gradle tasks in project_dir (gradlew tasks) — to discover build/test/install targets.",
 		listGradleTasks)
+	add(s, "list_gradle_variants",
+		"List the buildable build variants in project_dir (parsed from the assemble* tasks) — the Android analogue of \"list schemes\". Each variant V maps to an assembleV / installV Gradle task; pass it as the task= arg to gradle_build/build_and_run to disambiguate a multi-flavor project. Test-only APK tasks (androidTest/unitTest) are excluded.",
+		listGradleVariants)
 }
 
 // add is a small generic wrapper over mcp.AddTool to cut boilerplate.
