@@ -17,7 +17,8 @@ import (
 
 type screenshotArgs struct {
 	serialArg
-	MaxDim *int `json:"max_dim,omitempty" jsonschema:"Max width/height of the returned image in pixels. Omit for the default 760; pass 0 (or a negative) to disable downscaling and get the full-resolution image."`
+	MaxDim  *int   `json:"max_dim,omitempty" jsonschema:"Max width/height of the returned image in pixels. Omit for the default 760; pass 0 (or a negative) to disable downscaling and get the full-resolution image."`
+	Display string `json:"display,omitempty" jsonschema:"Which physical display to capture on a multi-display device (a foldable). Omit for the default/built-in screen. Accepts a name alias ('inner'/'primary' or 'cover'/'outer'), an HWC index ('0','1'), or a raw physical display id. Only needed to grab the NON-default panel — the default display already captures correctly without it."`
 }
 
 type describeUIArgs struct {
@@ -45,7 +46,11 @@ func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, er
 	if in.MaxDim != nil {
 		maxDim = *in.MaxDim
 	}
-	cap, err := c.CaptureScreen(ctx, maxDim)
+	displayID, err := c.ResolveDisplay(ctx, in.Display)
+	if err != nil {
+		return nil, err
+	}
+	cap, err := c.CaptureScreen(ctx, maxDim, displayID)
 	if err != nil {
 		return nil, err
 	}

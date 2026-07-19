@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -175,6 +176,78 @@ func (c *Client) FingerRemove(ctx context.Context) error {
 	_, err := c.emu(ctx, "fingerprint removal", "finger", "remove")
 	return err
 }
+
+// HasBiometricEnrolled reports whether any fingerprint is enrolled, and the
+// enrolled count, from `dumpsys fingerprint`. This is the reliable branch point
+// before a biometric flow: with nothing enrolled, fingerprint_touch can never
+// satisfy a BiometricPrompt (it will sit on "Touch the sensor"), so a flow
+// should enroll first or take the PIN path. Works on emulator and physical
+// devices alike (it reads the framework, not the emulator console).
+//
+// Note: the dump exposes only a per-user enrolled COUNT, never the enrolled
+// finger id — and a wrong `emu finger touch <id>` trips a HAL lockout after a
+// few tries — so there is deliberately no "which id is enrolled" probe here;
+// enroll deterministically instead of guessing ids at auth time.
+func (c *Client) HasBiometricEnrolled(ctx context.Context) (enrolled bool, count int, err error) {
+	out, err := c.adb(ctx, "shell", "dumpsys", "fingerprint")
+	if err != nil {
+		return false, 0, err
+	}
+	count, ok := parseEnrolledFingerprints(out)
+	if !ok {
+		return false, 0, fmt.Errorf("could not read the enrolled-fingerprint count from `dumpsys fingerprint` (unrecognised format on this image)")
+	}
+	return count > 0, count, nil
+}
+
+// fpCountRe pulls the enrolled count out of the modern JSON dump, whose per-user
+// object is: {"id":<userId>,"count":<enrolledTemplates>,"accept":...}. Verified
+// live: an empty AVD reports "count":0, and it becomes "count":1 after enrolling
+// one fingerprint.
+var fpCountRe = regexp.MustCompile(`"count":\s*(\d+)`)
+
+// parseEnrolledFingerprints returns the number of enrolled fingerprints from
+// `dumpsys fingerprint`, summing across users. It handles the modern JSON form
+// ("prints":[{"id":0,"count":N,...}]) and falls back to the legacy text form
+// (a "... count: N" line). ok is false when neither shape is present. Pure —
+// unit-tested with captured dumps.
+func parseEnrolledFingerprints(out string) (count int, ok bool) {
+	// Modern JSON: sum the count field of every entry in the prints array.
+	if i := strings.Index(out, `"prints":[`); i >= 0 {
+		seg := out[i:]
+		if j := strings.Index(seg, "]"); j >= 0 {
+			seg = seg[:j]
+		}
+		total, found := 0, false
+		for _, m := range fpCountRe.FindAllStringSubmatch(seg, -1) {
+			n, _ := strconv.Atoi(m[1])
+			total += n
+			found = true
+		}
+		if found {
+			return total, true
+		}
+	}
+	// Legacy text form: any "count: N" (case-insensitive) on a per-user line.
+	total, found := 0, false
+	for line := range strings.SplitSeq(out, "\n") {
+		low := strings.ToLower(line)
+		if !strings.Contains(low, "count") {
+			continue
+		}
+		if m := fpLegacyCountRe.FindStringSubmatch(line); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			total += n
+			found = true
+		}
+	}
+	if found {
+		return total, true
+	}
+	return 0, false
+}
+
+var fpLegacyCountRe = regexp.MustCompile(`(?i)count:\s*(\d+)`)
 
 // SendSMS injects an incoming SMS from number with the given body
 // (adb emu sms send <number> <text>) — drives OTP/2FA flows without a second

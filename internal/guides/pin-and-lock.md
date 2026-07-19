@@ -85,10 +85,17 @@ Apps whose primary unlock is biometric (BiometricPrompt auto-fires on top of
 the PIN pad) can be driven end-to-end on an emulator — don't settle for
 cancelling into the PIN fallback every run:
 
+0. **Check enrollment first:** `has_biometric_enrolled` reports whether any
+   fingerprint is enrolled (and how many). With nothing enrolled,
+   `fingerprint_touch` can never resolve a prompt — it just sits on "Touch the
+   sensor" — so branch to enrolling (below) or to the PIN path instead of
+   burning touches. It works on emulators and physical devices, but only
+   emulators can *inject* a touch to satisfy the prompt.
 1. **Enroll once per AVD:** a fingerprint requires a secure lock first
    (`set_device_lock`). Then Settings → Security → Fingerprint: walk the
    wizard, and every time it asks for a touch, call `fingerprint_touch` —
-   repeat until enrollment completes.
+   repeat until enrollment completes. Re-check with `has_biometric_enrolled`
+   (the count goes up by one).
 2. **Unlock during tests:** when the BiometricPrompt is up (the `top window:`
    line in `describe_ui` shows a systemui biometric window), call
    `fingerprint_touch {finger_id: 1}` — the prompt resolves via the real

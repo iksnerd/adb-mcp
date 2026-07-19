@@ -3,7 +3,9 @@ package adb
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,14 +32,18 @@ const blackRetries = 2
 // CaptureScreen grabs the screen and, if the frame comes back all black,
 // retries a couple of times (the intermittent-black case) before giving up and
 // diagnosing the likely cause (FLAG_SECURE content or a sleeping display).
-func (c *Client) CaptureScreen(ctx context.Context, maxDim int) (ScreenCapture, error) {
+//
+// displayID, when non-empty, is a PHYSICAL display id (see ResolveDisplay) that
+// picks a specific screen on a multi-display device — e.g. a foldable's cover
+// panel; empty captures the default (built-in) display.
+func (c *Client) CaptureScreen(ctx context.Context, maxDim int, displayID string) (ScreenCapture, error) {
 	var raw []byte
 	var black bool
 	attempts := 0
 	for {
 		attempts++
 		var err error
-		raw, err = c.adbBytes(ctx, "exec-out", "screencap", "-p")
+		raw, err = c.screencap(ctx, displayID)
 		if err != nil {
 			return ScreenCapture{}, err
 		}
@@ -61,12 +67,28 @@ func (c *Client) CaptureScreen(ctx context.Context, maxDim int) (ScreenCapture, 
 	return res, nil
 }
 
-// Screenshot captures the screen with `exec-out screencap -p` (avoids the
-// CRLF corruption of `shell screencap`) and downscales it so its largest
-// dimension is at most maxDim. It returns the PNG bytes and their dimensions.
-// Prefer CaptureScreen, which also detects and diagnoses black frames.
+// screencap runs `exec-out screencap -p` (avoids the CRLF corruption of
+// `shell screencap`) and returns the PNG bytes with any leading non-PNG prefix
+// stripped — a multi-display device prepends a warning line to stdout that would
+// otherwise corrupt the header (see pngFromScreencap). displayID, when set,
+// targets one physical display via `-d`.
+func (c *Client) screencap(ctx context.Context, displayID string) ([]byte, error) {
+	args := []string{"exec-out", "screencap", "-p"}
+	if displayID != "" {
+		args = append(args, "-d", displayID)
+	}
+	raw, err := c.adbBytes(ctx, args...)
+	if err != nil {
+		return nil, err
+	}
+	return pngFromScreencap(raw), nil
+}
+
+// Screenshot captures the screen and downscales it so its largest dimension is
+// at most maxDim. It returns the PNG bytes and their dimensions. Prefer
+// CaptureScreen, which also detects and diagnoses black frames.
 func (c *Client) Screenshot(ctx context.Context, maxDim int) (png []byte, w, h int, err error) {
-	raw, err := c.adbBytes(ctx, "exec-out", "screencap", "-p")
+	raw, err := c.screencap(ctx, "")
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -75,6 +97,109 @@ func (c *Client) Screenshot(ctx context.Context, maxDim int) (png []byte, w, h i
 	}
 	out, w, h := downscalePNG(raw, maxDim)
 	return out, w, h, nil
+}
+
+// Display is one physical display on the device, as reported by SurfaceFlinger.
+type Display struct {
+	PhysicalID string // what `screencap -d` wants — NOT the logical display id
+	Index      int    // HWC display index; 0 is the built-in/primary panel
+	Name       string // e.g. "EMU_display_0"
+}
+
+// ListDisplays enumerates the device's physical displays. `screencap -d` keys
+// off the physical id (a large opaque number), not the logical display id 0/1
+// that `cmd display get-displays` shows — passing the logical id makes screencap
+// fail outright — so this is the authoritative source for a per-display capture.
+func (c *Client) ListDisplays(ctx context.Context) ([]Display, error) {
+	out, err := c.adb(ctx, "shell", "dumpsys", "SurfaceFlinger", "--display-id")
+	if err != nil {
+		return nil, err
+	}
+	return parseDisplays(out), nil
+}
+
+// displayLineRe matches a SurfaceFlinger --display-id line:
+//
+//	Display 4619827259835644672 (HWC display 0): port=0 ... displayName="EMU_display_0"
+var displayLineRe = regexp.MustCompile(`Display\s+(\d+)\s+\(HWC display\s+(\d+)\)`)
+
+// parseDisplays turns `dumpsys SurfaceFlinger --display-id` output into the
+// physical displays it lists, in report order. Pure — unit-tested directly.
+func parseDisplays(out string) []Display {
+	var ds []Display
+	for line := range strings.SplitSeq(out, "\n") {
+		m := displayLineRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		idx, _ := strconv.Atoi(m[2])
+		d := Display{PhysicalID: m[1], Index: idx}
+		if n := displayNameRe.FindStringSubmatch(line); n != nil {
+			d.Name = n[1]
+		}
+		ds = append(ds, d)
+	}
+	return ds
+}
+
+var displayNameRe = regexp.MustCompile(`displayName="([^"]*)"`)
+
+// ResolveDisplay turns a caller's display selector into a physical display id
+// for `screencap -d`. It accepts:
+//   - "" → "" (the default display, no -d)
+//   - an alias: "primary"/"inner"/"main" (HWC index 0), "cover"/"outer"/
+//     "secondary" (HWC index 1)
+//   - a bare HWC index ("0", "1")
+//   - a raw physical id (matched against the enumerated displays)
+//
+// Unknown selectors return an error listing the available displays rather than
+// silently capturing the wrong screen.
+func (c *Client) ResolveDisplay(ctx context.Context, sel string) (string, error) {
+	sel = strings.TrimSpace(sel)
+	if sel == "" {
+		return "", nil
+	}
+	ds, err := c.ListDisplays(ctx)
+	if err != nil {
+		return "", err
+	}
+	return resolveDisplay(sel, ds)
+}
+
+// resolveDisplay is the pure core of ResolveDisplay (selector + display list →
+// physical id), split out so it is unit-tested without a device.
+func resolveDisplay(sel string, ds []Display) (string, error) {
+	if len(ds) == 0 {
+		return "", fmt.Errorf("no physical displays reported by SurfaceFlinger")
+	}
+	wantIdx := -1
+	switch strings.ToLower(sel) {
+	case "primary", "inner", "main", "default":
+		wantIdx = 0
+	case "cover", "outer", "secondary", "external":
+		wantIdx = 1
+	}
+	for _, d := range ds {
+		if d.PhysicalID == sel { // already a physical id
+			return d.PhysicalID, nil
+		}
+		if wantIdx >= 0 && d.Index == wantIdx {
+			return d.PhysicalID, nil
+		}
+	}
+	// A bare HWC index that wasn't an alias.
+	if n, err := strconv.Atoi(sel); err == nil {
+		for _, d := range ds {
+			if d.Index == n {
+				return d.PhysicalID, nil
+			}
+		}
+	}
+	var avail []string
+	for _, d := range ds {
+		avail = append(avail, fmt.Sprintf("%d(%s,%s)", d.Index, d.Name, d.PhysicalID))
+	}
+	return "", fmt.Errorf("no display matching %q; available: %s (use an index, a name alias like inner/cover, or a physical id)", sel, strings.Join(avail, ", "))
 }
 
 // StayAwake keeps the display from dozing while the device is plugged in

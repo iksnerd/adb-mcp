@@ -42,7 +42,7 @@ func Register(s *mcp.Server) {
 
 	// --- Observe ---
 	add(s, "screenshot",
-		"Capture the current screen as a PNG so you can SEE the UI state. Call it after every action to confirm the screen changed before acting again — driving blind chains taps onto the wrong screen. The image is auto-downscaled (default max 760px) so it is accepted by the image reader; this is for seeing only — derive tap coordinates from describe_ui, not from this image. Auto-retries an all-black frame (an intermittent capture glitch) and, if it stays black, says why (FLAG_SECURE content like a native PIN pad, or a sleeping display) — when black, use describe_ui instead.",
+		"Capture the current screen as a PNG so you can SEE the UI state. Call it after every action to confirm the screen changed before acting again — driving blind chains taps onto the wrong screen. The image is auto-downscaled (default max 760px) so it is accepted by the image reader; this is for seeing only — derive tap coordinates from describe_ui, not from this image. Auto-retries an all-black frame (an intermittent capture glitch) and, if it stays black, says why (FLAG_SECURE content like a native PIN pad, or a sleeping display) — when black, use describe_ui instead. Works on multi-display foldables (the default display captures correctly); pass display=\"cover\"/\"inner\"/an index to grab a specific panel.",
 		screenshot)
 	add(s, "describe_ui",
 		"Read the on-screen UI hierarchy as a list of elements, each with its text, content_desc, resource_id, class, clickable flag, pixel bounds, and a precomputed center in TRUE DEVICE PIXELS. This is your source of truth for AIMING: pass an element's center straight to tap. Never guess coordinates from the screenshot (it is downscaled and you will miss). The response header states the FOCUSED WINDOW (if it's a system overlay — biometric prompt, permission dialog — the elements belong to that overlay, not your app) and how many nodes the filter hid. Default filter keeps labelled/clickable/id-carrying elements minus redundant wrappers; filter=\"clickable\" returns only tap targets (much smaller); filter=\"all\" returns every bounded node — the only mode where absence proves an element isn't in the hierarchy. Canvas-drawn (RN/Flutter/Skia) content appears in NO mode.",
@@ -85,6 +85,9 @@ func Register(s *mcp.Server) {
 	add(s, "wait",
 		"Sleep for a number of seconds (fractions ok, capped at 300), then return. For TIME-based conditions where wait_for_text's polling doesn't apply: backgrounding an app long enough to trip a native auth timer, waiting out a cooldown or rate limit, letting a long animation finish.",
 		wait)
+	add(s, "run_sequence",
+		"Run several interaction steps in ONE call — no agent round-trip between them. Use for scripted flows and, crucially, flows driven by NATIVE TIMERS (background-token clear, a biometric prompt that auto-fires on resume) where a round-trip per step would perturb the timing you're testing: e.g. key:home → sleep:19 → launch → sleep:9 → tap_text:Cancel (if_present:biometric) → describe_ui. Each step has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, describe_ui) with its params; an if_present/if_absent guard skips a step unless a selector is (not) on screen — that's how you express a conditional cancel; and optional=true lets a step fail without aborting. Returns a per-step result (ok/skipped/error) plus the final hierarchy. A non-optional step error stops the rest.",
+		runSequence)
 
 	// --- Device lock / Keystore ---
 	add(s, "set_device_lock",
@@ -97,11 +100,14 @@ func Register(s *mcp.Server) {
 		"Report whether a secure lock screen is set (KeyguardManager.isDeviceSecure). Use it to verify set_device_lock worked before running a Keystore-gated flow.",
 		isDeviceSecure)
 	add(s, "fingerprint_touch",
-		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). GOTCHA: the command reports OK even when the id matches nothing — if the prompt doesn't resolve, the enrolled id differs (re-enrollments increment it): try finger_id 2..5, send a second touch after ~1s, or re-enroll deterministically at session start (Settings > Security > Fingerprint, calling this tool for each wizard touch). Emulator-only; physical devices cannot inject biometrics.",
+		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled, this satisfies a BiometricPrompt — drive the app's REAL biometric unlock path instead of cancelling into the PIN fallback every run. finger_id must match an enrolled finger (default 1). Check has_biometric_enrolled FIRST: with nothing enrolled this just sits on \"Touch the sensor\" forever. GOTCHA: the command reports OK even when the id matches nothing — if the prompt doesn't resolve, the enrolled id differs (re-enrollments increment it): try finger_id 2..5, send a second touch after ~1s, or re-enroll deterministically at session start (Settings > Security > Fingerprint, calling this tool for each wizard touch). Emulator-only; physical devices cannot inject biometrics.",
 		fingerTouch)
 	add(s, "finger_remove",
 		"Lift the simulated finger off the sensor (adb emu finger remove) — the complement to fingerprint_touch, for flows that watch for the finger-up event. Emulator-only.",
 		fingerRemove)
+	add(s, "has_biometric_enrolled",
+		"Report whether any fingerprint is enrolled (and how many), from dumpsys fingerprint. Check this BEFORE a biometric flow: with nothing enrolled, fingerprint_touch can never satisfy a BiometricPrompt — it just sits on \"Touch the sensor\" — so branch to enrolling one or to the PIN path instead of guessing. Works on emulators and physical devices. Note: the framework exposes only an enrolled COUNT, never which finger id is enrolled, and a wrong fingerprint_touch id trips a HAL lockout after a few tries — so enroll deterministically rather than sweeping ids.",
+		hasBiometricEnrolled)
 
 	// --- Extended Controls (emulator console) ---
 	// These drive the emulator's Extended Controls panel (a window of the emulator
@@ -163,7 +169,7 @@ func Register(s *mcp.Server) {
 		"Force-stop an app by package name. Pair with launch_app to reset an app to a clean start when reproducing a bug.",
 		stopApp)
 	add(s, "reload_app",
-		"Best-effort: trigger a Metro/JS reload on a React Native dev-client build via the classic <package>.RELOAD_APP_ACTION broadcast. Only works on debug builds of classic (non-bridgeless) RN architectures that register the receiver — on newer RN/Expo dev clients it may silently no-op with no error. If the app doesn't visibly reload, use open_dev_menu then tap_on_text(\"Reload\") instead. PREREQUISITE: the app must be able to reach Metro at all — run adb_reverse {device_port: 8081} first, or a reload lands you back on the EMBEDDED bundle and your edits still won't appear.",
+		"Best-effort: trigger a Metro/JS reload on a React Native dev-client build via the classic <package>.RELOAD_APP_ACTION broadcast. Only works on debug builds of classic (non-bridgeless) RN architectures that register the receiver — on newer RN/Expo dev clients it may silently no-op with no error. If the app doesn't visibly reload, use open_dev_menu then tap_on_text(\"Reload\") instead. PREREQUISITE: the app must be able to reach Metro at all — run adb_reverse {device_port: 8081} first, or a reload lands you back on the EMBEDDED bundle and your edits still won't appear (app_state tells you which bundle the running process is actually serving).",
 		reloadApp)
 	add(s, "open_dev_menu",
 		"Open the React Native dev menu (KEYCODE_MENU) on the foreground app — the reliable way to reach a dev build's Reload/Debug JS Remotely/etc. options when reload_app's broadcast doesn't apply. Follow with tap_on_text or describe_ui to pick a menu item.",
@@ -189,6 +195,9 @@ func Register(s *mcp.Server) {
 	add(s, "get_app_details",
 		"Report an installed app's version name/code and its launchable activity (dumpsys package + resolve-activity) — to confirm what build is installed and find the activity to launch.",
 		getAppDetails)
+	add(s, "app_state",
+		"Report an app's RUNTIME state: installed?, running? with its pid(s), main-process uptime, install/update times, and — for React Native/Expo — whether it is serving a live METRO bundle or its baked-in EMBEDDED one. Run this FIRST when JS edits seem to have no effect: a dev client that silently fell back to its embedded bundle ignores every change (fix: adb_reverse tcp:8081 then relaunch), and two live processes for one package mean your taps and log reads may hit different ones. The bundle guess is a heuristic over recent logcat (HMRClient/Fast Refresh/DevServer = metro) and reports the evidence line it used.",
+		appState)
 	add(s, "last_crash",
 		"Return the most recent app crash from the system DropBox (dumpsys dropbox — JVM/React-Native and native crashes), with the full exception header and stack in one call. Optionally filter to a package. Use this instead of grepping logcat when an app just crashed: DropBox keeps the whole fatal (header + Caused by + frames) together even after it has scrolled out of the logcat ring buffer.",
 		lastCrash)
@@ -201,7 +210,7 @@ func Register(s *mcp.Server) {
 
 	// --- Device discovery ---
 	add(s, "adb_reverse",
-		"Forward a DEVICE TCP port to a HOST port (adb reverse) so the emulator/device can reach a server on this machine — the canonical use is tcp:8081 for Metro. CRITICAL for RN/Expo dev clients: if the app can't reach its dev server it may SILENTLY fall back to the embedded bundle and ignore every code edit you make — set this up before a dev-client session, and suspect it whenever edits seem to have no effect. remove=true undoes the forward.",
+		"Forward a DEVICE TCP port to a HOST port (adb reverse) so the emulator/device can reach a server on this machine — the canonical use is tcp:8081 for Metro. CRITICAL for RN/Expo dev clients: if the app can't reach its dev server it may SILENTLY fall back to the embedded bundle and ignore every code edit you make — set this up before a dev-client session, and suspect it whenever edits seem to have no effect (app_state confirms whether the running process is on Metro or the embedded bundle). remove=true undoes the forward.",
 		adbReverse)
 	add(s, "connect_wireless",
 		"Connect to a device over Wi-Fi/TCP (adb connect), optionally pairing first (adb pair) with the 6-digit code from Android 11+ Wireless debugging. Pass host:port; for pairing also pass the pairing address + code shown on the device.",

@@ -4,6 +4,64 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.16.0 — foldable screenshot fix + app_state + has_biometric_enrolled + run_sequence
+
+Four field-feedback items, each reproduced and verified on a live emulator
+(`emulator-5554`, including a `Pixel_10_Pro_Fold` AVD for the foldable case).
+
+**Fix — `screenshot` on multi-display foldables.** On a device with more than one
+physical display, `screencap -p` (no `-d`) prints a `[Warning] Multiple displays
+were found …` line to **stdout ahead of the PNG**, shifting the header ~250–350
+bytes so nothing can decode it — the capture came back as `0x0` / "dimensions
+could not be read", indistinguishable from a blank or FLAG_SECURE frame. On a
+foldable the tool was effectively 100% unusable. Fix: strip any leading bytes
+before the PNG signature (`\x89PNG`) from every screencap — robust and
+display-agnostic (harmless on single-display, where the signature is already at
+offset 0). Also added an optional `display` param (`"inner"`/`"primary"`,
+`"cover"`/`"outer"`, an HWC index, or a raw physical id) to grab a specific
+panel. Note: `screencap -d` keys off the **physical** display id from
+`dumpsys SurfaceFlinger --display-id`, *not* the logical id `0`/`1` (passing the
+logical id makes screencap fail outright) — `ResolveDisplay` handles the
+mapping. (`android-emulator-mcp-feedback` #019f7abc.)
+
+**New — `app_state`.** The most-requested gap: no way to tell a Metro-connected
+dev process from one silently running its **embedded** bundle (which ignores
+every JS edit), or to notice two live processes for one package (taps and log
+reads hitting different pids). Reports installed?/running? + pid(s), main-process
+uptime, first-install/last-update times, and a Metro-vs-embedded **bundle
+source** heuristic over the app's recent logcat (HMRClient / Fast Refresh /
+DevServer markers), with the evidence line it keyed on. Run it first when JS
+edits seem to have no effect. (`android-mcp-papercuts` #019f6fad item 4.)
+
+**New — `has_biometric_enrolled`.** Reports whether any fingerprint is enrolled
+(and how many) from `dumpsys fingerprint`. Check it before a biometric flow:
+with nothing enrolled, `fingerprint_touch` can never satisfy a BiometricPrompt —
+it just sits on "Touch the sensor". Design settled by earlier live probing
+(round 7): the framework exposes only an enrolled **count**, never the finger id,
+and a wrong `fingerprint_touch` id trips a HAL lockout — so this is a count
+probe, not runtime id-discovery. Verified live: an empty AVD reports 0, and 1
+after enrolling one fingerprint. (`android-mcp-papercuts` #019f709b, reframed.)
+
+**New — `run_sequence`** (resolves the round-4 DECISION). Runs several steps in
+one call — `sleep`, `tap`, `tap_text`, `tap_element`, `key`, `text`, `swipe`,
+`launch`, `stop`, `wait_text`, `describe_ui` — with `if_present`/`if_absent`
+guards (the conditional-cancel idiom) and per-step `optional`. The point isn't
+just fewer round-trips: for flows gated on native timing (a background-token
+clear, a biometric prompt that auto-fires on resume) a per-step agent round-trip
+perturbs the very timer being tested, so batching is the only faithful way to
+reproduce them. Returns a per-step result (ok/skipped/error) plus the final
+hierarchy; a non-optional step error stops the rest. Verified live end-to-end
+(`home → launch → wait_text → guarded steps → describe_ui`). The larger Maestro
+integration stays a separate open decision. (`android-mcp-papercuts` #019f6fad /
+addendum #019f6fb4.)
+
+**Docs & guides.** `driving` gains the foldable-capture note, an "edits not
+showing up → check `app_state` for the embedded-bundle trap" gotcha, and a
+`run_sequence` note for native-timer flows;
+`pin-and-lock` leads the biometric section with `has_biometric_enrolled`; the
+`fingerprint_touch` / `adb_reverse` / `reload_app` tool descriptions cross-link
+the new tools.
+
 ## v0.15.0 — stay_awake + wakeup/sleep keys + enter_pin retry
 
 Shipped from a live driving session on an Android 17 AVD — every item was

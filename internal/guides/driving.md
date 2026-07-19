@@ -36,6 +36,16 @@ replaces a full re-observe with a built-in `ui_changed` answer. For purely
 time-based conditions (an app must stay backgrounded 18s to trip a native
 timer), use `wait` — `wait_for_text` can't express elapsed time.
 
+When a flow is several fixed steps — especially one gated on **native timing**
+(`home → sleep 19 → launch → sleep 9 → cancel the prompt if it's up → look`) —
+`run_sequence` runs them all in one call. That matters beyond convenience: a
+per-step agent round-trip *perturbs* timers like a background-token clear or a
+biometric prompt that auto-fires on resume, so batching is often the only way to
+reproduce them. Steps take an `if_present`/`if_absent` guard (skip unless a
+selector is/ isn't on screen — the conditional-cancel idiom) and `optional`
+(don't abort on failure); the call returns a per-step result plus the final
+hierarchy.
+
 ## Coordinate rule
 
 `tap`/`swipe` always use **true device pixels**. The `center` values from
@@ -70,6 +80,12 @@ timer), use `wait` — `wait_for_text` can't express elapsed time.
   `press_key wakeup` turns the display on (not `power`, which toggles and can
   sleep an awake screen), and **`stay_awake` holds it on for the whole session**
   so screenshots stop coming back black between steps.
+- **Foldables (multi-display) capture fine now.** On a device with more than one
+  physical display, `screenshot` used to return an undecodable file — the OS
+  prepends a "multiple displays" warning to the capture. That's handled; the
+  default screen captures cleanly. To grab the *other* panel, pass
+  `screenshot {display: "cover"}` (or `"inner"`/an index). `describe_ui` reads
+  the default display's hierarchy regardless.
 - **A SYSTEM window can replace the app's hierarchy wholesale.** When a
   BiometricPrompt, permission dialog, or the shade has focus, `describe_ui`
   returns *that* window's elements — the app's tree is gone, which reads like
@@ -87,6 +103,14 @@ timer), use `wait` — `wait_for_text` can't express elapsed time.
   than the background timer firing. Confirm which one you got from logcat (a
   fresh "Bootstrap starting"-style line + pid change = cold start) before
   concluding the timer works or doesn't.
+- **"My edits aren't showing up" (RN/Expo) is usually the embedded bundle.** A
+  dev client that can't reach Metro silently runs its baked-in bundle and
+  ignores every JS change. Before debugging the code, call `app_state`: it
+  reports the running pid(s), process uptime, and whether the process is serving
+  a **metro** or **embedded** bundle. Embedded when you expected Metro → run
+  `adb_reverse tcp:8081` and relaunch. It also flags **two live processes** for
+  one package (a lingering old build + a fresh install), the trap where your
+  taps and your log reads hit different pids.
 
 ## When describe_ui can't see the element (RN / Flutter / Skia)
 

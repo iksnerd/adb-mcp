@@ -243,6 +243,18 @@ func getAppDetails(ctx context.Context, in packageArg) (*mcp.CallToolResult, err
 	return jsonResult(d)
 }
 
+func appState(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	s, err := c.GetAppState(ctx, in.Package)
+	if err != nil {
+		return nil, err
+	}
+	return jsonResult(s)
+}
+
 func pushFile(ctx context.Context, in pushArgs) (*mcp.CallToolResult, error) {
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {

@@ -7,6 +7,29 @@ import (
 	"image/png"
 )
 
+// pngMagic is the 8-byte PNG signature every PNG starts with.
+var pngMagic = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+
+// pngFromScreencap returns the PNG payload from a `screencap -p` stdout buffer,
+// dropping any leading bytes before the PNG signature.
+//
+// On a device with more than one physical display (a foldable's inner + cover
+// screens), `screencap -p` with no `-d` prints a multi-line "[Warning] Multiple
+// displays were found, but no display id was specified! ..." to STDOUT ahead of
+// the PNG, shifting the header by a few hundred bytes so no decoder can read its
+// dimensions — the capture looks corrupt or blank though the PNG itself is
+// intact, just prefixed. Seeking to the signature recovers it, and it is a
+// belt-and-suspenders guard even when `-d` is passed (stray warnings must never
+// reach the image buffer). If the signature is absent — a genuine failure, e.g.
+// the device printed "Failed to take the screenshot" — the input is returned
+// unchanged so the caller still sees whatever came back.
+func pngFromScreencap(raw []byte) []byte {
+	if i := bytes.Index(raw, pngMagic); i > 0 {
+		return raw[i:]
+	}
+	return raw
+}
+
 // isMostlyBlack reports whether a PNG is (near-)entirely black — the signature
 // of a failed/blanked screencap (an intermittent bad grab, a FLAG_SECURE
 // window, or a sleeping display) rather than a real screen. It samples a grid

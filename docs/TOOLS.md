@@ -19,7 +19,7 @@ single device is attached; with several, pass one from `list_devices`.
 ### Observe
 | Tool | Purpose |
 |---|---|
-| `screenshot` | Capture the screen as a PNG (auto-downscaled) — to *see* state; retries an all-black frame and flags why (FLAG_SECURE / screen off) |
+| `screenshot` | Capture the screen as a PNG (auto-downscaled) — to *see* state; retries an all-black frame and flags why (FLAG_SECURE / screen off); works on multi-display foldables (`display: "cover"`/`"inner"`/index picks a panel) |
 | `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all` — `all` proves absence), `query` ("is X on screen?"), `compact` (~10x smaller) |
 
 ### Interact
@@ -31,6 +31,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center |
 | `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
+| `run_sequence` | Run several steps in ONE call (sleep/tap/tap_text/tap_element/key/text/swipe/launch/stop/wait_text/describe_ui) with `if_present`/`if_absent` guards — no round-trip between steps, so native-timer flows aren't perturbed; returns per-step results + the final hierarchy |
 | `swipe` | Swipe/drag (scroll down = high y → low y); `x`/`y` alias `x1`/`y1` |
 | `drag` | Press-hold-move-release drag (`draganddrop`) — for drag handles & reorder |
 | `input_text` | Type into the focused field via the IME |
@@ -46,6 +47,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `is_device_secure` | Whether a secure lock is set |
 | `fingerprint_touch` | Simulate a fingerprint touch (emulator-only, `adb emu finger touch`) — satisfy a BiometricPrompt instead of cancelling to the PIN fallback |
 | `finger_remove` | Lift the simulated finger off the sensor (emulator-only) — complement to `fingerprint_touch` |
+| `has_biometric_enrolled` | Whether any fingerprint is enrolled (+count), from `dumpsys fingerprint` — check before a biometric flow so `fingerprint_touch` has something to match (emulator + physical) |
 
 ### Extended Controls (emulator console)
 These drive the emulator's Extended Controls panel — a window of the emulator process itself, invisible to `describe_ui`/`tap` — through the emulator console. All emulator-only.
@@ -64,6 +66,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 |---|---|
 | `list_packages` | List installed packages (filterable) |
 | `get_app_details` | Version name/code + launchable activity of an app |
+| `app_state` | Runtime state: installed?/running? + pid(s), process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo) — run first when JS edits seem to have no effect, or to catch two live processes for one package |
 | `install_app` / `uninstall_app` | Install/reinstall or remove an app |
 | `launch_app` / `stop_app` | Launch the LAUNCHER activity (echoes the component; clear error if none) / force-stop |
 | `reload_app` | Best-effort Metro/JS reload via the RN `RELOAD_APP_ACTION` broadcast |

@@ -306,6 +306,27 @@ type waitArgs struct {
 	Seconds float64 `json:"seconds" jsonschema:"How long to wait, in seconds. Fractions allowed; capped at 300."`
 }
 
+type runSequenceArgs struct {
+	serialArg
+	Steps        []adb.Step `json:"steps" jsonschema:"Ordered steps to run in one call. Each has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, describe_ui) plus that action's params, and optional if_present/if_absent guards and an 'optional' flag."`
+	CaptureFinal *bool      `json:"capture_final,omitempty" jsonschema:"Append the settled UI hierarchy after the last step (unless the run aborted) so you see the end state in this same response. Default true."`
+}
+
+func runSequence(ctx context.Context, in runSequenceArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	if len(in.Steps) == 0 {
+		return nil, fmt.Errorf("steps is required (a non-empty ordered list)")
+	}
+	res, err := c.RunSequence(ctx, in.Steps, boolOr(in.CaptureFinal, true))
+	if err != nil {
+		return nil, err
+	}
+	return jsonResult(res)
+}
+
 func wait(ctx context.Context, in waitArgs) (*mcp.CallToolResult, error) {
 	secs := in.Seconds
 	if secs <= 0 {

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -152,6 +153,149 @@ var (
 	versionNameRe = regexp.MustCompile(`versionName=(\S+)`)
 	versionCodeRe = regexp.MustCompile(`versionCode=(\d+)`)
 )
+
+// AppState is a runtime snapshot of an installed app: whether and where its
+// process is running, and — for React Native / Expo dev builds — whether it is
+// serving a live Metro bundle or its baked-in embedded one. Getting the last
+// distinction wrong is the expensive failure: a dev client that silently fell
+// back to its embedded bundle ignores every code edit, so taps and log reads run
+// against stale code with no obvious signal. Two live processes for one package
+// (a lingering old build + a fresh install) is the same class of trap — presses
+// and log reads can hit different pids.
+type AppState struct {
+	Package        string   `json:"package"`
+	Installed      bool     `json:"installed"`
+	Running        bool     `json:"running"`
+	PIDs           []int    `json:"pids,omitempty"`
+	ProcessUptime  string   `json:"process_uptime,omitempty"` // wall-clock of the main process (ps ETIME)
+	FirstInstall   string   `json:"first_install_time,omitempty"`
+	LastUpdate     string   `json:"last_update_time,omitempty"`
+	BundleSource   string   `json:"bundle_source"`             // metro | embedded | unknown | not-react-native
+	BundleEvidence string   `json:"bundle_evidence,omitempty"` // the log line(s) the guess is based on
+	Notes          []string `json:"notes,omitempty"`
+}
+
+var (
+	firstInstallRe = regexp.MustCompile(`firstInstallTime=(.+)`)
+	lastUpdateRe   = regexp.MustCompile(`lastUpdateTime=(.+)`)
+)
+
+// GetAppState assembles an AppState for pkg from several device probes: install
+// state/times (dumpsys package), live pids (pidof), the main process's uptime
+// (ps ETIME), and a Metro-vs-embedded bundle heuristic over the app's recent
+// logcat. Every probe is best-effort — a failure annotates the result rather
+// than failing the whole call, so a partial answer still beats none.
+func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) {
+	s := AppState{Package: pkg, BundleSource: "unknown"}
+
+	if dump, err := c.adb(ctx, "shell", "dumpsys", "package", pkg); err == nil {
+		if !strings.Contains(dump, "Unable to find package") && strings.Contains(dump, "Package [") {
+			s.Installed = true
+		}
+		if m := firstInstallRe.FindStringSubmatch(dump); m != nil {
+			s.FirstInstall = strings.TrimSpace(m[1])
+		}
+		if m := lastUpdateRe.FindStringSubmatch(dump); m != nil {
+			s.LastUpdate = strings.TrimSpace(m[1])
+		}
+	}
+	if !s.Installed {
+		s.Notes = append(s.Notes, "package not installed (or dumpsys package couldn't read it)")
+		return s, nil
+	}
+
+	if out, err := c.adb(ctx, "shell", "pidof", pkg); err == nil {
+		s.PIDs = parsePIDs(out)
+	}
+	s.Running = len(s.PIDs) > 0
+	if !s.Running {
+		s.Notes = append(s.Notes, "not running — launch_app first; bundle source can't be determined for a stopped app")
+		s.BundleSource = "n/a"
+		return s, nil
+	}
+	if len(s.PIDs) > 1 {
+		s.Notes = append(s.Notes, fmt.Sprintf("%d live processes for this package — taps and log reads may be hitting different ones; stop_app then launch_app for a clean single process", len(s.PIDs)))
+	}
+	if out, err := c.adb(ctx, "shell", "ps", "-o", "ETIME=", "-p", strconv.Itoa(s.PIDs[0])); err == nil {
+		s.ProcessUptime = strings.TrimSpace(out)
+	}
+
+	// Bundle source: scan the app's recent logcat for dev-server / hot-reload
+	// markers. --pid keeps it to this app's own lines.
+	if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-t", "4000", "--pid", strconv.Itoa(s.PIDs[0])); err == nil {
+		s.BundleSource, s.BundleEvidence = classifyBundle(logs)
+	}
+	switch s.BundleSource {
+	case "metro":
+		s.Notes = append(s.Notes, "serving a live Metro bundle — code edits apply after a reload_app / dev-menu Reload")
+	case "embedded":
+		s.Notes = append(s.Notes, "running the EMBEDDED bundle — your JS edits are NOT in this process; if you expected Metro, run adb_reverse tcp:8081 and relaunch")
+	case "not-react-native":
+		s.BundleSource = "n/a"
+	case "unknown":
+		s.Notes = append(s.Notes, "couldn't tell Metro from embedded — no React-Native markers in recent logcat; clear_logcat, reload, and re-check, or it may be a native (non-RN) app")
+	}
+	return s, nil
+}
+
+// parsePIDs parses the space/newline-separated pid list from `pidof`.
+func parsePIDs(out string) []int {
+	var pids []int
+	for f := range strings.FieldsSeq(out) {
+		if n, err := strconv.Atoi(f); err == nil {
+			pids = append(pids, n)
+		}
+	}
+	return pids
+}
+
+// bundleMarkers maps a recent-logcat signature to a bundle-source verdict. Order
+// matters: a live-server / hot-reload marker (metro) is checked before the
+// weaker "is this even React Native" markers.
+var bundleMarkers = []struct {
+	verdict string
+	needle  string
+}{
+	{"metro", "HMRClient"},
+	{"metro", "Fast Refresh"},
+	{"metro", "DevServerHelper"},
+	{"metro", "BundleDownloader"},
+	{"metro", "Metro waiting"},
+	{"metro", "Downloading JS bundle"},
+	{"embedded", "Loading from assets"},
+	{"embedded", "Unable to connect with runtime"},
+	{"embedded", "loading embedded"},
+}
+
+// classifyBundle guesses whether the recent logcat came from a Metro-connected
+// dev bundle or an embedded one, returning the verdict and the line it keyed on.
+// Pure — unit-tested with synthetic logs (the heuristic can't be exercised
+// without a running RN app). Verdicts: metro, embedded, not-react-native (no RN
+// runtime at all), unknown (RN present but no bundle-source signal).
+func classifyBundle(logs string) (verdict, evidence string) {
+	for _, m := range bundleMarkers {
+		if i := strings.Index(logs, m.needle); i >= 0 {
+			return m.verdict, firstLineContaining(logs, m.needle)
+		}
+	}
+	// No decisive marker. Is this even a React Native app?
+	for _, rn := range []string{"ReactNativeJS", "ReactNative", "com.facebook.react", "expo"} {
+		if strings.Contains(logs, rn) {
+			return "unknown", ""
+		}
+	}
+	return "not-react-native", ""
+}
+
+// firstLineContaining returns the first (trimmed) log line that contains needle.
+func firstLineContaining(logs, needle string) string {
+	for line := range strings.SplitSeq(logs, "\n") {
+		if strings.Contains(line, needle) {
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
+}
 
 // GetAppDetails reports an app's version and launchable activity via
 // `dumpsys package` + `cmd package resolve-activity`.
