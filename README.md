@@ -18,8 +18,7 @@ boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
 lock, read `logcat`, and manage app lifecycle.
 
 It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP):
-where XcodeBuildMCP gives an agent first-class control of iOS simulators, this
-gives the same for Android emulators. Built on the official
+what XcodeBuildMCP does for iOS simulators, this does for Android emulators. Built on the official
 [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) and communicates over stdio.
 
 > Android is a trademark of Google LLC. `adb_mcp` is an independent, unofficial
@@ -41,8 +40,9 @@ that knowledge into its tools, so the agent doesn't have to relearn it:
   land where you mean them to, no guessing off the image) and retries the
   transient "could not get idle state" failure on its own.
 
-The workflow itself is bundled as readable **resources** (see below), so the
-agent can consult the "skill" the same way it would read a skill file.
+The workflow itself ships as readable **resources** the agent can pull up
+mid-task — the observe→act loop, native PIN/lock handling, crash triage (see
+below) — instead of relearning them each session.
 
 ## Getting started
 
@@ -67,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | s
 The script ([install.sh](install.sh)) picks the right archive for your
 OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
-with `VERSION=v0.15.0`).
+with `VERSION=v0.17.0`).
 
 On Windows, download the `windows_amd64` or `windows_arm64` zip from the
 [releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
@@ -113,8 +113,7 @@ The usual config shape:
 }
 ```
 
-That's it — ask your agent to "boot an emulator and take a screenshot" to
-confirm everything is wired up.
+To confirm it's wired up, ask your agent to "boot an emulator and take a screenshot".
 
 ### From source (Go 1.26+)
 
