@@ -154,7 +154,7 @@ func (c *Client) EnterPIN(ctx context.Context, digits string, grid *uiauto.Bound
 // present, otherwise the last dump after the retries.
 func (c *Client) padHierarchy(ctx context.Context, digits string) ([]uiauto.Element, error) {
 	var elems []uiauto.Element
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := range 4 {
 		if attempt > 0 {
 			time.Sleep(400 * time.Millisecond)
 		}

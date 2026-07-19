@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -101,6 +102,18 @@ func TestParseLogLine(t *testing.T) {
 	if _, _, ok := parseLogLine("not a logcat line"); ok {
 		t.Error("parseLogLine() on a malformed line: expected ok=false")
 	}
+}
+
+// TestDeviceCutoffQuotesDateFormat pins the shell-quoting fix: the device clock
+// read must send the strftime format as ONE single-quoted token, or `adb shell`
+// arg-joining splits "+%s %z" into `date +%s %z` on the device, dropping the
+// timezone field and breaking every `logcat since=…` call.
+func TestDeviceCutoffQuotesDateFormat(t *testing.T) {
+	c, f := newFake("1784721600 +0200")
+	if _, err := c.deviceCutoff(context.Background(), "2m"); err != nil {
+		t.Fatalf("deviceCutoff: %v", err)
+	}
+	wantArgv(t, f.last(), []string{"shell", "date", "'+%s %z'"})
 }
 
 func TestSinceCutoff(t *testing.T) {

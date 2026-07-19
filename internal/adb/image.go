@@ -68,13 +68,13 @@ func downscalePNG(data []byte, maxDim int) (out []byte, w, h int) {
 	// the opaque screenshots this handles it makes no difference, but it is the
 	// correct model should a translucent PNG ever be passed in.)
 	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
-	for dy := 0; dy < dh; dy++ {
+	for dy := range dh {
 		sy0 := b.Min.Y + dy*sh/dh
 		sy1 := b.Min.Y + (dy+1)*sh/dh
 		if sy1 <= sy0 {
 			sy1 = sy0 + 1
 		}
-		for dx := 0; dx < dw; dx++ {
+		for dx := range dw {
 			sx0 := b.Min.X + dx*sw/dw
 			sx1 := b.Min.X + (dx+1)*sw/dw
 			if sx1 <= sx0 {

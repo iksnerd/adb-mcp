@@ -56,7 +56,13 @@ func (c *Client) ClearLogcat(ctx context.Context) error {
 // lies `since` ago, using the device's own clock and timezone (host and device
 // clocks can disagree, and logcat timestamps are device-local).
 func (c *Client) deviceCutoff(ctx context.Context, since string) (string, error) {
-	now, err := c.adb(ctx, "shell", "date", "+%s %z")
+	// The format is single-quoted so the DEVICE shell keeps "%s %z" as one
+	// token: `adb shell` concatenates its args and the device shell re-parses
+	// them, so an unquoted "+%s %z" would split into `date +%s %z`, dropping the
+	// %z operand (same footgun escapeInputText guards against). Without the
+	// quotes the reply loses its timezone field and deviceCutoff fails, which
+	// breaks every `logcat since=…` call.
+	now, err := c.adb(ctx, "shell", "date", "'+%s %z'")
 	if err != nil {
 		return "", fmt.Errorf("read device clock: %w", err)
 	}
@@ -178,7 +184,7 @@ func (f LogFilter) apply(raw string) string {
 	}
 
 	var kept []string
-	for _, line := range strings.Split(raw, "\n") {
+	for line := range strings.SplitSeq(raw, "\n") {
 		if isChattyNoise(line) {
 			continue
 		}

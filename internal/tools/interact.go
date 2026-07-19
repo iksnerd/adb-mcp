@@ -384,7 +384,7 @@ func parseCoords(s string) (map[rune]uiauto.Point, error) {
 		return nil, nil
 	}
 	m := make(map[rune]uiauto.Point)
-	for _, pair := range strings.Split(s, ";") {
+	for pair := range strings.SplitSeq(s, ";") {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
 			continue

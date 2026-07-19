@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,8 +41,8 @@ func Run(ctx context.Context, currentVersion string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimPrefix(tag, "v") == strings.TrimPrefix(currentVersion, "v") {
-		fmt.Fprintf(out, "adb-mcp %s is already the latest release.\n", currentVersion)
+	if !isUpgrade(tag, currentVersion) {
+		fmt.Fprintf(out, "adb-mcp %s is already up to date (latest release: %s).\n", currentVersion, tag)
 		return nil
 	}
 	fmt.Fprintf(out, "updating adb-mcp %s -> %s\n", currentVersion, tag)
@@ -78,6 +79,49 @@ func Run(ctx context.Context, currentVersion string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "installed %s at %s\n", tag, exe)
 	return nil
+}
+
+// isUpgrade reports whether release tag is strictly newer than current. Both are
+// compared as dotted numeric versions (a leading "v" and any pre-release/build
+// suffix are ignored). If either can't be parsed that way (a "dev" build, an odd
+// tag), it falls back to a plain inequality so an update still proceeds for
+// unrecognized versions rather than silently refusing — but two parseable
+// versions never trigger a downgrade when the release tag is older or equal.
+func isUpgrade(tag, current string) bool {
+	t, tok := parseVersion(tag)
+	c, cok := parseVersion(current)
+	if !tok || !cok {
+		return strings.TrimPrefix(tag, "v") != strings.TrimPrefix(current, "v")
+	}
+	for i := range 3 {
+		if t[i] != c[i] {
+			return t[i] > c[i]
+		}
+	}
+	return false
+}
+
+// parseVersion parses a "vMAJOR.MINOR.PATCH" (or bare "MAJOR.MINOR.PATCH")
+// string into its three numeric components, dropping any leading "v" and any
+// "-rc1"/"+build" suffix. ok is false when the numeric core isn't exactly three
+// integers.
+func parseVersion(s string) (v [3]int, ok bool) {
+	s = strings.TrimPrefix(strings.TrimSpace(s), "v")
+	if i := strings.IndexAny(s, "-+"); i >= 0 {
+		s = s[:i]
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return v, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return [3]int{}, false
+		}
+		v[i] = n
+	}
+	return v, true
 }
 
 func latestTag(ctx context.Context, client *http.Client) (string, error) {
@@ -130,7 +174,7 @@ func assetName(tag, goos, goarch string) string {
 // shipped with each release.
 func verifyChecksum(data []byte, checksums, asset string) error {
 	want := ""
-	for _, line := range strings.Split(checksums, "\n") {
+	for line := range strings.SplitSeq(checksums, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 2 && strings.TrimPrefix(fields[1], "*") == asset {
 			want = fields[0]

@@ -52,7 +52,7 @@ func latestDropboxEntry(out, pkg string) (entry, ts string, ok bool) {
 	// Parts split on the separator: [preamble, entry, entry, ...]. The preamble
 	// ("Drop box contents: N entries") has no header timestamp, so it's skipped
 	// naturally by the header check below.
-	for _, part := range strings.Split(out, dropboxSeparator) {
+	for part := range strings.SplitSeq(out, dropboxSeparator) {
 		part = strings.Trim(part, "\n")
 		if part == "" {
 			continue
@@ -73,10 +73,8 @@ func latestDropboxEntry(out, pkg string) (entry, ts string, ok bool) {
 
 // firstLine returns everything before the first newline in s.
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
+	before, _, _ := strings.Cut(s, "\n")
+	return before
 }
 
 func truncateCrash(s string) string {

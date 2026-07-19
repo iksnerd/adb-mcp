@@ -140,7 +140,10 @@ func (c *Client) networkBroadcast(ctx context.Context, opts StatusBarOptions) er
 func (c *Client) demoBroadcast(ctx context.Context, command string, kv ...string) error {
 	args := []string{"shell", "am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", command}
 	for i := 0; i+1 < len(kv); i += 2 {
-		args = append(args, "-e", kv[i], kv[i+1])
+		// Quote the value: `adb shell` concatenates args and the device shell
+		// re-parses them, so a value with a space or metachar (e.g. a carrier
+		// name "AT&T Mobile") would otherwise be word-split before `am` sees it.
+		args = append(args, "-e", kv[i], escapeInputText(kv[i+1]))
 	}
 	_, err := c.adb(ctx, args...)
 	return err

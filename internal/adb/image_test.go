@@ -12,8 +12,8 @@ import (
 func solidPNG(t *testing.T, w, h int, c color.Color) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			img.Set(x, y, c)
 		}
 	}
@@ -40,8 +40,8 @@ func TestIsMostlyBlack(t *testing.T) {
 	// A mostly-black frame with a real chunk of bright content (like a splash
 	// logo or dark-theme UI) must NOT be flagged — only near-total black is.
 	img := image.NewRGBA(image.Rect(0, 0, 200, 400))
-	for y := 0; y < 400; y++ {
-		for x := 0; x < 200; x++ {
+	for y := range 400 {
+		for x := range 200 {
 			if x < 40 { // 20% of the frame is bright
 				img.Set(x, y, color.RGBA{200, 200, 200, 255})
 			} else {

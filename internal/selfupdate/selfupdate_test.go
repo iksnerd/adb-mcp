@@ -19,6 +19,29 @@ func TestAssetName(t *testing.T) {
 	}
 }
 
+func TestIsUpgrade(t *testing.T) {
+	cases := []struct {
+		tag, current string
+		want         bool
+	}{
+		{"v0.16.0", "0.15.0", true},      // newer minor
+		{"v0.15.1", "0.15.0", true},      // newer patch
+		{"v1.0.0", "0.15.0", true},       // newer major
+		{"v0.15.0", "0.15.0", false},     // same
+		{"v0.15.0", "v0.15.0", false},    // same, both v-prefixed
+		{"v0.14.0", "0.15.0", false},     // older — must NOT downgrade
+		{"v0.9.0", "0.15.0", false},      // older, numeric (not lexical) compare
+		{"v0.15.0-rc1", "0.15.0", false}, // pre-release suffix stripped => equal
+		{"v0.16.0", "dev", true},         // unparseable current => update on difference
+		{"dev", "dev", false},            // unparseable but identical => no update
+	}
+	for _, c := range cases {
+		if got := isUpgrade(c.tag, c.current); got != c.want {
+			t.Errorf("isUpgrade(%q, %q) = %v, want %v", c.tag, c.current, got, c.want)
+		}
+	}
+}
+
 func TestVerifyChecksum(t *testing.T) {
 	data := []byte("release archive bytes")
 	sum := sha256.Sum256(data)

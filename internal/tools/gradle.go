@@ -139,7 +139,7 @@ func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d build variant(s) — build with assemble<Variant>, install with install<Variant>:\n", len(variants))
 	for _, v := range variants {
-		b.WriteString("  " + v + "\n")
+		fmt.Fprintf(&b, "  %s\n", v)
 	}
 	return text("%s", strings.TrimRight(b.String(), "\n")), nil
 }

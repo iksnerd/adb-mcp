@@ -39,10 +39,22 @@ func (c *Client) ClearDeviceLock(ctx context.Context, old string) error {
 // IsDeviceSecure reports whether a secure lock screen is set
 // (KeyguardManager.isDeviceSecure), which Keystore-backed crypto flows require.
 func (c *Client) IsDeviceSecure(ctx context.Context) (bool, error) {
+	// Positive check first: verifying an EMPTY credential succeeds only when no
+	// secure lock is set, so a success is definitive proof the device is NOT
+	// secure. This closes the false positive in the get-disabled heuristic
+	// below, which returns "false" (read as secure) even for a default device
+	// with no lock at all — get-disabled reflects whether the lockscreen is
+	// administratively disabled, not whether a credential exists.
+	if out, err := c.adb(ctx, "shell", "locksettings", "verify"); err == nil &&
+		strings.Contains(strings.ToLower(out), "success") {
+		return false, nil // empty credential verified => no lock set
+	}
+	// Fallback (older images / no `verify` subcommand): get-disabled == "false"
+	// means the lockscreen is not disabled, which — combined with the verify
+	// probe above having failed to prove otherwise — indicates a secure device.
 	out, err := c.adb(ctx, "shell", "locksettings", "get-disabled")
 	if err != nil {
 		return false, err
 	}
-	// get-disabled == "false" means the lock is NOT disabled, i.e. device is secure.
 	return strings.TrimSpace(out) == "false", nil
 }

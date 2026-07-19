@@ -24,7 +24,7 @@ func ListAVDs(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("emulator -list-avds: %s", strings.TrimSpace(stderr.String()))
 	}
 	var avds []string
-	for _, line := range strings.Split(stdout.String(), "\n") {
+	for line := range strings.SplitSeq(stdout.String(), "\n") {
 		if s := strings.TrimSpace(line); s != "" {
 			avds = append(avds, s)
 		}

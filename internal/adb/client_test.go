@@ -2,6 +2,7 @@ package adb
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -271,6 +272,32 @@ func TestConsoleValidation(t *testing.T) {
 	ko, _ := newFake("KO: no finger enrolled")
 	if err := ko.FingerRemove(ctx); err == nil {
 		t.Error("expected a KO: console reply to surface as an error")
+	}
+}
+
+// TestIsDeviceSecure covers the verify-first logic: an empty-credential verify
+// that succeeds proves NO lock is set (not secure), while a device that rejects
+// it falls through to the get-disabled heuristic.
+func TestIsDeviceSecure(t *testing.T) {
+	ctx := context.Background()
+
+	// Empty credential verifies => no secure lock.
+	noLock, _ := newFake("Lock credential verified successfully")
+	if secure, err := noLock.IsDeviceSecure(ctx); err != nil || secure {
+		t.Errorf("empty-verify success: secure=%v err=%v, want false/nil", secure, err)
+	}
+
+	// Locked device: `verify` rejects the empty credential (non-zero exit), so we
+	// fall through to get-disabled, which reports the lockscreen is not disabled
+	// => secure. A runner keyed on the subcommand models the two calls.
+	locked := &Client{Serial: "emulator-5554", run: func(_ context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[1] == "verify" {
+			return []byte("Old password '' didn't match"), errors.New("exit status 1")
+		}
+		return []byte("false"), nil // get-disabled: not disabled
+	}}
+	if secure, err := locked.IsDeviceSecure(ctx); err != nil || !secure {
+		t.Errorf("locked device: secure=%v err=%v, want true/nil", secure, err)
 	}
 }
 

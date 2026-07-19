@@ -22,7 +22,7 @@ func (c *Client) dumpOnce(ctx context.Context) ([]uiauto.Element, error) {
 func (c *Client) dumpFiltered(ctx context.Context, filter uiauto.UIFilter) ([]uiauto.Element, int, error) {
 	const remote = "/sdcard/window_dump.xml"
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := range 2 {
 		if attempt > 0 {
 			time.Sleep(1500 * time.Millisecond)
 		}

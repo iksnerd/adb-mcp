@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -100,15 +101,13 @@ func (c *Client) hasSecureWindow(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "fl=") {
 			continue
 		}
-		for _, tok := range strings.Fields(strings.TrimPrefix(line, "fl=")) {
-			if tok == "SECURE" {
-				return true
-			}
+		if slices.Contains(strings.Fields(strings.TrimPrefix(line, "fl=")), "SECURE") {
+			return true
 		}
 	}
 	return false
@@ -136,7 +135,7 @@ func (c *Client) TopWindow(ctx context.Context) (string, error) {
 // back to mFocusedWindow (some Android versions) with the same shape.
 func parseCurrentFocus(dump string) string {
 	for _, key := range []string{"mCurrentFocus=", "mFocusedWindow="} {
-		for _, line := range strings.Split(dump, "\n") {
+		for line := range strings.SplitSeq(dump, "\n") {
 			line = strings.TrimSpace(line)
 			v, ok := strings.CutPrefix(line, key)
 			if !ok || !strings.HasPrefix(v, "Window{") {
@@ -162,7 +161,7 @@ func (c *Client) isScreenAwake(ctx context.Context) bool {
 	if err != nil {
 		return true
 	}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
 		if v, ok := strings.CutPrefix(line, "mWakefulness="); ok {
 			f := strings.Fields(v)

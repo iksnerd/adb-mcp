@@ -17,7 +17,7 @@ func (c *Client) ListPackages(ctx context.Context, filter string) ([]string, err
 	}
 	needle := strings.ToLower(strings.TrimSpace(filter))
 	var pkgs []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		pkg := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "package:"))
 		if pkg == "" {
 			continue
@@ -173,7 +173,7 @@ func (c *Client) GetAppDetails(ctx context.Context, pkg string) (AppDetails, err
 	// Best-effort launcher activity.
 	if res, err := c.adb(ctx, "shell", "cmd", "package", "resolve-activity",
 		"--brief", "-c", "android.intent.category.LAUNCHER", pkg); err == nil {
-		for _, line := range strings.Split(res, "\n") {
+		for line := range strings.SplitSeq(res, "\n") {
 			line = strings.TrimSpace(line)
 			if strings.Contains(line, "/") && !strings.Contains(line, " ") {
 				d.LauncherActivity = line

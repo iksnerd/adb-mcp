@@ -99,10 +99,7 @@ func ParseTestResults(projectDir string) (sum TestSummary, found bool) {
 		}
 		return nil
 	})
-	sum.Passed = sum.Tests - sum.Failures - sum.Errors - sum.Skipped
-	if sum.Passed < 0 {
-		sum.Passed = 0
-	}
+	sum.Passed = max(0, sum.Tests-sum.Failures-sum.Errors-sum.Skipped)
 	sort.Strings(sum.Failed)
 	if len(sum.Failed) > maxFailedListed {
 		extra := len(sum.Failed) - maxFailedListed
@@ -203,10 +200,8 @@ func truncateStack(s string) string {
 }
 
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
+	before, _, _ := strings.Cut(s, "\n")
+	return before
 }
 
 // String renders a one-line-plus-detail human summary for a tool result.
@@ -215,7 +210,7 @@ func (sum TestSummary) String() string {
 	fmt.Fprintf(&b, "%d tests, %d passed, %d failed, %d errors, %d skipped (%d suite(s))",
 		sum.Tests, sum.Passed, sum.Failures, sum.Errors, sum.Skipped, sum.Suites)
 	for _, f := range sum.Failed {
-		b.WriteString("\n  ✗ " + f)
+		fmt.Fprintf(&b, "\n  ✗ %s", f)
 	}
 	return b.String()
 }

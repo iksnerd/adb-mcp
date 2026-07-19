@@ -20,7 +20,7 @@ func ListDevices(ctx context.Context) ([]Device, error) {
 		return nil, err
 	}
 	var devices []Device
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "List of devices") {
 			continue
@@ -74,7 +74,8 @@ func ConnectWireless(ctx context.Context, hostPort, pairAddr, pairingCode string
 			addr = hostPort
 		}
 		res, err := runAdb(ctx, "", "pair", addr, pairingCode)
-		out.WriteString(res + "\n")
+		out.WriteString(res)
+		out.WriteByte('\n')
 		if err != nil {
 			return out.String(), err
 		}
