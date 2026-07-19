@@ -5,6 +5,7 @@
 
 **An [MCP](https://modelcontextprotocol.io) server that drives Android emulators and devices over `adb`**
 
+[![Release](https://img.shields.io/github/v/release/iksnerd/adb_mcp?logo=github&color=3DDC84)](https://github.com/iksnerd/adb_mcp/releases/latest)
 [![CI](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![MCP](https://img.shields.io/badge/MCP-stdio-3DDC84)](https://modelcontextprotocol.io)
@@ -69,9 +70,11 @@ OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
 with `VERSION=v0.17.0`).
 
-On Windows, download the `windows_amd64` or `windows_arm64` zip from the
-[releases page](https://github.com/iksnerd/adb_mcp/releases/latest) and put
-`adb-mcp.exe` somewhere on your `PATH`.
+Prefer to grab the binary yourself? Every platform's archive — macOS, Linux,
+and Windows, amd64 and arm64 — is on the
+[Releases page](https://github.com/iksnerd/adb_mcp/releases/latest), each with a
+checksum in `checksums.txt`. On Windows, download the `windows_amd64` or
+`windows_arm64` zip and put `adb-mcp.exe` somewhere on your `PATH`.
 
 Once installed, stay current with the built-in updater — it fetches the latest
 release, verifies its checksum, and swaps the binary in place:

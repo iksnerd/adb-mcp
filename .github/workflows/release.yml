@@ -61,8 +61,25 @@ jobs:
           (cd dist && sha256sum * > checksums.txt)
           ls -l dist
 
+      - name: Extract release notes from CHANGELOG
+        run: |
+          # Pull the section for this tag out of docs/CHANGELOG.md (everything
+          # between "## <tag> — …" and the next "## " heading) so the GitHub
+          # Release carries the real, human-written notes instead of a bare
+          # compare link. Falls back gracefully if the section is missing.
+          awk -v tag="$GITHUB_REF_NAME" '
+            index($0, "## " tag " ") == 1 { flag=1; next }
+            flag && index($0, "## ") == 1 { exit }
+            flag { print }
+          ' docs/CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "See [docs/CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/CHANGELOG.md) for what changed in $GITHUB_REF_NAME." > RELEASE_NOTES.md
+          fi
+          echo "--- release notes ---"; cat RELEASE_NOTES.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true # appends the auto compare-link/contributors after our notes
