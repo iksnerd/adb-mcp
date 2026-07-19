@@ -55,7 +55,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 |---|---|
 | `send_sms` | Deliver an incoming SMS (`from`, `text`) — drive OTP / 2FA flows without a second phone |
 | `phone_call` | Ring or transition an emulated voice call (`action`: call/accept/cancel/busy/hold) |
-| `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI |
+| `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI. Emulator via `emu power`; physical device via `dumpsys battery set` (`reset:true` restores automatic reporting) |
 | `rotate_screen` | Rotate the emulator to its next orientation |
 | `avd_snapshot` | `save`/`load`/`delete`/`list` AVD snapshots — reset to a known state faster than a cold wipe |
 | `cellular` | Shape the radio: `data`/`voice` state, `signal` (0-4), `network_speed`/`network_delay` — offline/roaming/weak-signal/throttled |
@@ -104,6 +104,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
 | `list_gradle_tasks` | Discover available Gradle tasks |
 | `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run |
+| `list_gradle_projects` | List the Gradle modules of a multi-module build (`gradlew projects`) — e.g. `:app`, `:core`, `:feature:login`; point other Gradle tools at the right module or address a task with `:module:task` |
 
 ## Resources (the bundled "skill")
 

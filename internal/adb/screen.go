@@ -1,8 +1,11 @@
 package adb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"regexp"
 	"slices"
 	"strconv"
@@ -38,6 +41,7 @@ const blackRetries = 2
 // panel; empty captures the default (built-in) display.
 func (c *Client) CaptureScreen(ctx context.Context, maxDim int, displayID string) (ScreenCapture, error) {
 	var raw []byte
+	var img image.Image
 	var black bool
 	attempts := 0
 	for {
@@ -50,14 +54,27 @@ func (c *Client) CaptureScreen(ctx context.Context, maxDim int, displayID string
 		if len(raw) == 0 {
 			return ScreenCapture{}, fmt.Errorf("empty screenshot from device %s", c.Serial)
 		}
-		black = isMostlyBlack(raw)
+		// Decode ONCE per grab and reuse the image for both the black-check and
+		// the downscale below — a full-res frame is ~85ms/18MB per png.Decode, so
+		// decoding twice (as the byte-in helpers would) doubled the cost of the
+		// most-called tool.
+		decoded, derr := png.Decode(bytes.NewReader(raw))
+		if derr != nil {
+			img, black = nil, false // undecodable even after prefix-strip: nothing to diagnose
+			break
+		}
+		img = decoded
+		black = isMostlyBlackImg(img)
 		if !black || attempts > blackRetries {
 			break
 		}
 		time.Sleep(400 * time.Millisecond)
 	}
 
-	out, w, h := downscalePNG(raw, maxDim)
+	out, w, h := raw, 0, 0
+	if img != nil {
+		out, w, h = downscaleImg(img, raw, maxDim)
+	}
 	res := ScreenCapture{PNG: out, Width: w, Height: h, Attempts: attempts, AllBlack: black}
 	if black {
 		// Best-effort — ignore probe errors, they only enrich the diagnosis.

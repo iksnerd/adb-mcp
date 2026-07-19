@@ -189,6 +189,7 @@ type batteryArgs struct {
 	serialArg
 	Level    *int  `json:"level,omitempty" jsonschema:"Battery charge level 0-100. Omit to leave the level unchanged."`
 	Charging *bool `json:"charging,omitempty" jsonschema:"true = plugged into AC, false = on battery. Omit to leave the charging state unchanged."`
+	Reset    bool  `json:"reset,omitempty" jsonschema:"Restore automatic battery reporting (dumpsys battery reset) and ignore level/charging. On a physical device the forced values persist until this (or a reboot); use it to clean up after testing."`
 }
 
 func setBattery(ctx context.Context, in batteryArgs) (*mcp.CallToolResult, error) {
@@ -196,8 +197,11 @@ func setBattery(ctx context.Context, in batteryArgs) (*mcp.CallToolResult, error
 	if err != nil {
 		return nil, err
 	}
-	if err := c.SetBattery(ctx, in.Level, in.Charging); err != nil {
+	if err := c.SetBattery(ctx, in.Level, in.Charging, in.Reset); err != nil {
 		return nil, err
+	}
+	if in.Reset {
+		return text("Battery reset to automatic reporting on %s.", c.Serial), nil
 	}
 	parts := []string{}
 	if in.Level != nil {

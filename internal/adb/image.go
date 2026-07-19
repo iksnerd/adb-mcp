@@ -42,6 +42,13 @@ func isMostlyBlack(data []byte) bool {
 	if err != nil {
 		return false
 	}
+	return isMostlyBlackImg(src)
+}
+
+// isMostlyBlackImg is the pixel-sampling core, taking an already-decoded image so
+// a caller that also downscales (CaptureScreen) can decode the frame just once —
+// a full-res screencap is ~85ms/18MB per png.Decode.
+func isMostlyBlackImg(src image.Image) bool {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
 	if w == 0 || h == 0 {
@@ -76,10 +83,17 @@ func downscalePNG(data []byte, maxDim int) (out []byte, w, h int) {
 	if err != nil {
 		return data, 0, 0
 	}
+	return downscaleImg(src, data, maxDim)
+}
+
+// downscaleImg is downscalePNG over an already-decoded image, so CaptureScreen
+// can share the single decode it did for the black-check. raw is the original
+// encoded bytes, returned unchanged (no re-encode) when the image already fits.
+func downscaleImg(src image.Image, raw []byte, maxDim int) (out []byte, w, h int) {
 	b := src.Bounds()
 	sw, sh := b.Dx(), b.Dy()
 	if maxDim <= 0 || (sw <= maxDim && sh <= maxDim) {
-		return data, sw, sh
+		return raw, sw, sh
 	}
 
 	scale := float64(maxDim) / float64(max(sw, sh))
@@ -128,7 +142,7 @@ func downscalePNG(data []byte, maxDim int) (out []byte, w, h int) {
 
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, dst); err != nil {
-		return data, sw, sh
+		return raw, sw, sh
 	}
 	return buf.Bytes(), dw, dh
 }

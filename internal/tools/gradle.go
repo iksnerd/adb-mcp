@@ -144,6 +144,22 @@ func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult
 	return text("%s", strings.TrimRight(b.String(), "\n")), nil
 }
 
+func listGradleProjects(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+	paths, out, err := gradle.ListProjects(ctx, in.ProjectDir)
+	if err != nil {
+		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+	}
+	if len(paths) == 0 {
+		return text("No sub-projects — this looks like a single-module build (only the root project). Its own tasks/variants are what you build.\n\n%s", tailLines(out, 40)), nil
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d module(s) — address a task at one with '<path>:<task>', e.g. %s:assembleDebug:\n", len(paths), paths[0])
+	for _, p := range paths {
+		fmt.Fprintf(&b, "  %s\n", p)
+	}
+	return text("%s", strings.TrimRight(b.String(), "\n")), nil
+}
+
 // tailLines keeps the last n non-trivial lines of possibly-huge tool output
 // (Gradle logs) so results stay readable.
 func tailLines(s string, n int) string {

@@ -120,7 +120,7 @@ func Register(s *mcp.Server) {
 		"Drive an emulated voice call (adb emu gsm). action=\"call\" (default) rings an incoming call from number; \"accept\"/\"cancel\"/\"busy\"/\"hold\" transition an in-progress call. Use to test call-interruption behaviour and CALL_PHONE flows. Emulator-only.",
 		phoneCall)
 	add(s, "set_battery",
-		"Set the emulated battery level (0-100) and/or charging state (adb emu power) — test low-battery UI and charging-only logic deterministically. Provide level, charging, or both. Emulator-only. (For a fake battery in a clean SCREENSHOT status bar, use set_status_bar instead.)",
+		"Set the battery level (0-100) and/or charging state — test low-battery UI and charging-only logic deterministically. On an emulator it uses the console (adb emu power); on a PHYSICAL device it forces the values via dumpsys battery, which persist until you call this again with reset=true (or the device reboots). Provide level, charging, or both — or reset=true to restore automatic reporting. (For a fake battery in a clean SCREENSHOT status bar only, use set_status_bar instead.)",
 		setBattery)
 	add(s, "rotate_screen",
 		"Rotate the emulator to its next orientation (adb emu rotate) — the quick way to exercise landscape/portrait layout and rotation-driven state loss. Emulator-only.",
@@ -249,6 +249,9 @@ func Register(s *mcp.Server) {
 	add(s, "list_gradle_tasks",
 		"List the available Gradle tasks in project_dir (gradlew tasks) — to discover build/test/install targets.",
 		listGradleTasks)
+	add(s, "list_gradle_projects",
+		"List the Gradle modules (sub-projects) in project_dir (gradlew projects) — the map of a multi-module build, e.g. :app, :core, :feature:login. Use it to find which module to point gradle_build/list_gradle_variants at, or to address a task at one module with '<path>:<task>' (e.g. :app:assembleDebug). A single-module build reports no sub-projects.",
+		listGradleProjects)
 	add(s, "list_gradle_variants",
 		"List the buildable build variants in project_dir (parsed from the assemble* tasks) — the Android analogue of \"list schemes\". Each variant V maps to an assembleV / installV Gradle task; pass it as the task= arg to gradle_build/build_and_run to disambiguate a multi-flavor project. Test-only APK tasks (androidTest/unitTest) are excluded.",
 		listGradleVariants)

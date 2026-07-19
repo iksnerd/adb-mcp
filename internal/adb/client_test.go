@@ -145,6 +145,39 @@ func TestFingerTouch(t *testing.T) {
 	}
 }
 
+// TestSetBatteryPaths pins the emulator-vs-physical split: an emulator uses the
+// console (emu power), a physical serial forces values via dumpsys battery, and
+// reset restores automatic reporting on either.
+func TestSetBatteryPaths(t *testing.T) {
+	ctx := context.Background()
+	lvl := 20
+	charging := false
+
+	// Physical device → dumpsys battery set.
+	phys := func() (*Client, *fakeRun) {
+		f := &fakeRun{reply: ""}
+		return &Client{Serial: "1a2b3c4d", run: f.run}, f
+	}
+	c, f := phys()
+	if err := c.SetBattery(ctx, &lvl, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	wantArgv(t, f.last(), []string{"shell", "dumpsys", "battery", "set", "level", "20"})
+
+	c, f = phys()
+	if err := c.SetBattery(ctx, nil, &charging, false); err != nil {
+		t.Fatal(err)
+	}
+	wantArgv(t, f.last(), []string{"shell", "dumpsys", "battery", "set", "ac", "0"})
+
+	// reset → dumpsys battery reset (works on emulator serial too).
+	c, f = newFake("")
+	if err := c.SetBattery(ctx, nil, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	wantArgv(t, f.last(), []string{"shell", "dumpsys", "battery", "reset"})
+}
+
 // TestInstallAppFailureScan pins the regression fix: adb that prints
 // "Failure [...]" with a zero exit still yields an error.
 func TestInstallAppFailureScan(t *testing.T) {
@@ -188,9 +221,9 @@ func TestConsoleControls(t *testing.T) {
 			[]string{"emu", "gsm", "call", "+15550000"}},
 		{"phone accept", func(c *Client) error { return c.GSMCall(ctx, "accept", "+15550000") },
 			[]string{"emu", "gsm", "accept", "+15550000"}},
-		{"battery level", func(c *Client) error { return c.SetBattery(ctx, &lvl, nil) },
+		{"battery level", func(c *Client) error { return c.SetBattery(ctx, &lvl, nil, false) },
 			[]string{"emu", "power", "capacity", "15"}},
-		{"battery charging", func(c *Client) error { return c.SetBattery(ctx, nil, &charging) },
+		{"battery charging", func(c *Client) error { return c.SetBattery(ctx, nil, &charging, false) },
 			[]string{"emu", "power", "ac", "on"}},
 		{"rotate", func(c *Client) error { return c.Rotate(ctx) },
 			[]string{"emu", "rotate"}},
@@ -239,11 +272,11 @@ func TestConsoleValidation(t *testing.T) {
 	if err := c.GSMCall(ctx, "explode", "+1555"); err == nil {
 		t.Error("expected an unknown call action to be rejected")
 	}
-	if err := c.SetBattery(ctx, nil, nil); err == nil {
+	if err := c.SetBattery(ctx, nil, nil, false); err == nil {
 		t.Error("expected set_battery with no fields to be rejected")
 	}
 	bad := 150
-	if err := c.SetBattery(ctx, &bad, nil); err == nil {
+	if err := c.SetBattery(ctx, &bad, nil, false); err == nil {
 		t.Error("expected an out-of-range battery level to be rejected")
 	}
 	if _, err := c.Snapshot(ctx, "save", ""); err == nil {

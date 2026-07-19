@@ -4,7 +4,7 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.16.0 · 69 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.17.0 · 70 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
@@ -17,24 +17,26 @@ Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) rea
 
 ## Recently shipped (v0.16.0)
 
-See [CHANGELOG](docs/CHANGELOG.md) (v0.16.0), all reproduced live (incl. a
-`Pixel_10_Pro_Fold` AVD): **foldable `screenshot` fix** (strip the multi-display
-`[Warning]` prefix that corrupted the PNG header; optional `display` param for
-inner/cover), **`app_state`** (running pid(s) + Metro-vs-embedded bundle — the
-"my edits aren't showing up" probe), **`has_biometric_enrolled`** (count
-probe before a biometric flow), and **`run_sequence`** (batch steps + guards in
-one call — keeps native-timer flows from being perturbed by per-step round-trips).
+See [CHANGELOG](docs/CHANGELOG.md). v0.17.0: **screenshot decodes the PNG once**
+(was twice — ~85ms/18MB saved per call), **`set_battery` on physical devices**
+(dumpsys battery + `reset`), **`list_gradle_projects`** (module discovery).
+
+v0.16.0, all reproduced live (incl. a `Pixel_10_Pro_Fold` AVD): **foldable
+`screenshot` fix** (strip the multi-display `[Warning]` prefix that corrupted the
+PNG header; optional `display` param for inner/cover), **`app_state`** (running
+pid(s) + Metro-vs-embedded bundle — the "my edits aren't showing up" probe),
+**`has_biometric_enrolled`** (count probe before a biometric flow), and
+**`run_sequence`** (batch steps + guards in one call).
 
 v0.15.0 before it: `stay_awake`, `wakeup`/`sleep` keys, `enter_pin` bouncer
-retry. v0.14.0: `list_gradle_variants` + `tap identify`. v0.13.0: `cellular`,
-`set_sensor`, `launch_dev_client`.
+retry. v0.14.0: `list_gradle_variants` + `tap identify`.
 
 ## Next up
 
 Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 
 **XcodeBuildMCP parity gaps** (priority order)
-- [ ] Deeper project discovery — module/build-info dump (the `list_gradle_variants` half shipped v0.14.0; the per-module `projects`/`properties` dump is still open)
+- [~] Deeper project discovery — **`list_gradle_projects` shipped v0.17.0** (the `gradlew projects` module map; `list_gradle_variants` shipped v0.14.0). Still open: a per-module build-info/`properties` dump if it proves useful.
 - [ ] Project scaffolding — new Android project from a template (biggest lift)
 
 **Field feedback** (open items; most rounds shipped in v0.8.0–v0.16.0, see CHANGELOG)
@@ -49,7 +51,8 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 
 **Enhancements**
 - [ ] Multi-touch / pinch-zoom (needs `sendevent`; single-pointer `drag` already shipped) — parked, no reliable cross-device approach yet
-- [ ] Real-device `set_battery` path via `adb shell dumpsys battery set …` (the console tools are emulator-only)
+- [x] Real-device `set_battery` path — **shipped v0.17.0**: physical devices go through `dumpsys battery set level/ac` (emulator still uses `emu power`), with a `reset` option (`dumpsys battery reset`) to restore automatic reporting. Verified live.
+- [x] **Perf: `screenshot` decodes the PNG once** (v0.17.0) — was decoded in `isMostlyBlack` and again in `downscalePNG` (~85ms/18MB each on a full-res frame); now one decode shared between the black-check and downscale.
 
 ## Ground rules
 

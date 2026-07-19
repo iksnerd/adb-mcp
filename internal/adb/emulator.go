@@ -278,27 +278,59 @@ func (c *Client) GSMCall(ctx context.Context, action, number string) error {
 	return err
 }
 
-// SetBattery sets the emulated battery: level is 0-100 (nil leaves it), and
-// charging toggles the AC line (nil leaves it) — via adb emu power capacity /
-// power ac. At least one must be set.
-func (c *Client) SetBattery(ctx context.Context, level *int, charging *bool) error {
-	if level == nil && charging == nil {
-		return fmt.Errorf("set a battery level and/or charging state")
+// isEmulator reports whether the client targets an emulator (serial emulator-*),
+// which alone has the `adb emu` console.
+func (c *Client) isEmulator() bool { return strings.HasPrefix(c.Serial, "emulator-") }
+
+// SetBattery sets the battery: level is 0-100 (nil leaves it) and charging
+// toggles the AC line (nil leaves it). On an emulator it uses the console
+// (`adb emu power`); on a PHYSICAL device it forces the values through the
+// framework (`dumpsys battery set`), which persist until reset (below) or a
+// reboot. reset restores automatic battery reporting (`dumpsys battery reset`)
+// on either — call it to undo a forced state. At least one of level/charging
+// must be set unless reset is true.
+func (c *Client) SetBattery(ctx context.Context, level *int, charging *bool, reset bool) error {
+	if reset {
+		_, err := c.adb(ctx, "shell", "dumpsys", "battery", "reset")
+		return err
 	}
-	if level != nil {
-		if *level < 0 || *level > 100 {
-			return fmt.Errorf("battery level must be 0-100, got %d", *level)
+	if level == nil && charging == nil {
+		return fmt.Errorf("set a battery level and/or charging state (or pass reset)")
+	}
+	if level != nil && (*level < 0 || *level > 100) {
+		return fmt.Errorf("battery level must be 0-100, got %d", *level)
+	}
+
+	if c.isEmulator() {
+		if level != nil {
+			if _, err := c.emu(ctx, "power capacity", "power", "capacity", strconv.Itoa(*level)); err != nil {
+				return err
+			}
 		}
-		if _, err := c.emu(ctx, "power capacity", "power", "capacity", strconv.Itoa(*level)); err != nil {
+		if charging != nil {
+			state := "off"
+			if *charging {
+				state = "on"
+			}
+			if _, err := c.emu(ctx, "power ac", "power", "ac", state); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Physical device: force values via the framework. They stick until reset.
+	if level != nil {
+		if _, err := c.adb(ctx, "shell", "dumpsys", "battery", "set", "level", strconv.Itoa(*level)); err != nil {
 			return err
 		}
 	}
 	if charging != nil {
-		state := "off"
+		v := "0"
 		if *charging {
-			state = "on"
+			v = "1"
 		}
-		if _, err := c.emu(ctx, "power ac", "power", "ac", state); err != nil {
+		if _, err := c.adb(ctx, "shell", "dumpsys", "battery", "set", "ac", v); err != nil {
 			return err
 		}
 	}

@@ -9,13 +9,15 @@ device-lock/Keystore, custom PIN pads, `tap_on_text`/`wait_for_text`,
 `set_status_bar`). These are the remaining gaps vs XcodeBuildMCP:
 
 - [x] **`build_and_run`** — one-shot `gradle_build` → `install_app` → `launch_app`. Shipped: installs the first APK the build produces; pass a variant-specific `task` to disambiguate multi-flavor projects.
-- [~] **Deeper project discovery** — no analogue of "list schemes / dump build settings". **`list_gradle_variants` shipped v0.14.0** (parses the `assemble*` task list into the buildable variants). Still open: a per-module/build-info dump (`./gradlew projects` + `properties`), complementing `list_gradle_tasks` + `get_app_details`.
+- [~] **Deeper project discovery** — no analogue of "list schemes / dump build settings". **`list_gradle_variants` shipped v0.14.0** (buildable variants) and **`list_gradle_projects` shipped v0.17.0** (the `gradlew projects` module map — `:app`/`:core`/`:feature:login`). Still open: a per-module build-info/`properties` dump if it proves useful, complementing `list_gradle_tasks` + `get_app_details`.
 - [ ] **Project scaffolding** — no "create a new Android project from a template" tool (XcodeBuildMCP has `scaffold`). Biggest lift; would need a bundled template + Gradle wrapper generation.
 - [x] **Embedded runtime-crash telemetry (`last_crash`)** — shipped v0.10.0. `last_crash` pulls `dumpsys dropbox --print` (data_app_crash + native) so the whole fatal comes back in one call. A live streaming variant (vs. on-demand pull) is still open if it proves useful.
 
 ## Enhancements
 
 - [ ] **Multi-touch / pinch-zoom gestures.** The single-pointer half shipped as `drag` (`input draganddrop`). True two-finger pinch/rotate needs the `sendevent` multi-touch protocol, which is device/kernel-specific (the `input` command has no multi-pointer verb) — parked until there's a reliable cross-device approach.
+- [x] **Real-device `set_battery`.** Shipped v0.17.0. Emulator keeps the console path (`emu power`); a physical device forces values via `dumpsys battery set level/ac`, with a `reset` option (`dumpsys battery reset`) to restore automatic reporting. Verified live.
+- [x] **Perf: decode the screenshot PNG once.** Shipped v0.17.0. `CaptureScreen` decoded each frame in `isMostlyBlack` and again in `downscalePNG` (~85ms/18MB per `png.Decode` on a 2076×2152 frame, plus a re-decode per black-retry). Now one decode is shared between the black-check and the downscale — roughly halves the CPU/allocs of the most-called tool.
 
 ## Field feedback (real-world debugging sessions, 2026-07-15)
 

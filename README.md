@@ -128,7 +128,7 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-69 tools across nine areas. Every device-facing tool takes an optional
+70 tools across nine areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
@@ -136,11 +136,11 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 - **Observe** — `screenshot` to see (works on multi-display foldables — pick a panel with `display`), `describe_ui` for true-pixel element centers — with the focused **top window** (spot a biometric prompt occluding your app), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
 - **Interact** — tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`, `run_sequence` (batch steps + guards in one call — keeps native-timer flows from being perturbed by per-step round-trips); opt-in `verify_change` tells you whether a tap/key actually changed the UI
 - **Lock / Keystore / Biometrics** — set/clear a secure lock screen, check lock state, `has_biometric_enrolled` + `fingerprint_touch`/`finger_remove` to satisfy a BiometricPrompt on the emulator
-- **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery`, `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
+- **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery` (also works on real devices via dumpsys), `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
 - **App lifecycle** — install/uninstall, launch/stop, `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
 - **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics** — dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
-- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task + variant discovery (`list_gradle_variants`), one-shot `build_and_run`
+- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
 
 The driving know-how itself ships as four MCP **resources** (`android://guide/*`)
 the client can list and read — see [docs/TOOLS.md](docs/TOOLS.md) for the URIs,

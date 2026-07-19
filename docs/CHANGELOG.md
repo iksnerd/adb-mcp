@@ -4,6 +4,32 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.17.0 — screenshot decodes once + set_battery on real devices + list_gradle_projects
+
+A performance fix and two backlog items.
+
+**Perf — `screenshot` decodes the PNG once, not twice.** `CaptureScreen` decoded
+each frame in `isMostlyBlack` and *again* in `downscalePNG` (and re-decoded on
+every black-retry). Measured: **~85 ms + 18 MB per `png.Decode`** of a 2076×2152
+frame. It now decodes once into an `image.Image` and shares it between the
+black-check and the downscale — roughly halving the CPU/allocs of the
+most-called tool (screenshot runs after every action in the driving loop). The
+byte-in wrappers are kept for the tested undecodable-input path; verified live
+that full-res and downscaled captures still decode correctly.
+
+**`set_battery` works on physical devices** (closes the enhancement backlog).
+The emulator path (`adb emu power`) is unchanged; a physical device now forces
+the values through the framework (`dumpsys battery set level/ac`). Those persist
+until you clear them, so a new `reset` option restores automatic reporting
+(`dumpsys battery reset`) on either. Verified live that `set`/`reset` round-trip.
+
+**New — `list_gradle_projects`** (XcodeBuildMCP parity — deeper project
+discovery). Runs `gradlew projects` and returns the module paths of a
+multi-module build (`:app`, `:core`, `:feature:login`) so you can point
+`gradle_build`/`list_gradle_variants` at the right module or address a task with
+`:module:task`. Complements `list_gradle_variants` (which lists a module's build
+variants). Parser unit-tested against the standard `gradlew projects` tree.
+
 ## v0.16.0 — foldable screenshot fix + app_state + has_biometric_enrolled + run_sequence
 
 Four field-feedback items, each reproduced and verified on a live emulator
