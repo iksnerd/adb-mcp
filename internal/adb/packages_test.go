@@ -49,6 +49,17 @@ func TestClassifyBundle(t *testing.T) {
 	}
 }
 
+func TestMetroSocketPort(t *testing.T) {
+	procNet := `  sl  local_address rem_address   st
+   3: 0100007F:9C40 0200007F:1F91 01 00000000:00000000 01:00000014 00000000 1000 0 12345 4 0000000000000000 20 4 31 10 -1`
+	if got, ok := metroSocketPort(procNet); !ok || got != 8081 {
+		t.Fatalf("metroSocketPort() = (%d, %t), want (8081, true)", got, ok)
+	}
+	if got, ok := metroSocketPort("1: 0100007F:9C40 0200007F:2328 06"); ok || got != 0 {
+		t.Fatalf("metroSocketPort(non-established) = (%d, %t), want (0, false)", got, ok)
+	}
+}
+
 // TestParseInstallTimes guards the dumpsys package time extraction (real lines
 // from a Pixel emulator).
 func TestParseInstallTimes(t *testing.T) {

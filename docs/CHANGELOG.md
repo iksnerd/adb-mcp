@@ -4,6 +4,29 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.17.1 — app_state bundle detection: live-socket fallback
+
+Field report (2026-08-05): on modern Expo/RN builds, `app_state`'s
+Metro-vs-embedded verdict relied on logcat markers (`HMRClient`/`Fast
+Refresh`/`DevServerHelper`) that some current dev clients don't emit, leaving
+the bundle source `unknown` even when the app was live-connected to Metro.
+
+**Fix — a second, independent signal.** When logcat gives no verdict,
+`app_state` now reads the app process' `/proc/<pid>/net/tcp[6]` for an
+established connection to a conventional Metro/Expo dev-server port (8081,
+8082, 19000–19002) and reports `metro` from that instead. The response gains
+`bundle_signals` (`logcat` and/or `live_socket`) showing which evidence the
+verdict is based on. Logcat stays the primary signal — a live socket proves a
+dev-server connection but not that the app is React Native — so the fallback
+only fires when logcat is inconclusive. Unit-tested against real
+`/proc/net/tcp` line formats.
+
+Also closed out several open TODO/BACKLOG items to reflect current state: the
+Maestro integration question is decided (defer — `run_sequence` covers batching),
+batch-tap is folded into `run_sequence`, and the accessibility-action-tap and
+Expo-dev-client-verification items are reframed as known open gaps rather than
+untouched backlog.
+
 ## v0.17.0 — screenshot decodes once + set_battery on real devices + list_gradle_projects
 
 A performance fix and two backlog items.

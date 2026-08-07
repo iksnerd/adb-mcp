@@ -172,6 +172,7 @@ type AppState struct {
 	LastUpdate     string   `json:"last_update_time,omitempty"`
 	BundleSource   string   `json:"bundle_source"`             // metro | embedded | unknown | not-react-native
 	BundleEvidence string   `json:"bundle_evidence,omitempty"` // the log line(s) the guess is based on
+	BundleSignals  []string `json:"bundle_signals,omitempty"`  // independent signals used by the verdict
 	Notes          []string `json:"notes,omitempty"`
 }
 
@@ -221,9 +222,26 @@ func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) 
 	}
 
 	// Bundle source: scan the app's recent logcat for dev-server / hot-reload
-	// markers. --pid keeps it to this app's own lines.
+	// markers. --pid keeps it to this app's own lines. Modern Expo/RN builds can
+	// connect to Metro without emitting the older HMRClient/Fast Refresh markers,
+	// so use the process' live TCP sockets as a second, independent signal.
 	if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-t", "4000", "--pid", strconv.Itoa(s.PIDs[0])); err == nil {
 		s.BundleSource, s.BundleEvidence = classifyBundle(logs)
+		if s.BundleSource == "metro" {
+			s.BundleSignals = append(s.BundleSignals, "logcat")
+		} else if s.BundleSource == "embedded" {
+			s.BundleSignals = append(s.BundleSignals, "logcat")
+		}
+	}
+	if s.BundleSource == "unknown" {
+		pid := strconv.Itoa(s.PIDs[0])
+		if sockets, err := c.adb(ctx, "shell", "cat", "/proc/"+pid+"/net/tcp", "/proc/"+pid+"/net/tcp6"); err == nil {
+			if port, ok := metroSocketPort(sockets); ok {
+				s.BundleSource = "metro"
+				s.BundleEvidence = fmt.Sprintf("process has an established TCP connection to Metro port %d", port)
+				s.BundleSignals = append(s.BundleSignals, "live_socket")
+			}
+		}
 	}
 	switch s.BundleSource {
 	case "metro":
@@ -236,6 +254,33 @@ func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) 
 		s.Notes = append(s.Notes, "couldn't tell Metro from embedded — no React-Native markers in recent logcat; clear_logcat, reload, and re-check, or it may be a native (non-RN) app")
 	}
 	return s, nil
+}
+
+// metroSocketPort reports the first established connection to a conventional
+// Metro/Expo dev-server port. /proc/net/tcp represents ports as uppercase
+// hexadecimal; state 01 is TCP_ESTABLISHED. This is deliberately a fallback:
+// a socket proves a live dev-server connection, but not that every app uses
+// React Native, so logcat remains the primary embedded/not-RN signal.
+func metroSocketPort(procNet string) (int, bool) {
+	for line := range strings.SplitSeq(procNet, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 4 || fields[0] == "sl" || fields[3] != "01" {
+			continue
+		}
+		parts := strings.Split(fields[2], ":")
+		if len(parts) != 2 {
+			continue
+		}
+		port, err := strconv.ParseInt(parts[1], 16, 32)
+		if err != nil {
+			continue
+		}
+		switch int(port) {
+		case 8081, 8082, 19000, 19001, 19002:
+			return int(port), true
+		}
+	}
+	return 0, false
 }
 
 // parsePIDs parses the space/newline-separated pid list from `pidof`.

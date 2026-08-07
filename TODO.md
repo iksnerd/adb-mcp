@@ -40,14 +40,14 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 - [ ] Project scaffolding — new Android project from a template (biggest lift)
 
 **Field feedback** (open items; most rounds shipped in v0.8.0–v0.16.0, see CHANGELOG)
-- [x] App/bundle state probe — **shipped v0.16.0 as `app_state`**: installed?/running? + pid(s), process uptime, install/update times, Metro-vs-embedded bundle heuristic over recent logcat (HMRClient/Fast Refresh/DevServer) with the evidence line. Flags multiple live processes for one package.
+- [x] App/bundle state probe — **shipped v0.16.0**, strengthened after the 2026-08-05 field report: installed?/running? + pid(s), process uptime, install/update times, Metro-vs-embedded bundle heuristic over recent logcat, plus a live Metro-port socket fallback and `bundle_signals` evidence. Flags multiple live processes for one package.
 - [x] Multi-display foldable `screenshot` corruption — **shipped v0.16.0**: strip the `screencap` multi-display `[Warning]` prefix before the PNG signature (robust, display-agnostic) + optional `display` selector (inner/cover/index/physical-id).
 - [~] `biometric_auth` — **`has_biometric_enrolled` shipped v0.16.0** (count>0 probe; verified 0→1 on a live enroll). Still open: a deterministic re-enroll that *captures* the assigned finger id from the enrollment HAL log (id-guessing stays out — a wrong `finger_id` trips a HAL lockout, and `dumpsys fingerprint` never exposes the id).
-- [ ] Verify `reload_app`/`open_dev_menu` on a real Expo dev client
-- [ ] Residual describe_ui auto-filter noise — single-child chain collapse (clickable/query/compact cover it today)
-- [ ] Accessibility-action tap for native surfaces — coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; the real fix needs a live-emulator pass (no simple adb command — likely a UiAutomator route)
+- [~] Verify `reload_app`/`open_dev_menu` on a real Expo dev client — tool paths are documented; current Expo classic/bridgeless behavior still needs a live matrix pass.
+- [ ] Residual `describe_ui` auto-filter noise — single-child chain collapse (clickable/query/compact cover it today)
+- [~] Accessibility-action tap for native surfaces — coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; the real fix needs a device-side UiAutomator/accessibility bridge, not another coordinate wrapper.
 - [x] DECISION: `run_sequence` batching — **shipped v0.16.0**. Steps + sleeps + if_present/if_absent guards + optional, over the existing client methods; returns per-step results + final hierarchy. Batch-tap folds in (a sequence of `tap` steps).
-- [ ] DECISION: Maestro integration (`run_maestro_flow`) — deliberate yes/no, see BACKLOG.md (decided separately from run_sequence now that batching shipped)
+- [x] DECISION: Maestro integration (`run_maestro_flow`) — defer. `run_sequence` covers in-process batching/guards; keep Maestro as an external E2E runner until structured cross-tool reporting is a demonstrated requirement.
 
 **Enhancements**
 - [ ] Multi-touch / pinch-zoom (needs `sendevent`; single-pointer `drag` already shipped) — parked, no reliable cross-device approach yet

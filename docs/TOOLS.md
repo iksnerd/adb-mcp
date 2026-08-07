@@ -66,7 +66,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 |---|---|
 | `list_packages` | List installed packages (filterable) |
 | `get_app_details` | Version name/code + launchable activity of an app |
-| `app_state` | Runtime state: installed?/running? + pid(s), process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo) — run first when JS edits seem to have no effect, or to catch two live processes for one package |
+| `app_state` | Runtime state: installed?/running? + pid(s), process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo), with `bundle_signals` showing logcat or live-socket evidence — run first when JS edits seem to have no effect, or to catch two live processes for one package |
 | `install_app` / `uninstall_app` | Install/reinstall or remove an app |
 | `launch_app` / `stop_app` | Launch the LAUNCHER activity (echoes the component; clear error if none) / force-stop |
 | `reload_app` | Best-effort Metro/JS reload via the RN `RELOAD_APP_ACTION` broadcast |
