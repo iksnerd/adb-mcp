@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ListPackages lists installed package names, optionally filtered by substring.
@@ -154,6 +156,14 @@ var (
 	versionCodeRe = regexp.MustCompile(`versionCode=(\d+)`)
 )
 
+// isPackageInstalled reports whether a `dumpsys package <pkg>` dump describes
+// an installed package. An unknown package prints "Unable to find package:
+// <pkg>" instead of the "Package [<pkg>] (...):" header every installed
+// package has.
+func isPackageInstalled(dump string) bool {
+	return !strings.Contains(dump, "Unable to find package") && strings.Contains(dump, "Package [")
+}
+
 // AppState is a runtime snapshot of an installed app: whether and where its
 // process is running, and — for React Native / Expo dev builds — whether it is
 // serving a live Metro bundle or its baked-in embedded one. Getting the last
@@ -166,6 +176,8 @@ type AppState struct {
 	Package        string   `json:"package"`
 	Installed      bool     `json:"installed"`
 	Running        bool     `json:"running"`
+	Foreground     bool     `json:"foreground"`
+	TopActivity    string   `json:"top_activity,omitempty"`
 	PIDs           []int    `json:"pids,omitempty"`
 	ProcessUptime  string   `json:"process_uptime,omitempty"` // wall-clock of the main process (ps ETIME)
 	FirstInstall   string   `json:"first_install_time,omitempty"`
@@ -173,6 +185,9 @@ type AppState struct {
 	BundleSource   string   `json:"bundle_source"`             // metro | embedded | unknown | not-react-native
 	BundleEvidence string   `json:"bundle_evidence,omitempty"` // the log line(s) the guess is based on
 	BundleSignals  []string `json:"bundle_signals,omitempty"`  // independent signals used by the verdict
+	SourceMTime    string   `json:"source_mtime,omitempty"`
+	LastHMRUpdate  string   `json:"last_hmr_update,omitempty"`
+	BundleStale    bool     `json:"bundle_stale,omitempty"`
 	Notes          []string `json:"notes,omitempty"`
 }
 
@@ -187,12 +202,27 @@ var (
 // logcat. Every probe is best-effort — a failure annotates the result rather
 // than failing the whole call, so a partial answer still beats none.
 func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) {
+	return c.GetAppStateWithSource(ctx, pkg, "")
+}
+
+// GetAppStateWithSource is GetAppState plus an optional host source path. When
+// provided, it compares the newest source mtime with the latest epoch-timed
+// Metro/HMR marker in logcat. This catches git checkout/stash replacements that
+// Metro's watcher missed while the process still has a live Metro socket.
+func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath string) (AppState, error) {
 	s := AppState{Package: pkg, BundleSource: "unknown"}
+	var sourceTime time.Time
+	if sourcePath != "" {
+		if t, err := newestSourceMTime(sourcePath); err == nil {
+			sourceTime = t
+			s.SourceMTime = t.Format(time.RFC3339)
+		} else {
+			s.Notes = append(s.Notes, fmt.Sprintf("source path unavailable: %v", err))
+		}
+	}
 
 	if dump, err := c.adb(ctx, "shell", "dumpsys", "package", pkg); err == nil {
-		if !strings.Contains(dump, "Unable to find package") && strings.Contains(dump, "Package [") {
-			s.Installed = true
-		}
+		s.Installed = isPackageInstalled(dump)
 		if m := firstInstallRe.FindStringSubmatch(dump); m != nil {
 			s.FirstInstall = strings.TrimSpace(m[1])
 		}
@@ -214,6 +244,12 @@ func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) 
 		s.BundleSource = "n/a"
 		return s, nil
 	}
+	if activity, err := c.ResumedActivity(ctx); err == nil {
+		s.TopActivity = activity
+		s.Foreground = strings.HasPrefix(activity, pkg+"/")
+	} else {
+		s.Notes = append(s.Notes, fmt.Sprintf("foreground activity unavailable: %v", err))
+	}
 	if len(s.PIDs) > 1 {
 		s.Notes = append(s.Notes, fmt.Sprintf("%d live processes for this package — taps and log reads may be hitting different ones; stop_app then launch_app for a clean single process", len(s.PIDs)))
 	}
@@ -225,8 +261,15 @@ func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) 
 	// markers. --pid keeps it to this app's own lines. Modern Expo/RN builds can
 	// connect to Metro without emitting the older HMRClient/Fast Refresh markers,
 	// so use the process' live TCP sockets as a second, independent signal.
-	if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-t", "4000", "--pid", strconv.Itoa(s.PIDs[0])); err == nil {
+	if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-v", "epoch", "-t", "4000", "--pid", strconv.Itoa(s.PIDs[0])); err == nil {
 		s.BundleSource, s.BundleEvidence = classifyBundle(logs)
+		if markerTime, ok := bundleUpdateTime(logs); ok {
+			s.LastHMRUpdate = markerTime.Format(time.RFC3339)
+			if !sourceTime.IsZero() && sourceTime.After(markerTime.Add(2*time.Second)) {
+				s.BundleStale = true
+				s.Notes = append(s.Notes, "source files are newer than the latest observed Metro/HMR update — Metro may be serving stale JavaScript; reload or restart Metro")
+			}
+		}
 		if s.BundleSource == "metro" {
 			s.BundleSignals = append(s.BundleSignals, "logcat")
 		} else if s.BundleSource == "embedded" {
@@ -254,6 +297,34 @@ func (c *Client) GetAppState(ctx context.Context, pkg string) (AppState, error) 
 		s.Notes = append(s.Notes, "couldn't tell Metro from embedded — no React-Native markers in recent logcat; clear_logcat, reload, and re-check, or it may be a native (non-RN) app")
 	}
 	return s, nil
+}
+
+func newestSourceMTime(root string) (time.Time, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return time.Time{}, err
+	}
+	newest := info.ModTime()
+	if !info.IsDir() {
+		return newest, nil
+	}
+	err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			base := info.Name()
+			if path != root && (base == ".git" || base == "node_modules" || base == "build" || base == ".gradle") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
+		return nil
+	})
+	return newest, err
 }
 
 // metroSocketPort reports the first established connection to a conventional
@@ -332,6 +403,46 @@ func classifyBundle(logs string) (verdict, evidence string) {
 	return "not-react-native", ""
 }
 
+// bundleUpdateTime returns the timestamp of the MOST RECENT Metro/HMR marker
+// line in logs. `logcat -d` is chronological (oldest first), so this scans
+// every match rather than returning on the first — an early marker from
+// right after app start would otherwise shadow a live reload that happened
+// seconds ago, understating freshness and producing a false bundle_stale.
+func bundleUpdateTime(logs string) (time.Time, bool) {
+	var latest time.Time
+	found := false
+	for line := range strings.SplitSeq(logs, "\n") {
+		if !isBundleUpdateLine(line) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		seconds, err := strconv.ParseFloat(fields[0], 64)
+		if err != nil {
+			continue
+		}
+		sec := int64(seconds)
+		nsec := int64((seconds - float64(sec)) * 1e9)
+		t := time.Unix(sec, nsec)
+		if !found || t.After(latest) {
+			latest = t
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func isBundleUpdateLine(line string) bool {
+	for _, marker := range bundleMarkers {
+		if marker.verdict == "metro" && strings.Contains(line, marker.needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // firstLineContaining returns the first (trimmed) log line that contains needle.
 func firstLineContaining(logs, needle string) string {
 	for line := range strings.SplitSeq(logs, "\n") {
@@ -350,9 +461,7 @@ func (c *Client) GetAppDetails(ctx context.Context, pkg string) (AppDetails, err
 	if err != nil {
 		return d, err
 	}
-	if !strings.Contains(dump, "Unable to find package") && strings.Contains(dump, "Package [") {
-		d.Installed = true
-	}
+	d.Installed = isPackageInstalled(dump)
 	if m := versionNameRe.FindStringSubmatch(dump); m != nil {
 		d.VersionName = m[1]
 	}

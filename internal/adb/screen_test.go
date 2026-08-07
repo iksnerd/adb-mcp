@@ -98,3 +98,28 @@ func TestParseCurrentFocus(t *testing.T) {
 		t.Errorf("parseCurrentFocus(null) = %q, want empty", got)
 	}
 }
+
+func TestParseResumedActivity(t *testing.T) {
+	for _, dump := range []string{
+		`mResumedActivity: ActivityRecord{abc u0 com.example/.MainActivity t12}`,
+		`topResumedActivity=ActivityRecord{abc u0 com.example/.MainActivity t12}`,
+	} {
+		if got := parseResumedActivity(dump); got != "com.example/.MainActivity" {
+			t.Fatalf("parseResumedActivity(%q) = %q, want com.example/.MainActivity", dump, got)
+		}
+	}
+	if got := parseResumedActivity("mResumedActivity: none"); got != "" {
+		t.Fatalf("parseResumedActivity(none) = %q, want empty", got)
+	}
+}
+
+// TestParseResumedActivityPrefersAuthoritativeLine guards a split-screen/
+// multi-display dump where a non-focused stack's mResumedActivity: line
+// appears before the global topResumedActivity= line — the latter must win.
+func TestParseResumedActivityPrefersAuthoritativeLine(t *testing.T) {
+	dump := `mResumedActivity: ActivityRecord{abc u0 com.other/.BackgroundActivity t11}
+topResumedActivity=ActivityRecord{def u0 com.example/.MainActivity t12}`
+	if got := parseResumedActivity(dump); got != "com.example/.MainActivity" {
+		t.Fatalf("parseResumedActivity(%q) = %q, want the topResumedActivity= line to win", dump, got)
+	}
+}

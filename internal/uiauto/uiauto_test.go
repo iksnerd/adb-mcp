@@ -75,6 +75,34 @@ func TestParseHierarchyFilteredAuto(t *testing.T) {
 	}
 }
 
+func TestAutoCollapsesSingleChildLayoutChain(t *testing.T) {
+	xml := `<hierarchy><node class="android.widget.FrameLayout" bounds="[0,0][100,100]"><node class="android.widget.LinearLayout" bounds="[10,10][90,90]"><node text="Submit" clickable="true" class="android.widget.Button" bounds="[20,20][80,80]"/></node></node></hierarchy>`
+	elems, hidden, err := ParseHierarchyFiltered(xml, FilterAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elems) != 1 || elems[0].Text != "Submit" || hidden != 2 {
+		t.Fatalf("got elems=%+v hidden=%d, want only Submit and 2 hidden wrappers", elems, hidden)
+	}
+}
+
+// TestAutoCollapsesSingleChildChainWithResourceID guards the actual
+// navigation_bar_item_* case from the field report: a wrapper carrying a
+// resource id (which the resource!="" keep-clause would otherwise preserve)
+// must still collapse when it's a label-less, non-clickable single-child link
+// in the chain. wrapper_ui.xml doesn't exercise this because every real
+// wrapper node there happens to have 0 or 2 children, not 1.
+func TestAutoCollapsesSingleChildChainWithResourceID(t *testing.T) {
+	xml := `<hierarchy><node class="android.widget.FrameLayout" bounds="[0,0][100,100]"><node resource-id="app:id/icon_container" class="android.widget.FrameLayout" bounds="[10,10][90,90]"><node text="Submit" clickable="true" class="android.widget.Button" bounds="[20,20][80,80]"/></node></node></hierarchy>`
+	elems, hidden, err := ParseHierarchyFiltered(xml, FilterAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elems) != 1 || elems[0].Text != "Submit" || hidden != 2 {
+		t.Fatalf("got elems=%+v hidden=%d, want the id-carrying single-child wrapper collapsed too", elems, hidden)
+	}
+}
+
 func TestParseHierarchyFilteredAll(t *testing.T) {
 	elems, hidden, err := ParseHierarchyFiltered(readTestdata(t, "wrapper_ui.xml"), FilterAll)
 	if err != nil {

@@ -9,8 +9,8 @@ device-lock/Keystore, custom PIN pads, `tap_on_text`/`wait_for_text`,
 `set_status_bar`). These are the remaining gaps vs XcodeBuildMCP:
 
 - [x] **`build_and_run`** — one-shot `gradle_build` → `install_app` → `launch_app`. Shipped: installs the first APK the build produces; pass a variant-specific `task` to disambiguate multi-flavor projects.
-- [~] **Deeper project discovery** — no analogue of "list schemes / dump build settings". **`list_gradle_variants` shipped v0.14.0** (buildable variants) and **`list_gradle_projects` shipped v0.17.0** (the `gradlew projects` module map — `:app`/`:core`/`:feature:login`). Still open: a per-module build-info/`properties` dump if it proves useful, complementing `list_gradle_tasks` + `get_app_details`.
-- [ ] **Project scaffolding** — no "create a new Android project from a template" tool (XcodeBuildMCP has `scaffold`). Biggest lift; would need a bundled template + Gradle wrapper generation.
+- [x] **Deeper project discovery** — `list_gradle_projects` plus `gradle_project_properties` provide the module map and evaluated per-module properties.
+- [x] **Project scaffolding** — `scaffold_android_project` creates a minimal Kotlin Android project in a new empty directory.
 - [x] **Embedded runtime-crash telemetry (`last_crash`)** — shipped v0.10.0. `last_crash` pulls `dumpsys dropbox --print` (data_app_crash + native) so the whole fatal comes back in one call. A live streaming variant (vs. on-demand pull) is still open if it proves useful.
 
 ## Enhancements
@@ -71,9 +71,9 @@ From `android-mcp-papercuts` #019f709b and #019f70d1.
 - [x] **Fingerprint id troubleshooting.** `emu finger touch 1` returns OK without authenticating when the enrolled id ≠ 1 (re-enrollments increment it). Tool description + pin-and-lock guide now cover: try ids 2..5, double-touch timing, deterministic re-enrollment. (v0.11.2)
 - [x] **`doctor` reports the server version.** Reporter burned a session concluding v0.11.0 params "regressed" when their install was simply pre-v0.11.0. `doctor` now leads with the serving binary's version + the `adb-mcp update` pointer. (v0.11.2)
 - [~] **`biometric_auth` that knows the enrolled id.** The robust version of `fingerprint_touch`. The live-emulator pass is **done** (2026-07-18) and reframed the design — see round 7 below: `dumpsys fingerprint` gives only an enrolled count (no id), a wrong id trips a HAL lockout, so the tool is `has_biometric_enrolled` + deterministic re-enroll, not runtime id-discovery.
-- [ ] **Force-PIN path.** An `auth_prefer_pin`-style way to reliably reach the PIN pad instead of the biometric prompt. App-controlled in general (the app decides to auto-fire biometrics); may reduce to a documented cancel loop. Investigate before promising a tool.
+- [x] **Force-PIN path.** `prefer_pin` now selects common system credential-fallback buttons or sends BACK, then asks the caller to confirm the pad with `describe_ui`. App-controlled prompts may still suppress this path.
 - [x] **Batch tap.** Folded into `run_sequence` in v0.16.0; a same-screen batch is a sequence of `tap` steps, so a one-off tool is unnecessary.
-- [ ] **Residual `auto`-filter noise.** The identical-bounds rule kills only part of Material's `navigation_bar_item_*` chain (nested wrappers have distinct sub-bounds). Remaining idea from round 3: collapse single-child layout chains to their meaningful leaf. `filter=clickable`/`query`/`compact` are the practical answer today.
+- [x] **Residual `auto`-filter noise.** Auto now also collapses unlabelled, non-clickable single-child layout chains; `filter=clickable`/`query`/`compact` remain available for compact or exact queries.
 
 ## Field feedback, round 6 (coordinate tap no-op on NativeTabs, 2026-07-18)
 
@@ -96,6 +96,17 @@ From driving the shipped tools on `emulator-5554` (Pixel AVD, API 17) during the
 From `android-emulator-mcp-feedback` #019f7abc (a client app on a Pixel Fold AVD).
 
 - [x] **`screenshot` corrupt on multi-display foldables.** **Shipped v0.16.0.** With >1 physical display, `screencap -p` (no `-d`) prints a `[Warning] Multiple displays were found …` line to stdout *before* the PNG, shifting the header so it won't decode — the tool returned `0x0` / undecodable, 100% unusable on a foldable. Fix: strip any bytes before the `\x89PNG` signature from every screencap (robust, display-agnostic, harmless single-display). Plus an optional `display` selector on `screenshot` (`inner`/`cover`/HWC-index/physical-id). Landmine confirmed live and NOT as the reporter guessed: `screencap -d` needs the **physical** display id from `dumpsys SurfaceFlinger --display-id` (e.g. `4619827259835644672`), *not* the logical id `0` — passing `-d 0` fails with "Failed to take the screenshot", so the byte-strip (not `-d`) is the primary fix.
+
+## Field feedback, round 9 (foreground/staleness gaps from a timing-sensitive bug, 2026-08-07)
+
+From `android-mcp-papercuts` #019fdb7d (a client app, `emulator-5554`, Android 17/API 37) — a ~3h session diagnosing an app-exit/reopen bug (an internal tracker ticket follow-up, fixed and shipped separately). Not yet actioned.
+
+- [x] **`app_state` can't answer "is the app foregrounded?"** Shipped: `foreground` + `top_activity` from `dumpsys activity activities`; `run_sequence` also has `assert_foreground`.
+- [x] **`app_state` Metro staleness signal.** Optional `source_path` compares newest host source mtime with the latest epoch-timed Metro/HMR marker and reports `bundle_stale`, `source_mtime`, and `last_hmr_update`.
+- [x] **`run_sequence` assertion/timing gap.** Shipped: `assert_foreground` and per-step `elapsed_ms`.
+- [x] **`launch_dev_client` reports success on `DevLauncherErrorActivity`.** Shipped: detects the error activity and includes its visible text when available.
+
+Self-audit note from the same report, for calibration: most of the session's raw-`adb` use was the reporter's own habit, not a tool gap — `describe_ui(query=…, compact=true)` (round 4) and `start_logcat_capture`/`stop_logcat_capture` (the press→observe isolation from round 3) worked well when actually used; `run_sequence` (round 6's batching decision) went unused despite fitting the exact problem.
 
 ## Conventions (read before adding a tool)
 

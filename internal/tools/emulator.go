@@ -147,6 +147,18 @@ func hasBiometricEnrolled(ctx context.Context, in serialArg) (*mcp.CallToolResul
 	return text("No fingerprint enrolled — fingerprint_touch will sit on \"Touch the sensor\" and never resolve. Enroll one first (Settings > Security > Fingerprint, calling fingerprint_touch for each wizard prompt), or drive the PIN path instead."), nil
 }
 
+func preferPIN(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := c.PreferPIN(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return text("%s", detail), nil
+}
+
 type sendSMSArgs struct {
 	serialArg
 	From string `json:"from" jsonschema:"Sender phone number the SMS appears to come from, e.g. \"+15551234567\"."`

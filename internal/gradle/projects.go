@@ -2,7 +2,9 @@ package gradle
 
 import (
 	"context"
+	"fmt"
 	"regexp"
+	"strings"
 )
 
 // projectPathRe matches a module line in `gradlew projects` output, e.g.
@@ -30,6 +32,16 @@ func ParseProjects(projectsOutput string) []string {
 		}
 	}
 	return paths
+}
+
+// ListProjectProperties runs Gradle's standard properties task for one module.
+// module is a Gradle path such as :app or :feature:login.
+func ListProjectProperties(ctx context.Context, projectDir, module string) (string, error) {
+	module = strings.TrimSpace(module)
+	if module == "" || !strings.HasPrefix(module, ":") || strings.ContainsAny(module, " \t\r\n") {
+		return "", fmt.Errorf("module must be a Gradle path such as :app or :feature:login")
+	}
+	return Gradle(ctx, projectDir, module+":properties")
 }
 
 // ListProjects runs `gradlew projects` in projectDir and parses out the module

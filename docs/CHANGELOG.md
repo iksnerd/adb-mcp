@@ -4,6 +4,85 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.18.0 — app_state foreground/staleness + scaffold_android_project + gradle_project_properties
+
+Round 9 field feedback (`android-mcp-papercuts` #019fdb7d, 2026-08-07 — a
+timing-sensitive app-exit/reopen bug), plus the remaining XcodeBuildMCP parity
+gaps. Every change here went through an independent code review before
+shipping; six real bugs it found (three correctness, one injection risk, one
+race, one dead-code no-op) were fixed and each has a regression test — see
+below.
+
+**`app_state` gets `foreground`/`top_activity`.** `running: true` was equally
+true for a backgrounded process, so it couldn't answer the actual pass/fail
+question behind a foreground/background bug ("is the app on screen, or did it
+fall back to the launcher"). Now parses `dumpsys activity activities` for the
+authoritative `topResumedActivity=` line (falling back to a per-stack
+`mResumedActivity:` line on older Android versions that don't print it).
+
+**`app_state` gets a Metro-staleness signal.** A live Metro connection doesn't
+mean the running JS is current — Metro's file watcher misses `git stash`/`git
+checkout` file replacement, so `bundle_source: metro` can be quietly stale and
+produce confidently wrong conclusions. Pass `source_path` to compare the
+newest host source mtime against the latest Metro/HMR marker timestamp; the
+response gains `bundle_stale`, `source_mtime`, and `last_hmr_update`.
+
+**`run_sequence` gets `assert_foreground` and per-step `elapsed_ms`.** A
+timing-sensitive repro (a ~1-2s reproduction window) couldn't live entirely in
+one sequence call without a foreground check, or report whether a slow run
+blew the window instead of silently passing. Both now available as sequence
+steps/fields.
+
+**`launch_dev_client` detects the Metro-unreachable error screen.** Expo's dev
+launcher returns success from `am start` even when it lands on
+`DevLauncherErrorActivity` (Metro unreachable). The tool now checks the
+settled foreground activity after launch and surfaces the on-screen error
+text instead of a false "launched" report.
+
+**New — `gradle_project_properties`** and **`scaffold_android_project`**
+(the remaining XcodeBuildMCP parity gaps). The former dumps a module's
+evaluated Gradle properties (namespace, SDK settings, build dir) via its
+`:properties` task; the latter creates a minimal Kotlin Android project
+(Gradle Kotlin DSL, manifest, launcher Activity, resources) in a new empty
+directory — run `gradle wrapper` there before `gradle_build`.
+
+**New — `prefer_pin`.** Best-effort nudge of a standard BiometricPrompt toward
+its PIN/password fallback (an explicit system button, or BACK as the generic
+path) — apps can suppress or rename the fallback, so confirm the result with
+`describe_ui`.
+
+**Fix — `describe_ui`'s `auto` filter now actually collapses single-child
+wrapper chains.** The chain-collapse rule added for this (round 4) required
+an empty resource id to fire, which made it redundant with the existing
+fallback return — it never changed output. It no longer requires an empty
+resource id, so label-less, non-clickable single-child wrappers collapse even
+when they carry a resource id (Material's nested `navigation_bar_item_*`
+containers, the original complaint).
+
+**Code health.** Deduped the "is this package installed?" check
+(`isPackageInstalled`, shared by `GetAppStateWithSource` and `GetAppDetails`)
+and unified the logcat-capture/screen-recording session bookkeeping into one
+generic `sessionRegistry[T]` in `internal/adb/capture.go`, replacing two
+near-identical `map[string]*T` + mutex pairs.
+
+**Bugs found and fixed during review, before any of this shipped:**
+- `app_state`'s Metro-staleness check compared against the *oldest* HMR
+  marker in the logcat window instead of the latest (logcat is chronological)
+  — would have false-positived `bundle_stale` on a freshly-updated bundle.
+- `scaffold_android_project`'s project name was interpolated unescaped into
+  generated Kotlin build scripts that Gradle executes — a crafted name was a
+  code-injection path. Names are now validated against a safe charset.
+- A name whose first word started with a digit produced an invalid Kotlin
+  class identifier (`123Activity`); now prefixed (`App123Activity`).
+- `parseResumedActivity` preferred whichever of `topResumedActivity=`/
+  `mResumedActivity:` appeared first in the raw dump, which could pick the
+  wrong app's activity on split-screen/multi-display devices; now always
+  prefers the authoritative global line.
+- `launch_dev_client` checked the foreground activity immediately after
+  firing the launch intent, racing the activity transition; now polls via a
+  new `SettledResumedActivity` (mirrors the existing `describeSettled`
+  settle-and-compare pattern) instead of a single immediate read.
+
 ## v0.17.1 — app_state bundle detection: live-socket fallback
 
 Field report (2026-08-05): on modern Expo/RN builds, `app_state`'s

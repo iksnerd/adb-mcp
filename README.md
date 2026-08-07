@@ -130,7 +130,7 @@ go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-70 tools across nine areas. Every device-facing tool takes an optional
+73 tools across nine areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 

@@ -3,6 +3,7 @@ package adb
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestParsePIDs(t *testing.T) {
@@ -57,6 +58,28 @@ func TestMetroSocketPort(t *testing.T) {
 	}
 	if got, ok := metroSocketPort("1: 0100007F:9C40 0200007F:2328 06"); ok || got != 0 {
 		t.Fatalf("metroSocketPort(non-established) = (%d, %t), want (0, false)", got, ok)
+	}
+}
+
+func TestBundleUpdateTime(t *testing.T) {
+	got, ok := bundleUpdateTime("1775550000.250  I  HMRClient: connection established")
+	if !ok || !got.Equal(time.Unix(1775550000, 250000000)) {
+		t.Fatalf("bundleUpdateTime() = %v, %v", got, ok)
+	}
+	if _, ok := bundleUpdateTime("I HMRClient: connection established"); ok {
+		t.Fatal("expected non-epoch logcat timestamp to be ignored")
+	}
+}
+
+// TestBundleUpdateTimeUsesLatestMarker guards against regressing to the first
+// match: logcat -d is chronological (oldest first), so an early marker from
+// right after app start must not shadow a live reload seconds ago.
+func TestBundleUpdateTimeUsesLatestMarker(t *testing.T) {
+	logs := "1775550000.000  I  HMRClient: connection established\n" +
+		"1775550120.500  I  Fast Refresh: applied\n"
+	got, ok := bundleUpdateTime(logs)
+	if !ok || !got.Equal(time.Unix(1775550120, 500000000)) {
+		t.Fatalf("bundleUpdateTime() = %v, %v, want the later (Fast Refresh) marker", got, ok)
 	}
 }
 

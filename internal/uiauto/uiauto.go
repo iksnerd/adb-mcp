@@ -146,6 +146,13 @@ func keepNode(n *xmlNode, clickable bool, b, parent Bounds, filter UIFilter) boo
 	if !hasText && !clickable && b == parent {
 		return false // pure wrapper: no label, not tappable, same rect as its parent
 	}
+	if !hasText && !clickable && len(n.Children) == 1 {
+		// Collapse a single-child layout chain to its meaningful leaf, even
+		// when this wrapper carries a resource id (e.g. Material's nested
+		// navigation_bar_item_* containers) — otherwise the resource-id
+		// keep-clause below would let each wrapper in the chain survive.
+		return false
+	}
 	return hasText || strings.TrimSpace(n.Resource) != "" || clickable
 }
 

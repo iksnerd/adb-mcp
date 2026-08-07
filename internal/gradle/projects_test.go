@@ -1,6 +1,7 @@
 package gradle
 
 import (
+	"context"
 	"reflect"
 	"testing"
 )
@@ -31,5 +32,11 @@ To see a list of the tasks of a project, run gradlew <project-path>:tasks
 	// A single-module build lists no sub-projects.
 	if got := ParseProjects("Root project 'Solo'\nNo sub-projects\n"); got != nil {
 		t.Errorf("single-module ParseProjects = %v, want nil", got)
+	}
+}
+
+func TestListProjectPropertiesRejectsInvalidModule(t *testing.T) {
+	if _, err := ListProjectProperties(context.Background(), t.TempDir(), "app"); err == nil {
+		t.Fatal("expected a Gradle module path to start with ':'")
 	}
 }

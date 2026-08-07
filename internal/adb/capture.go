@@ -16,16 +16,59 @@ import (
 // running across tool calls, stop tears it down and returns what it collected.
 // Keyed by resolved device serial.
 
+// sessionRegistry is a serial-keyed table of in-flight background sessions
+// (a logcat capture or a screen recording), guarded by one mutex. start holds
+// the lock across mk so "does a session already exist" and "register the new
+// one" stay atomic; take atomically removes a session so its (possibly slow)
+// teardown runs outside the lock.
+type sessionRegistry[T any] struct {
+	mu       sync.Mutex
+	sessions map[string]*T
+}
+
+func (r *sessionRegistry[T]) start(serial, kind string, mk func() (*T, error)) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.sessions[serial]; ok {
+		return fmt.Errorf("a %s is already running for %s; stop it first", kind, serial)
+	}
+	s, err := mk()
+	if err != nil {
+		return err
+	}
+	if r.sessions == nil {
+		r.sessions = map[string]*T{}
+	}
+	r.sessions[serial] = s
+	return nil
+}
+
+func (r *sessionRegistry[T]) take(serial string) (*T, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.sessions[serial]
+	if ok {
+		delete(r.sessions, serial)
+	}
+	return s, ok
+}
+
+func (r *sessionRegistry[T]) stopAll(stop func(*T)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for serial, s := range r.sessions {
+		stop(s)
+		delete(r.sessions, serial)
+	}
+}
+
 type logSession struct {
 	cmd  *exec.Cmd
 	file *os.File
 	path string
 }
 
-var (
-	logMu       sync.Mutex
-	logSessions = map[string]*logSession{}
-)
+var logSessions = &sessionRegistry[logSession]{}
 
 // deviceArgs prefixes args with `-s <serial>` when the client targets a
 // specific device, matching runAdbBytes for the background streaming processes
@@ -41,32 +84,28 @@ func (c *Client) deviceArgs(args ...string) []string {
 // a later StopLogcatCapture returns everything logged during a flow (unlike the
 // one-shot Logcat dump). Optionally clears the buffer first.
 func (c *Client) StartLogcatCapture(ctx context.Context, clear bool) error {
-	logMu.Lock()
-	defer logMu.Unlock()
-	if _, ok := logSessions[c.Serial]; ok {
-		return fmt.Errorf("a logcat capture is already running for %s; stop it first", c.Serial)
-	}
 	if clear {
 		_, _ = c.adb(ctx, "logcat", "-c")
 	}
-	f, err := os.CreateTemp("", "aemcp-logcat-*.txt")
-	if err != nil {
-		return err
-	}
-	// threadtime (not "time") so StopLogcatCapture's LogFilter can parse each
-	// line's priority/tag — logLineRe expects the "… PID TID PRIO TAG:" shape.
-	cmd := exec.Command(sdk.AdbPath(), c.deviceArgs("logcat", "-v", "threadtime")...)
-	cmd.Env = sdk.CommandEnv()
-	cmd.Stdout = f
-	cmd.Stderr = f
-	detach(cmd)
-	if err := cmd.Start(); err != nil {
-		f.Close()
-		os.Remove(f.Name())
-		return fmt.Errorf("start logcat capture: %w", err)
-	}
-	logSessions[c.Serial] = &logSession{cmd: cmd, file: f, path: f.Name()}
-	return nil
+	return logSessions.start(c.Serial, "logcat capture", func() (*logSession, error) {
+		f, err := os.CreateTemp("", "aemcp-logcat-*.txt")
+		if err != nil {
+			return nil, err
+		}
+		// threadtime (not "time") so StopLogcatCapture's LogFilter can parse each
+		// line's priority/tag — logLineRe expects the "… PID TID PRIO TAG:" shape.
+		cmd := exec.Command(sdk.AdbPath(), c.deviceArgs("logcat", "-v", "threadtime")...)
+		cmd.Env = sdk.CommandEnv()
+		cmd.Stdout = f
+		cmd.Stderr = f
+		detach(cmd)
+		if err := cmd.Start(); err != nil {
+			f.Close()
+			os.Remove(f.Name())
+			return nil, fmt.Errorf("start logcat capture: %w", err)
+		}
+		return &logSession{cmd: cmd, file: f, path: f.Name()}, nil
+	})
 }
 
 // StopLogcatCapture stops the running capture for the device and returns the
@@ -75,12 +114,7 @@ func (c *Client) StopLogcatCapture(f LogFilter) (string, error) {
 	if err := f.validate(); err != nil {
 		return "", err
 	}
-	logMu.Lock()
-	s, ok := logSessions[c.Serial]
-	if ok {
-		delete(logSessions, c.Serial)
-	}
-	logMu.Unlock()
+	s, ok := logSessions.take(c.Serial)
 	if !ok {
 		return "", fmt.Errorf("no logcat capture running for %s", c.Serial)
 	}
@@ -101,23 +135,16 @@ func (c *Client) StopLogcatCapture(f LogFilter) (string, error) {
 // process or a /tmp file. (On-device artifacts from an interrupted screen
 // recording are left as-is; a clean stop_screen_record removes them.)
 func StopAllCaptures() {
-	logMu.Lock()
-	for serial, s := range logSessions {
+	logSessions.stopAll(func(s *logSession) {
 		_ = s.cmd.Process.Kill()
 		_, _ = s.cmd.Process.Wait()
 		s.file.Close()
 		os.Remove(s.path)
-		delete(logSessions, serial)
-	}
-	logMu.Unlock()
-
-	recMu.Lock()
-	for serial, s := range recSessions {
+	})
+	recSessions.stopAll(func(s *recordSession) {
 		_ = s.cmd.Process.Kill()
 		_, _ = s.cmd.Process.Wait()
-		delete(recSessions, serial)
-	}
-	recMu.Unlock()
+	})
 }
 
 type recordSession struct {
@@ -125,39 +152,27 @@ type recordSession struct {
 	devicePath string
 }
 
-var (
-	recMu       sync.Mutex
-	recSessions = map[string]*recordSession{}
-)
+var recSessions = &sessionRegistry[recordSession]{}
 
 // StartScreenRecord starts screenrecord on the device (max ~180s per Android's
 // limit). StopScreenRecord finalizes and pulls the mp4 to localPath.
 func (c *Client) StartScreenRecord(ctx context.Context) error {
-	recMu.Lock()
-	defer recMu.Unlock()
-	if _, ok := recSessions[c.Serial]; ok {
-		return fmt.Errorf("a screen recording is already running for %s; stop it first", c.Serial)
-	}
-	devicePath := "/sdcard/aemcp-record.mp4"
-	cmd := exec.Command(sdk.AdbPath(), c.deviceArgs("shell", "screenrecord", devicePath)...)
-	cmd.Env = sdk.CommandEnv()
-	detach(cmd)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start screenrecord: %w", err)
-	}
-	recSessions[c.Serial] = &recordSession{cmd: cmd, devicePath: devicePath}
-	return nil
+	return recSessions.start(c.Serial, "screen recording", func() (*recordSession, error) {
+		devicePath := "/sdcard/aemcp-record.mp4"
+		cmd := exec.Command(sdk.AdbPath(), c.deviceArgs("shell", "screenrecord", devicePath)...)
+		cmd.Env = sdk.CommandEnv()
+		detach(cmd)
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("start screenrecord: %w", err)
+		}
+		return &recordSession{cmd: cmd, devicePath: devicePath}, nil
+	})
 }
 
 // StopScreenRecord stops the recording (SIGINT so the mp4 is finalized) and
 // pulls it to localPath.
 func (c *Client) StopScreenRecord(ctx context.Context, localPath string) (string, error) {
-	recMu.Lock()
-	s, ok := recSessions[c.Serial]
-	if ok {
-		delete(recSessions, c.Serial)
-	}
-	recMu.Unlock()
+	s, ok := recSessions.take(c.Serial)
 	if !ok {
 		return "", fmt.Errorf("no screen recording running for %s", c.Serial)
 	}

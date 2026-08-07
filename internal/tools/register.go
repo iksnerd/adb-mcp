@@ -86,7 +86,7 @@ func Register(s *mcp.Server) {
 		"Sleep for a number of seconds (fractions ok, capped at 300), then return. For TIME-based conditions where wait_for_text's polling doesn't apply: backgrounding an app long enough to trip a native auth timer, waiting out a cooldown or rate limit, letting a long animation finish.",
 		wait)
 	add(s, "run_sequence",
-		"Run several interaction steps in ONE call — no agent round-trip between them. Use for scripted flows and, crucially, flows driven by NATIVE TIMERS (background-token clear, a biometric prompt that auto-fires on resume) where a round-trip per step would perturb the timing you're testing: e.g. key:home → sleep:19 → launch → sleep:9 → tap_text:Cancel (if_present:biometric) → describe_ui. Each step has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, describe_ui) with its params; an if_present/if_absent guard skips a step unless a selector is (not) on screen — that's how you express a conditional cancel; and optional=true lets a step fail without aborting. Returns a per-step result (ok/skipped/error) plus the final hierarchy. A non-optional step error stops the rest.",
+		"Run several interaction steps in ONE call — no agent round-trip between them. Use for scripted flows and, crucially, flows driven by NATIVE TIMERS (background-token clear, a biometric prompt that auto-fires on resume) where a round-trip per step would perturb the timing you're testing: e.g. key:home → sleep:19 → launch → sleep:9 → tap_text:Cancel (if_present:biometric) → assert_foreground(package) → describe_ui. Each step has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, assert_foreground, wait_text, describe_ui) with its params; an if_present/if_absent guard skips a step unless a selector is (not) on screen — that's how you express a conditional cancel; and optional=true lets a step fail without aborting. Returns a per-step result (ok/skipped/error) with elapsed_ms plus the final hierarchy. A non-optional step error stops the rest.",
 		runSequence)
 
 	// --- Device lock / Keystore ---
@@ -108,6 +108,9 @@ func Register(s *mcp.Server) {
 	add(s, "has_biometric_enrolled",
 		"Report whether any fingerprint is enrolled (and how many), from dumpsys fingerprint. Check this BEFORE a biometric flow: with nothing enrolled, fingerprint_touch can never satisfy a BiometricPrompt — it just sits on \"Touch the sensor\" — so branch to enrolling one or to the PIN path instead of guessing. Works on emulators and physical devices. Note: the framework exposes only an enrolled COUNT, never which finger id is enrolled, and a wrong fingerprint_touch id trips a HAL lockout after a few tries — so enroll deterministically rather than sweeping ids.",
 		hasBiometricEnrolled)
+	add(s, "prefer_pin",
+		"Try to move a standard BiometricPrompt to its PIN/password fallback by selecting an explicit system button, or sending BACK as the generic cancel path. App-controlled prompts may suppress or rename this option, so confirm the resulting PIN pad with describe_ui before calling enter_pin.",
+		preferPIN)
 
 	// --- Extended Controls (emulator console) ---
 	// These drive the emulator's Extended Controls panel (a window of the emulator
@@ -196,7 +199,7 @@ func Register(s *mcp.Server) {
 		"Report an installed app's version name/code and its launchable activity (dumpsys package + resolve-activity) — to confirm what build is installed and find the activity to launch.",
 		getAppDetails)
 	add(s, "app_state",
-		"Report an app's RUNTIME state: installed?, running? with its pid(s), main-process uptime, install/update times, and — for React Native/Expo — whether it is serving a live METRO bundle or its baked-in EMBEDDED one. Run this FIRST when JS edits seem to have no effect: a dev client that silently fell back to its embedded bundle ignores every change (fix: adb_reverse tcp:8081 then relaunch), and two live processes for one package mean your taps and log reads may hit different ones. The bundle guess is a heuristic over recent logcat (HMRClient/Fast Refresh/DevServer = metro) and reports the evidence line it used.",
+		"Report an app's RUNTIME state: installed?, running?, foreground?, top activity, pid(s), main-process uptime, install/update times, and — for React Native/Expo — whether it is serving a live METRO bundle or its baked-in EMBEDDED one. Optionally pass source_path to compare the newest host source mtime with the latest epoch-timed Metro/HMR marker and flag stale JavaScript after git checkout/stash operations. Run this FIRST when JS edits seem to have no effect.",
 		appState)
 	add(s, "last_crash",
 		"Return the most recent app crash from the system DropBox (dumpsys dropbox — JVM/React-Native and native crashes), with the full exception header and stack in one call. Optionally filter to a package. Use this instead of grepping logcat when an app just crashed: DropBox keeps the whole fatal (header + Caused by + frames) together even after it has scrolled out of the logcat ring buffer.",
@@ -252,6 +255,12 @@ func Register(s *mcp.Server) {
 	add(s, "list_gradle_projects",
 		"List the Gradle modules (sub-projects) in project_dir (gradlew projects) — the map of a multi-module build, e.g. :app, :core, :feature:login. Use it to find which module to point gradle_build/list_gradle_variants at, or to address a task at one module with '<path>:<task>' (e.g. :app:assembleDebug). A single-module build reports no sub-projects.",
 		listGradleProjects)
+	add(s, "gradle_project_properties",
+		"Dump Gradle's evaluated properties for one module, such as :app or :feature:login. Use after list_gradle_projects when you need the module's namespace, Android SDK settings, build directory, or other effective configuration rather than just its task/variant names.",
+		gradleProjectProperties)
+	add(s, "scaffold_android_project",
+		"Create a minimal Kotlin Android application in a new empty directory, including Gradle Kotlin DSL files, an AndroidManifest, a launcher Activity, resources, README, and gitignore. The tool never overwrites a non-empty directory. Run `gradle wrapper` in the result directory before using gradle_build.",
+		scaffoldProject)
 	add(s, "list_gradle_variants",
 		"List the buildable build variants in project_dir (parsed from the assemble* tasks) — the Android analogue of \"list schemes\". Each variant V maps to an assembleV / installV Gradle task; pass it as the task= arg to gradle_build/build_and_run to disambiguate a multi-flavor project. Test-only APK tasks (androidTest/unitTest) are excluded.",
 		listGradleVariants)

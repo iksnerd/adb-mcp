@@ -308,7 +308,7 @@ type waitArgs struct {
 
 type runSequenceArgs struct {
 	serialArg
-	Steps        []adb.Step `json:"steps" jsonschema:"Ordered steps to run in one call. Each has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, describe_ui) plus that action's params, and optional if_present/if_absent guards and an 'optional' flag."`
+	Steps        []adb.Step `json:"steps" jsonschema:"Ordered steps to run in one call. Each has an 'action' (sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, assert_foreground, wait_text, describe_ui) plus that action's params, and optional if_present/if_absent guards and an 'optional' flag. Results include elapsed_ms."`
 	CaptureFinal *bool      `json:"capture_final,omitempty" jsonschema:"Append the settled UI hierarchy after the last step (unless the run aborted) so you see the end state in this same response. Default true."`
 }
 

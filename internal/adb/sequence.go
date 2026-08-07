@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/iksnerd/adb_mcp/internal/uiauto"
@@ -15,7 +16,7 @@ import (
 // how a conditional "cancel the prompt IF it's up" is expressed. A step that
 // errors aborts the rest of the sequence unless Optional is set.
 type Step struct {
-	Action     string  `json:"action" jsonschema:"The operation: sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, or describe_ui."`
+	Action     string  `json:"action" jsonschema:"The operation: sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, assert_foreground, wait_text, or describe_ui."`
 	Seconds    float64 `json:"seconds,omitempty" jsonschema:"sleep: how long to pause, in seconds (fractions ok)."`
 	X          int     `json:"x,omitempty" jsonschema:"tap/swipe: X in true device pixels (swipe start)."`
 	Y          int     `json:"y,omitempty" jsonschema:"tap/swipe: Y in true device pixels (swipe start)."`
@@ -37,12 +38,13 @@ type Step struct {
 // StepResult is the outcome of one Step: status is ok, skipped (a guard
 // failed), or error. Elements is populated only by describe_ui steps.
 type StepResult struct {
-	Index    int              `json:"index"`
-	Action   string           `json:"action"`
-	Status   string           `json:"status"` // ok | skipped | error
-	Detail   string           `json:"detail,omitempty"`
-	Error    string           `json:"error,omitempty"`
-	Elements []uiauto.Element `json:"elements,omitempty"`
+	Index     int              `json:"index"`
+	Action    string           `json:"action"`
+	Status    string           `json:"status"` // ok | skipped | error
+	Detail    string           `json:"detail,omitempty"`
+	Error     string           `json:"error,omitempty"`
+	Elements  []uiauto.Element `json:"elements,omitempty"`
+	ElapsedMS int64            `json:"elapsed_ms"`
 }
 
 // SequenceResult is the outcome of a whole RunSequence: the per-step results,
@@ -65,11 +67,13 @@ func (c *Client) RunSequence(ctx context.Context, steps []Step, captureFinal boo
 	var res SequenceResult
 	for i := range steps {
 		s := &steps[i]
+		started := time.Now()
 		sr := StepResult{Index: i, Action: s.Action, Status: "ok"}
 
 		if s.IfPresent != "" || s.IfAbsent != "" {
 			run, err := c.guardPasses(ctx, s.IfPresent, s.IfAbsent)
 			if err != nil {
+				sr.ElapsedMS = time.Since(started).Milliseconds()
 				sr.Status, sr.Error = "error", fmt.Sprintf("guard read failed: %v", err)
 				res.Steps = append(res.Steps, sr)
 				if !s.Optional {
@@ -79,6 +83,7 @@ func (c *Client) RunSequence(ctx context.Context, steps []Step, captureFinal boo
 				continue
 			}
 			if !run {
+				sr.ElapsedMS = time.Since(started).Milliseconds()
 				sr.Status = "skipped"
 				sr.Detail = "guard not satisfied"
 				res.Steps = append(res.Steps, sr)
@@ -87,6 +92,7 @@ func (c *Client) RunSequence(ctx context.Context, steps []Step, captureFinal boo
 		}
 
 		detail, elems, err := c.runStep(ctx, s)
+		sr.ElapsedMS = time.Since(started).Milliseconds()
 		if err != nil {
 			sr.Status, sr.Error = "error", err.Error()
 			res.Steps = append(res.Steps, sr)
@@ -197,6 +203,19 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 		}
 		return "stopped " + s.Package, nil, c.StopApp(ctx, s.Package)
 
+	case "assert_foreground":
+		if s.Package == "" {
+			return "", nil, fmt.Errorf("assert_foreground needs a 'package'")
+		}
+		activity, err := c.ResumedActivity(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		if !strings.HasPrefix(activity, s.Package+"/") {
+			return "", nil, fmt.Errorf("package %s is not foreground (top activity: %s)", s.Package, activity)
+		}
+		return "foreground: " + activity, nil, nil
+
 	case "wait_text":
 		timeout := time.Duration(s.TimeoutS) * time.Second
 		e, err := c.WaitForText(ctx, s.Text, partial, timeout)
@@ -217,6 +236,6 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 		return fmt.Sprintf("captured %d element(s)", len(elems)), elems, nil
 
 	default:
-		return "", nil, fmt.Errorf("unknown action %q (use: sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, wait_text, describe_ui)", s.Action)
+		return "", nil, fmt.Errorf("unknown action %q (use: sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, assert_foreground, wait_text, describe_ui)", s.Action)
 	}
 }

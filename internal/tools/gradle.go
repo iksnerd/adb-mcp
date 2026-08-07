@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/iksnerd/adb_mcp/internal/gradle"
+	"github.com/iksnerd/adb_mcp/internal/scaffold"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -17,6 +18,17 @@ type gradleArgs struct {
 	Task       string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to the tool's standard task."`
 	Args       []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
 	JSON       bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
+}
+
+type gradlePropertiesArgs struct {
+	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
+	Module     string `json:"module" jsonschema:"Gradle module path, e.g. :app or :feature:login."`
+}
+
+type scaffoldArgs struct {
+	Destination string `json:"destination" jsonschema:"Empty or new directory to create the project in."`
+	Name        string `json:"name" jsonschema:"Human-readable app name."`
+	Package     string `json:"package" jsonschema:"Application id/package, e.g. com.example.app."`
 }
 
 type buildAndRunArgs struct {
@@ -158,6 +170,23 @@ func listGradleProjects(ctx context.Context, in gradleArgs) (*mcp.CallToolResult
 		fmt.Fprintf(&b, "  %s\n", p)
 	}
 	return text("%s", strings.TrimRight(b.String(), "\n")), nil
+}
+
+func gradleProjectProperties(ctx context.Context, in gradlePropertiesArgs) (*mcp.CallToolResult, error) {
+	out, err := gradle.ListProjectProperties(ctx, in.ProjectDir, in.Module)
+	if err != nil {
+		return nil, fmt.Errorf("could not read properties for %s: %v\n%s", in.Module, err, tailLines(out, 40))
+	}
+	return text("%s", tailLines(out, 200)), nil
+}
+
+func scaffoldProject(ctx context.Context, in scaffoldArgs) (*mcp.CallToolResult, error) {
+	_ = ctx
+	files, err := scaffold.Create(scaffold.Options{Destination: in.Destination, Name: in.Name, Package: in.Package})
+	if err != nil {
+		return nil, err
+	}
+	return text("Created Android project in %s (%d files). Run `gradle wrapper` there, then use gradle_build with task=assembleDebug.", in.Destination, len(files)), nil
 }
 
 // tailLines keeps the last n non-trivial lines of possibly-huge tool output

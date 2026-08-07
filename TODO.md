@@ -4,7 +4,7 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.17.0 · 70 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.18.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
@@ -15,9 +15,18 @@ Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) rea
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.16.0)
+## Recently shipped (v0.18.0)
 
-See [CHANGELOG](docs/CHANGELOG.md). v0.17.0: **screenshot decodes the PNG once**
+See [CHANGELOG](docs/CHANGELOG.md). v0.18.0: **`app_state` foreground detection**
+(`foreground`/`top_activity`, and an optional `source_path` staleness check for
+JS that Metro's watcher missed after a `git stash`/`checkout`), **`run_sequence`
+gets `assert_foreground` + per-step `elapsed_ms`**, **`launch_dev_client` detects
+the Metro-unreachable error screen**, **`gradle_project_properties`**,
+**`scaffold_android_project`**, **`prefer_pin`** (biometric → PIN fallback), and
+a **`describe_ui` single-child chain-collapse fix** for nested Material wrappers.
+
+v0.17.1: `app_state` live-socket Metro fallback for builds whose logcat omits
+the older HMR markers. v0.17.0: **screenshot decodes the PNG once**
 (was twice — ~85ms/18MB saved per call), **`set_battery` on physical devices**
 (dumpsys battery + `reset`), **`list_gradle_projects`** (module discovery).
 
@@ -36,23 +45,33 @@ retry. v0.14.0: `list_gradle_variants` + `tap identify`.
 Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 
 **XcodeBuildMCP parity gaps** (priority order)
-- [~] Deeper project discovery — **`list_gradle_projects` shipped v0.17.0** (the `gradlew projects` module map; `list_gradle_variants` shipped v0.14.0). Still open: a per-module build-info/`properties` dump if it proves useful.
-- [ ] Project scaffolding — new Android project from a template (biggest lift)
+- [x] Deeper project discovery — **`list_gradle_projects` + `gradle_project_properties` shipped** (module map plus per-module evaluated properties).
+- [x] Project scaffolding — **`scaffold_android_project` shipped**: creates a minimal Kotlin Android project in a new empty directory.
 
 **Field feedback** (open items; most rounds shipped in v0.8.0–v0.16.0, see CHANGELOG)
 - [x] App/bundle state probe — **shipped v0.16.0**, strengthened after the 2026-08-05 field report: installed?/running? + pid(s), process uptime, install/update times, Metro-vs-embedded bundle heuristic over recent logcat, plus a live Metro-port socket fallback and `bundle_signals` evidence. Flags multiple live processes for one package.
 - [x] Multi-display foldable `screenshot` corruption — **shipped v0.16.0**: strip the `screencap` multi-display `[Warning]` prefix before the PNG signature (robust, display-agnostic) + optional `display` selector (inner/cover/index/physical-id).
-- [~] `biometric_auth` — **`has_biometric_enrolled` shipped v0.16.0** (count>0 probe; verified 0→1 on a live enroll). Still open: a deterministic re-enroll that *captures* the assigned finger id from the enrollment HAL log (id-guessing stays out — a wrong `finger_id` trips a HAL lockout, and `dumpsys fingerprint` never exposes the id).
+- [~] `biometric_auth` — **`has_biometric_enrolled` + `prefer_pin` shipped** (count probe and best-effort credential fallback). Still open: deterministic re-enroll that captures the assigned finger id from the enrollment HAL log; id-guessing remains unsafe.
 - [~] Verify `reload_app`/`open_dev_menu` on a real Expo dev client — tool paths are documented; current Expo classic/bridgeless behavior still needs a live matrix pass.
-- [ ] Residual `describe_ui` auto-filter noise — single-child chain collapse (clickable/query/compact cover it today)
+- [x] Residual `describe_ui` auto-filter noise — auto now collapses unlabelled, non-clickable single-child layout chains as well as identical-bounds wrappers.
 - [~] Accessibility-action tap for native surfaces — coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; the real fix needs a device-side UiAutomator/accessibility bridge, not another coordinate wrapper.
 - [x] DECISION: `run_sequence` batching — **shipped v0.16.0**. Steps + sleeps + if_present/if_absent guards + optional, over the existing client methods; returns per-step results + final hierarchy. Batch-tap folds in (a sequence of `tap` steps).
 - [x] DECISION: Maestro integration (`run_maestro_flow`) — defer. `run_sequence` covers in-process batching/guards; keep Maestro as an external E2E runner until structured cross-tool reporting is a demonstrated requirement.
+
+**Field feedback, round 9** (`android-mcp-papercuts` #019fdb7d, 2026-08-07 — shipped v0.18.0)
+- [x] `app_state` foreground state — **shipped:** `foreground` + `top_activity` from `dumpsys activity activities`; `run_sequence` also supports `assert_foreground`.
+- [x] `app_state` Metro staleness signal — optional `source_path` compares newest host source mtime with the latest epoch-timed Metro/HMR marker and reports `bundle_stale`, `source_mtime`, and `last_hmr_update`.
+- [x] `run_sequence` foreground assertion/timing — **shipped:** `assert_foreground` plus per-step `elapsed_ms`.
+- [x] `launch_dev_client` error activity — **shipped:** detects `DevLauncherErrorActivity` after launch and includes the visible error text when available.
 
 **Enhancements**
 - [ ] Multi-touch / pinch-zoom (needs `sendevent`; single-pointer `drag` already shipped) — parked, no reliable cross-device approach yet
 - [x] Real-device `set_battery` path — **shipped v0.17.0**: physical devices go through `dumpsys battery set level/ac` (emulator still uses `emu power`), with a `reset` option (`dumpsys battery reset`) to restore automatic reporting. Verified live.
 - [x] **Perf: `screenshot` decodes the PNG once** (v0.17.0) — was decoded in `isMostlyBlack` and again in `downscalePNG` (~85ms/18MB each on a full-res frame); now one decode shared between the black-check and downscale.
+
+**Code health** (from an architecture-principles DRY pass, 2026-08-07)
+- [x] Dedupe the "is this package installed?" check — **done**: extracted `isPackageInstalled(dump string) bool` in `internal/adb/packages.go`, used by both `GetAppStateWithSource` and `GetAppDetails`.
+- [x] Unify the logcat-capture and screen-record session registries in `internal/adb/capture.go` — **done**: replaced the two duplicated `map[string]*T` + mutex pairs with one generic `sessionRegistry[T]` (start/take/stopAll), used for both log and recording sessions.
 
 ## Ground rules
 

@@ -31,7 +31,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center |
 | `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
-| `run_sequence` | Run several steps in ONE call (sleep/tap/tap_text/tap_element/key/text/swipe/launch/stop/wait_text/describe_ui) with `if_present`/`if_absent` guards — no round-trip between steps, so native-timer flows aren't perturbed; returns per-step results + the final hierarchy |
+| `run_sequence` | Run several steps in ONE call (including `assert_foreground`) with `if_present`/`if_absent` guards — no round-trip between steps, so native-timer flows aren't perturbed; returns per-step results with `elapsed_ms` + the final hierarchy |
 | `swipe` | Swipe/drag (scroll down = high y → low y); `x`/`y` alias `x1`/`y1` |
 | `drag` | Press-hold-move-release drag (`draganddrop`) — for drag handles & reorder |
 | `input_text` | Type into the focused field via the IME |
@@ -48,6 +48,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `fingerprint_touch` | Simulate a fingerprint touch (emulator-only, `adb emu finger touch`) — satisfy a BiometricPrompt instead of cancelling to the PIN fallback |
 | `finger_remove` | Lift the simulated finger off the sensor (emulator-only) — complement to `fingerprint_touch` |
 | `has_biometric_enrolled` | Whether any fingerprint is enrolled (+count), from `dumpsys fingerprint` — check before a biometric flow so `fingerprint_touch` has something to match (emulator + physical) |
+| `prefer_pin` | Best-effort cancel of a standard biometric prompt toward its PIN/password fallback; confirm with `describe_ui` |
 
 ### Extended Controls (emulator console)
 These drive the emulator's Extended Controls panel — a window of the emulator process itself, invisible to `describe_ui`/`tap` — through the emulator console. All emulator-only.
@@ -66,7 +67,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 |---|---|
 | `list_packages` | List installed packages (filterable) |
 | `get_app_details` | Version name/code + launchable activity of an app |
-| `app_state` | Runtime state: installed?/running? + pid(s), process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo), with `bundle_signals` showing logcat or live-socket evidence — run first when JS edits seem to have no effect, or to catch two live processes for one package |
+| `app_state` | Runtime state: installed?/running?/foreground? + pid(s), `top_activity`, process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo), with `bundle_signals` showing logcat or live-socket evidence |
 | `install_app` / `uninstall_app` | Install/reinstall or remove an app |
 | `launch_app` / `stop_app` | Launch the LAUNCHER activity (echoes the component; clear error if none) / force-stop |
 | `reload_app` | Best-effort Metro/JS reload via the RN `RELOAD_APP_ACTION` broadcast |
@@ -75,7 +76,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `clear_app_data` | Wipe data+cache → first-launch state |
 | `grant_permission` / `revoke_permission` | Grant/revoke a runtime permission |
 | `open_url` | Open a URL or deep link (ACTION_VIEW) |
-| `launch_dev_client` | Launch an Expo dev build straight at Metro (`<scheme>://expo-development-client/?url=…`), skipping the Dev Launcher — run `adb_reverse tcp:8081` first |
+| `launch_dev_client` | Launch an Expo dev build straight at Metro (`<scheme>://expo-development-client/?url=…`), skipping the Dev Launcher; detects `DevLauncherErrorActivity` and reports its visible error text — run `adb_reverse tcp:8081` first |
 | `push_file` / `pull_file` | Copy files to/from the device |
 
 ### Logs & capture
@@ -105,6 +106,8 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `list_gradle_tasks` | Discover available Gradle tasks |
 | `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run |
 | `list_gradle_projects` | List the Gradle modules of a multi-module build (`gradlew projects`) — e.g. `:app`, `:core`, `:feature:login`; point other Gradle tools at the right module or address a task with `:module:task` |
+| `gradle_project_properties` | Dump evaluated Gradle properties for one module (`:app`, `:feature:login`, …) |
+| `scaffold_android_project` | Create a minimal Kotlin Android project in a new empty directory |
 
 ## Resources (the bundled "skill")
 

@@ -10,6 +10,28 @@ import (
 	"github.com/iksnerd/adb_mcp/internal/uiauto"
 )
 
+// PreferPIN dismisses a standard biometric prompt toward its credential
+// fallback. It first looks for explicit system buttons, then sends BACK as the
+// generic cancellation path. Apps can suppress or rename this fallback, so a
+// successful command still needs describe_ui/app_state confirmation.
+func (c *Client) PreferPIN(ctx context.Context) (string, error) {
+	elems, err := c.DescribeUI(ctx, uiauto.FilterAll)
+	if err == nil {
+		for _, label := range []string{"Use PIN", "Use password", "Enter PIN", "Enter password"} {
+			if e, ok := uiauto.FindByText(elems.Elements, label, false); ok {
+				if err := c.Tap(ctx, e.Center.X, e.Center.Y); err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("selected %q", label), nil
+			}
+		}
+	}
+	if err := c.PressKey(ctx, 4); err != nil {
+		return "", err
+	}
+	return "sent BACK to cancel biometric authentication; confirm the PIN pad with describe_ui", nil
+}
+
 // Tap taps a coordinate in true device pixels.
 func (c *Client) Tap(ctx context.Context, x, y int) error {
 	_, err := c.adb(ctx, "shell", "input", "tap", strconv.Itoa(x), strconv.Itoa(y))

@@ -13,6 +13,62 @@ import (
 	"time"
 )
 
+// topResumedActivityRe matches the single, authoritative "which app is
+// actually focused" line dumpsys prints for the whole device.
+var topResumedActivityRe = regexp.MustCompile(`(?m)^\s*topResumedActivity=ActivityRecord\{[^}]*\s(\S+)/(\S+)`)
+
+// resumedActivityRe matches a per-stack "mResumedActivity:" line. Older
+// Android versions don't print topResumedActivity= at all, and even where
+// they do this is kept as a fallback — but it must never be preferred over
+// the authoritative line, since a non-focused stack's mResumedActivity: can
+// appear earlier in the dump on split-screen/multi-display devices.
+var resumedActivityRe = regexp.MustCompile(`(?m)^\s*mResumedActivity:\s+ActivityRecord\{[^}]*\s(\S+)/(\S+)`)
+
+// ResumedActivity returns the currently resumed activity component. Unlike a
+// process probe, this answers whether the app is actually in the foreground.
+func (c *Client) ResumedActivity(ctx context.Context) (string, error) {
+	out, err := c.adb(ctx, "shell", "dumpsys", "activity", "activities")
+	if err != nil {
+		return "", err
+	}
+	return parseResumedActivity(out), nil
+}
+
+// SettledResumedActivity polls ResumedActivity until two consecutive reads
+// agree or the attempt budget is spent. `am start` returns as soon as the
+// intent is handed off, not once the target activity has actually resumed,
+// so a single immediate read can still show whatever was in the foreground
+// before the launch — this is the same settle-and-compare shape as
+// describeSettled, sized for a foreground transition rather than a UI dump.
+func (c *Client) SettledResumedActivity(ctx context.Context) (string, error) {
+	prev, err := c.ResumedActivity(ctx)
+	if err != nil {
+		return "", err
+	}
+	for range 4 {
+		time.Sleep(300 * time.Millisecond)
+		cur, err := c.ResumedActivity(ctx)
+		if err != nil {
+			return prev, nil
+		}
+		if cur == prev {
+			return cur, nil
+		}
+		prev = cur
+	}
+	return prev, nil
+}
+
+func parseResumedActivity(dump string) string {
+	if m := topResumedActivityRe.FindStringSubmatch(dump); len(m) == 3 {
+		return m[1] + "/" + m[2]
+	}
+	if m := resumedActivityRe.FindStringSubmatch(dump); len(m) == 3 {
+		return m[1] + "/" + m[2]
+	}
+	return ""
+}
+
 // ScreenCapture is a screenshot plus a diagnosis of why it might be unusable.
 // AllBlack is set when the captured image is (near-)entirely black; in that
 // case SecureWindow/ScreenOff are best-effort probes of the likely cause so the

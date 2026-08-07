@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/iksnerd/adb_mcp/internal/adb"
+	"github.com/iksnerd/adb_mcp/internal/uiauto"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -24,6 +26,12 @@ type installArgs struct {
 type packageArg struct {
 	serialArg
 	Package string `json:"package" jsonschema:"Application package name (e.g. com.example.app)."`
+}
+
+type appStateArgs struct {
+	serialArg
+	Package    string `json:"package" jsonschema:"Application package name."`
+	SourcePath string `json:"source_path,omitempty" jsonschema:"Optional host file or directory containing the app's source. When supplied, app_state compares its newest mtime with the latest Metro/HMR marker to flag stale JavaScript."`
 }
 
 type permissionArgs struct {
@@ -210,6 +218,28 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 	if _, err := c.OpenURL(ctx, deepLink, in.Package); err != nil {
 		return nil, err
 	}
+	// Expo reports an unreachable Metro server by displaying this activity while
+	// still returning success from `am start`; detect that success-shaped failure.
+	// SettledResumedActivity (not a single immediate read) gives the activity
+	// transition time to land instead of racing it.
+	if top, err := c.SettledResumedActivity(ctx); err == nil && strings.Contains(top, "DevLauncherErrorActivity") {
+		detail := ""
+		if snap, uiErr := c.DescribeUI(ctx, uiauto.FilterAll); uiErr == nil {
+			var lines []string
+			for _, e := range snap.Elements {
+				if v := strings.TrimSpace(e.Text); v != "" {
+					lines = append(lines, v)
+				} else if v := strings.TrimSpace(e.Desc); v != "" {
+					lines = append(lines, v)
+				}
+			}
+			detail = strings.Join(lines, " | ")
+		}
+		if detail == "" {
+			detail = "on-screen error text unavailable"
+		}
+		return nil, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse tcp:8081 and relaunch", top, detail)
+	}
 	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse tcp:8081).", deepLink, c.Serial), nil
 }
 
@@ -243,12 +273,12 @@ func getAppDetails(ctx context.Context, in packageArg) (*mcp.CallToolResult, err
 	return jsonResult(d)
 }
 
-func appState(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+func appState(ctx context.Context, in appStateArgs) (*mcp.CallToolResult, error) {
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
 	}
-	s, err := c.GetAppState(ctx, in.Package)
+	s, err := c.GetAppStateWithSource(ctx, in.Package, in.SourcePath)
 	if err != nil {
 		return nil, err
 	}
