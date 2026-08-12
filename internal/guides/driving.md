@@ -34,7 +34,11 @@ on screen?" without the whole tree. When an action might be silently consumed
 (a key press with an overlay up), `verify_change: true` on `press_key`/`tap`
 replaces a full re-observe with a built-in `ui_changed` answer. For purely
 time-based conditions (an app must stay backgrounded 18s to trip a native
-timer), use `wait` — `wait_for_text` can't express elapsed time.
+timer), use `wait` — `wait_for_text` can't express elapsed time. If the text
+you're waiting for is inside a `ScrollView` and starts off-screen, pass
+`wait_for_text {scroll: true}` — Android's accessibility tree only covers the
+current viewport, so a plain poll can time out on content that would appear
+on scroll.
 
 When a flow is several fixed steps — especially one gated on **native timing**
 (`home → sleep 19 → launch → sleep 9 → cancel the prompt if it's up → look`) —
@@ -92,7 +96,10 @@ hierarchy.
   "the app broke" if you don't notice. Check the `top window:` line at the top
   of every `describe_ui` response: if it names `com.android.systemui` (or
   another package than yours), dismiss/satisfy the overlay first (e.g.
-  `fingerprint_touch` for a biometric prompt, or tap its button). A key press
+  `fingerprint_touch` for a biometric prompt, or tap its button). Pass
+  `describe_ui {package: "com.your.app"}` to get this checked for you — the
+  header adds an explicit warning line instead of you having to notice the
+  mismatch by eye. A key press
   that "succeeds" while such a window is up may be consumed by it — pass
   `verify_change: true` to `press_key`/`tap` to learn whether anything actually
   changed.
