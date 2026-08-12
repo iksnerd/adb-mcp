@@ -18,6 +18,7 @@ type logcatArgs struct {
 	Filter   string   `json:"filter,omitempty" jsonschema:"Case-insensitive substring to keep (e.g. an app tag or \"Exception\")."`
 	Priority string   `json:"priority,omitempty" jsonschema:"Minimum priority to keep: V, D, I, W, E, or F (matches adb's own \"*:E\"-style filter — E keeps Error and Fatal). Omit for no priority filtering."`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Keep only lines whose log tag contains one of these (case-insensitive, OR'd), e.g. [\"SessionStore\",\"AuthModule\"]. Omit for no tag filtering."`
+	Redact   bool     `json:"redact,omitempty" jsonschema:"Mask common secrets (token, password, authorization, api key, secret) before returning log lines. Recommended for payment/auth SDKs and debug builds."`
 }
 
 type startLogcatArgs struct {
@@ -30,6 +31,7 @@ type stopLogcatArgs struct {
 	Filter   string   `json:"filter,omitempty" jsonschema:"Case-insensitive substring to keep."`
 	Priority string   `json:"priority,omitempty" jsonschema:"Minimum priority to keep: V, D, I, W, E, or F."`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Keep only lines whose log tag contains one of these (case-insensitive, OR'd)."`
+	Redact   bool     `json:"redact,omitempty" jsonschema:"Mask common secrets (token, password, authorization, api key, secret) before returning captured lines."`
 	Tail     int      `json:"tail,omitempty" jsonschema:"Keep only the last N lines after filtering (the most recent, where a crash usually is). Default 500; pass a larger number for more, or a huge one to effectively disable the cap."`
 }
 
@@ -45,7 +47,7 @@ func logcat(ctx context.Context, in logcatArgs) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := c.Logcat(ctx, in.Lines, in.Since, adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
+	out, err := c.Logcat(ctx, in.Lines, in.Since, adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags, Redact: in.Redact})
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +84,7 @@ func stopLogcatCapture(ctx context.Context, in stopLogcatArgs) (*mcp.CallToolRes
 	if err != nil {
 		return nil, err
 	}
-	out, err := c.StopLogcatCapture(adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags})
+	out, err := c.StopLogcatCapture(adb.LogFilter{Substring: in.Filter, Priority: in.Priority, Tags: in.Tags, Redact: in.Redact})
 	if err != nil {
 		return nil, err
 	}

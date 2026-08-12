@@ -26,6 +26,7 @@ type describeUIArgs struct {
 	Filter  string `json:"filter,omitempty" jsonschema:"What to include: 'auto' (default — elements with text, content_desc, resource_id, or clickable; identical-bounds label-less wrappers dropped), 'clickable' (tap targets only, the smallest view), or 'all' (every bounded node, unfiltered — use to PROVE an element is absent from the hierarchy)."`
 	Query   string `json:"query,omitempty" jsonschema:"Case-insensitive substring to match against text, content_desc, and resource_id — return only matching elements. The cheap way to ask 'is X on this screen?'. Combine with filter='all' to prove absence definitively."`
 	Compact *bool  `json:"compact,omitempty" jsonschema:"Return one line per element (center, bounds, flags, labels) instead of JSON — ~10x fewer tokens, same aiming information. Use for repeated look-drive loops and geometry work."`
+	Package string `json:"package,omitempty" jsonschema:"Optional package expected to own the focused window. If another app or SystemUI owns focus, the response calls that out explicitly."`
 }
 
 type waitForTextArgs struct {
@@ -33,6 +34,7 @@ type waitForTextArgs struct {
 	Text     string `json:"text" jsonschema:"Text or content-description to wait for."`
 	Partial  *bool  `json:"partial,omitempty" jsonschema:"Substring match instead of exact. Default true."`
 	TimeoutS int    `json:"timeout_s,omitempty" jsonschema:"How long to wait, in seconds. Default 15."`
+	Scroll   *bool  `json:"scroll,omitempty" jsonschema:"When true, swipe upward through the current scroll container while polling. Useful when Android omits off-screen ScrollView content from the accessibility tree."`
 }
 
 // ---- Handlers ----
@@ -97,7 +99,7 @@ func describeUI(ctx context.Context, in describeUIArgs) (*mcp.CallToolResult, er
 	if err != nil {
 		return nil, err
 	}
-	header := uiHeader(snap, filter)
+	header := uiHeader(snap, filter, in.Package)
 	shown := snap.Elements
 	if in.Query != "" {
 		shown = uiauto.FilterByQuery(shown, in.Query)
@@ -150,7 +152,7 @@ func compactUI(elems []uiauto.Element) string {
 
 // uiHeader gives the two facts needed to trust (or distrust) the element list:
 // whose window the hierarchy belongs to, and how much the filter hid.
-func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter) string {
+func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter, expectedPackage string) string {
 	var b strings.Builder
 	if snap.TopWindow != "" {
 		fmt.Fprintf(&b, "top window: %s", snap.TopWindow)
@@ -158,12 +160,15 @@ func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter) string {
 			strings.Contains(snap.TopWindow, "com.google.android.permissioncontroller") {
 			b.WriteString(" — a SYSTEM overlay (biometric prompt / permission dialog / shade) has focus; the elements below belong to IT, and the app underneath is occluded")
 		}
+		if expectedPackage != "" && !strings.Contains(snap.TopWindow, expectedPackage) {
+			fmt.Fprintf(&b, " — WARNING: expected focused package %q, but focus belongs to %s; the target app may be backgrounded or occluded", expectedPackage, snap.TopWindow)
+		}
 		b.WriteString("\n")
 	}
 	if snap.Hidden > 0 {
 		fmt.Fprintf(&b, "%d node(s) hidden by filter=%q — absence below does NOT prove an element is missing; re-run with filter=\"all\" to see the raw hierarchy\n", snap.Hidden, string(filter))
 	} else {
-		fmt.Fprintf(&b, "0 nodes hidden (filter=%q) — this is the complete bounded hierarchy; absence below is trustworthy\n", string(filter))
+		fmt.Fprintf(&b, "0 nodes hidden (filter=%q) — this is the complete bounded hierarchy for the current viewport; scrollable content may still be off-screen\n", string(filter))
 	}
 	fmt.Fprintf(&b, "%d element(s):", len(snap.Elements))
 	return b.String()
@@ -175,7 +180,7 @@ func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, 
 		return nil, err
 	}
 	timeout := time.Duration(in.TimeoutS) * time.Second
-	e, err := c.WaitForText(ctx, in.Text, boolOr(in.Partial, true), timeout)
+	e, err := c.WaitForText(ctx, in.Text, boolOr(in.Partial, true), timeout, boolOr(in.Scroll, false))
 	if err != nil {
 		return nil, err
 	}

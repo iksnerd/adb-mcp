@@ -41,7 +41,7 @@ func (c *Client) Logcat(ctx context.Context, lines int, since string, f LogFilte
 	if err != nil {
 		return "", err
 	}
-	return f.apply(out), nil
+	return f.redact(f.apply(out)), nil
 }
 
 // ClearLogcat empties the device's logcat ring buffer (adb logcat -c) so the
@@ -86,6 +86,23 @@ type LogFilter struct {
 	// Tags keeps only lines whose log tag contains one of these
 	// (case-insensitive, OR'd). Empty means no tag filtering.
 	Tags []string
+	// Redact masks common credentials and secret-shaped values before the
+	// output leaves the MCP response. Logcat is often copied into transcripts,
+	// so callers should opt in when driving payment/auth SDKs or debug builds.
+	Redact bool
+}
+
+var (
+	secretAssignmentRe = regexp.MustCompile(`(?i)(["']?(?:secret|token|password|authorization|api[-_]?key|private[-_]?key|encryption[-_]?key)["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)`)
+	secretHeaderRe     = regexp.MustCompile(`(?i)((?:authorization|(?:x-)?(?:api|secret|access)[-_ ]?key)\s*:\s*)[^\r\n]+`)
+)
+
+func (f LogFilter) redact(raw string) string {
+	if !f.Redact {
+		return raw
+	}
+	raw = secretAssignmentRe.ReplaceAllString(raw, `${1}"[REDACTED]"`)
+	return secretHeaderRe.ReplaceAllString(raw, `${1}[REDACTED]`)
 }
 
 // sinceCutoff turns a device clock reading ("<epoch> <±HHMM>", from

@@ -126,7 +126,7 @@ func (c *Client) StopLogcatCapture(f LogFilter) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(f.apply(string(data)), "\n"), nil
+	return strings.TrimRight(f.redact(f.apply(string(data))), "\n"), nil
 }
 
 // StopAllCaptures tears down every running logcat/screen-record session,

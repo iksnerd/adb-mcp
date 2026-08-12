@@ -4,6 +4,35 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.19.0 — logcat redaction, dev-client scheme hints, describe_ui occlusion check, wait_for_text scroll
+
+**`logcat` / `start_logcat_capture` / `stop_logcat_capture` get `redact:true`.**
+Logcat output routinely gets copied into transcripts and bug reports, and
+payment/auth SDKs log tokens, passwords, and API keys in plain text. Passing
+`redact: true` masks common secret-shaped values (`token`, `password`,
+`authorization`, `api_key`, `private_key`, `encryption_key`, and
+`Authorization:`-style headers) before the lines leave the MCP response. Off
+by default — opt in when driving a build that logs credentials.
+
+**`launch_dev_client` reports registered URL schemes on failure.** A wrong
+`scheme` argument previously just failed with `OpenURL`'s raw error or the
+generic Metro-unreachable message, leaving the actual fix ("what scheme does
+this app register?") as a manual `dumpsys` dig. Both failure paths now query
+`dumpsys package` for the app's declared URL scheme(s) and fold them into the
+error text when found.
+
+**`describe_ui` gets an optional `package` ownership check.** The header
+already named the focused `top window`; passing `package` now compares it
+against the caller's expected package and adds an explicit warning line when
+they don't match, instead of leaving a silent wrong-app read to be noticed by
+eye.
+
+**`wait_for_text` gets opt-in `scroll`.** Android's accessibility tree only
+covers the current viewport, so waiting on text below the fold inside a
+`ScrollView` could time out even though the text would appear on scroll. With
+`scroll: true`, each poll also swipes upward through the screen to surface
+off-screen rows. Default stays off, matching existing polling semantics.
+
 ## v0.18.0 — app_state foreground/staleness + scaffold_android_project + gradle_project_properties
 
 Round 9 field feedback (`android-mcp-papercuts` #019fdb7d, 2026-08-07 — a

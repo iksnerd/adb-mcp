@@ -94,6 +94,19 @@ func TestLogFilterValidate(t *testing.T) {
 	}
 }
 
+func TestLogFilterRedact(t *testing.T) {
+	raw := `I/App: {"token":"abc123","password": "p@ss", "cardId":"safe"}
+I/HTTP: Authorization: Bearer abc123
+I/App: ordinary message`
+	got := (LogFilter{Redact: true}).redact(raw)
+	if strings.Contains(got, "abc123") || strings.Contains(got, "p@ss") {
+		t.Fatalf("redact() leaked a secret: %q", got)
+	}
+	if !strings.Contains(got, `"cardId":"safe"`) || !strings.Contains(got, "ordinary message") {
+		t.Fatalf("redact() changed non-secret content: %q", got)
+	}
+}
+
 func TestParseLogLine(t *testing.T) {
 	prio, tag, ok := parseLogLine("07-15 10:00:00.000  1234  1234 E MyTag   : boom")
 	if !ok || prio != "E" || tag != "MyTag" {

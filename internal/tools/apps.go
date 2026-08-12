@@ -216,7 +216,7 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 		return nil, err
 	}
 	if _, err := c.OpenURL(ctx, deepLink, in.Package); err != nil {
-		return nil, err
+		return nil, devClientLaunchError(ctx, c, in.Package, err)
 	}
 	// Expo reports an unreachable Metro server by displaying this activity while
 	// still returning success from `am start`; detect that success-shaped failure.
@@ -238,9 +238,19 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 		if detail == "" {
 			detail = "on-screen error text unavailable"
 		}
-		return nil, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse tcp:8081 and relaunch", top, detail)
+		return nil, devClientLaunchError(ctx, c, in.Package, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse tcp:8081 and relaunch", top, detail))
 	}
 	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse tcp:8081).", deepLink, c.Serial), nil
+}
+
+func devClientLaunchError(ctx context.Context, c *adb.Client, pkg string, err error) error {
+	if strings.TrimSpace(pkg) == "" {
+		return err
+	}
+	if schemes, schemeErr := c.RegisteredURLSchemes(ctx, pkg); schemeErr == nil && len(schemes) > 0 {
+		return fmt.Errorf("%w; package %s registers URL scheme(s): %s — use one of these as launch_dev_client.scheme", err, pkg, strings.Join(schemes, ", "))
+	}
+	return err
 }
 
 func lastCrash(ctx context.Context, in lastCrashArgs) (*mcp.CallToolResult, error) {

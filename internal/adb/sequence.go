@@ -218,7 +218,7 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 
 	case "wait_text":
 		timeout := time.Duration(s.TimeoutS) * time.Second
-		e, err := c.WaitForText(ctx, s.Text, partial, timeout)
+		e, err := c.WaitForText(ctx, s.Text, partial, timeout, false)
 		if err != nil {
 			return "", nil, err
 		}

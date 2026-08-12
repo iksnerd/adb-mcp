@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +127,7 @@ func signature(elems []uiauto.Element) string {
 // WaitForText polls the UI hierarchy until an element matching query (by text or
 // content-description) appears, or timeout elapses. It is the reliable
 // alternative to a manual sleep-then-screenshot loop after an async action.
-func (c *Client) WaitForText(ctx context.Context, query string, partial bool, timeout time.Duration) (uiauto.Element, error) {
+func (c *Client) WaitForText(ctx context.Context, query string, partial bool, timeout time.Duration, scroll bool) (uiauto.Element, error) {
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
@@ -144,6 +145,35 @@ func (c *Client) WaitForText(ctx context.Context, query string, partial bool, ti
 		if time.Now().After(deadline) {
 			return uiauto.Element{}, fmt.Errorf("text %q did not appear within %s", query, timeout)
 		}
+		if scroll {
+			// Android's accessibility tree commonly omits content outside the
+			// viewport. A modest upward swipe lets an opt-in wait discover rows
+			// in a ScrollView without changing the default polling semantics.
+			if w, h := c.displaySize(ctx); w > 0 && h > 0 {
+				_ = c.Swipe(ctx, w/2, h*3/4, w/2, h/4, 250)
+			}
+		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+func (c *Client) displaySize(ctx context.Context) (int, int) {
+	out, err := c.adb(ctx, "shell", "wm", "size")
+	if err != nil {
+		return 0, 0
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		line = strings.TrimSpace(line)
+		if i := strings.LastIndex(line, ":"); i >= 0 {
+			parts := strings.Split(strings.TrimSpace(line[i+1:]), "x")
+			if len(parts) == 2 {
+				w, e1 := strconv.Atoi(parts[0])
+				h, e2 := strconv.Atoi(parts[1])
+				if e1 == nil && e2 == nil {
+					return w, h
+				}
+			}
+		}
+	}
+	return 0, 0
 }

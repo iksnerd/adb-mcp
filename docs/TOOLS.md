@@ -20,7 +20,7 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `screenshot` | Capture the screen as a PNG (auto-downscaled) — to *see* state; retries an all-black frame and flags why (FLAG_SECURE / screen off); works on multi-display foldables (`display: "cover"`/`"inner"`/index picks a panel) |
-| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all` — `all` proves absence), `query` ("is X on screen?"), `compact` (~10x smaller) |
+| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay or wrong-app occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all`), `query` ("is X on screen?"), `compact` (~10x smaller), and optional `package` ownership check |
 
 ### Interact
 | Tool | Purpose |
@@ -29,7 +29,7 @@ single device is attached; with several, pass one from `list_devices`.
 | `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed` |
 | `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed` |
 | `long_press` | Press and hold `(x,y)` for a duration |
-| `wait_for_text` | Poll until a label appears, then return its tappable center |
+| `wait_for_text` | Poll until a label appears, then return its tappable center; `scroll:true` opt-in swipes through off-screen ScrollView content while polling |
 | `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
 | `run_sequence` | Run several steps in ONE call (including `assert_foreground`) with `if_present`/`if_absent` guards — no round-trip between steps, so native-timer flows aren't perturbed; returns per-step results with `elapsed_ms` + the final hierarchy |
 | `swipe` | Swipe/drag (scroll down = high y → low y); `x`/`y` alias `x1`/`y1` |
@@ -82,9 +82,9 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 ### Logs & capture
 | Tool | Purpose |
 |---|---|
-| `logcat` | One-shot dump of recent log lines — last N or `since` a time window ("2m", device clock), filterable by substring/`priority`/`tags` — find the native `Caused by:` |
+| `logcat` | One-shot dump of recent log lines — last N or `since` a time window ("2m", device clock), filterable by substring/`priority`/`tags`; `redact:true` masks common secrets before output |
 | `clear_logcat` | Empty the ring buffer (`logcat -c`) — clear → act → read isolates what ONE action logged |
-| `start_logcat_capture` / `stop_logcat_capture` | Stream logs across a flow, then return them (substring/`priority`/`tags` filters; last 500 lines by default, override with `tail`) |
+| `start_logcat_capture` / `stop_logcat_capture` | Stream logs across a flow, then return them (substring/`priority`/`tags` filters, optional `redact:true`; last 500 lines by default, override with `tail`) |
 | `start_screen_record` / `stop_screen_record` | Record the screen to mp4 and pull it |
 
 ### Environment & diagnostics

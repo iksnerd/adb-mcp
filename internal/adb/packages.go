@@ -56,6 +56,27 @@ func (c *Client) UninstallApp(ctx context.Context, pkg string) (string, error) {
 // launchComponentRe pulls the resolved component out of monkey's verbose
 // output line: "// Allowing start of Intent { ... cmp=<pkg>/<activity> ... }".
 var launchComponentRe = regexp.MustCompile(`cmp=(\S+)`)
+var registeredSchemeRe = regexp.MustCompile(`(?mi)^\s*(?:scheme|schemes?)\s*[:=]\s*([a-z][a-z0-9+.-]*)\b`)
+
+// RegisteredURLSchemes returns best-effort URL schemes declared by an
+// installed package. Android's dumpsys layout varies by release, so callers
+// should treat an empty result as "not discovered", not as proof that none
+// are registered.
+func (c *Client) RegisteredURLSchemes(ctx context.Context, pkg string) ([]string, error) {
+	out, err := c.adb(ctx, "shell", "dumpsys", "package", pkg)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var schemes []string
+	for _, m := range registeredSchemeRe.FindAllStringSubmatch(out, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			schemes = append(schemes, m[1])
+		}
+	}
+	return schemes, nil
+}
 
 // LaunchApp starts an app's launcher activity via monkey and returns the
 // resolved component on success. monkey exits non-zero and prints "No

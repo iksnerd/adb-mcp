@@ -4,7 +4,7 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.18.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.19.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
@@ -15,9 +15,15 @@ Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) rea
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.18.0)
+## Recently shipped (v0.19.0)
 
-See [CHANGELOG](docs/CHANGELOG.md). v0.18.0: **`app_state` foreground detection**
+See [CHANGELOG](docs/CHANGELOG.md). v0.19.0: **`logcat`/capture `redact:true`**
+(masks tokens/passwords/API keys before output), **`launch_dev_client`**
+reports the app's registered URL scheme(s) on failure, **`describe_ui`**
+gets an optional `package` occlusion check, and **`wait_for_text`** gets
+opt-in `scroll` to reach off-screen `ScrollView` content.
+
+v0.18.0: **`app_state` foreground detection**
 (`foreground`/`top_activity`, and an optional `source_path` staleness check for
 JS that Metro's watcher missed after a `git stash`/`checkout`), **`run_sequence`
 gets `assert_foreground` + per-step `elapsed_ms`**, **`launch_dev_client` detects
