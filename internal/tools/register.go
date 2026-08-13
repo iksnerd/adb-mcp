@@ -250,19 +250,19 @@ func Register(s *mcp.Server) {
 		"Run Gradle instrumented (on-device) tests (default task 'connectedAndroidTest') in project_dir — requires a booted device/emulator. Returns per-suite timing and failing-test stack traces; pass json=true for a structured JSON summary instead of the text form.",
 		runInstrumentedTests)
 	add(s, "list_gradle_tasks",
-		"List the available Gradle tasks in project_dir (gradlew tasks) — to discover build/test/install targets.",
+		"List the available Gradle tasks in project_dir (gradlew tasks) — to discover build/test/install targets. In a multi-module build this lists the ROOT project's own tasks by default; pass task=\"<module>:tasks\" (e.g. \":app:tasks\", from list_gradle_projects) to scope to a submodule instead.",
 		listGradleTasks)
 	add(s, "list_gradle_projects",
 		"List the Gradle modules (sub-projects) in project_dir (gradlew projects) — the map of a multi-module build, e.g. :app, :core, :feature:login. Use it to find which module to point gradle_build/list_gradle_variants at, or to address a task at one module with '<path>:<task>' (e.g. :app:assembleDebug). A single-module build reports no sub-projects.",
 		listGradleProjects)
 	add(s, "gradle_project_properties",
-		"Dump Gradle's evaluated properties for one module, such as :app or :feature:login. Use after list_gradle_projects when you need the module's namespace, Android SDK settings, build directory, or other effective configuration rather than just its task/variant names.",
+		"Dump Gradle's evaluated properties for one module, such as :app or :feature:login. Use after list_gradle_projects when you need the module's namespace, Android SDK settings, build directory, or other effective configuration rather than just its task/variant names. This is the module's FULL effective property set — the same one ./gradlew properties would print, which can include credentials a build.gradle reads from ~/.gradle/gradle.properties or env (e.g. private Maven repo auth). Values for keys that look secret-shaped (password/token/key/credential) are redacted before being returned.",
 		gradleProjectProperties)
 	add(s, "scaffold_android_project",
 		"Create a minimal Kotlin Android application in a new empty directory, including Gradle Kotlin DSL files, an AndroidManifest, a launcher Activity, resources, README, and gitignore. The tool never overwrites a non-empty directory. Run `gradle wrapper` in the result directory before using gradle_build.",
 		scaffoldProject)
 	add(s, "list_gradle_variants",
-		"List the buildable build variants in project_dir (parsed from the assemble* tasks) — the Android analogue of \"list schemes\". Each variant V maps to an assembleV / installV Gradle task; pass it as the task= arg to gradle_build/build_and_run to disambiguate a multi-flavor project. Test-only APK tasks (androidTest/unitTest) are excluded.",
+		"List the buildable build variants in project_dir (parsed from the assemble* tasks) — the Android analogue of \"list schemes\". Each variant V maps to an assembleV / installV Gradle task; pass it as the task= arg to gradle_build/build_and_run to disambiguate a multi-flavor project. Test-only APK tasks (androidTest/unitTest) are excluded. In a multi-module build the ROOT project usually has no variants of its own (no Android plugin applied there) — pass task=\"<module>:tasks\" (e.g. \":app:tasks\", from list_gradle_projects) to scope to the module that actually builds APKs.",
 		listGradleVariants)
 }
 

@@ -133,7 +133,11 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 }
 
 func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
-	out, err := gradle.Gradle(ctx, in.ProjectDir, "tasks")
+	task := in.Task
+	if task == "" {
+		task = "tasks"
+	}
+	out, err := gradle.Gradle(ctx, in.ProjectDir, task)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
@@ -141,7 +145,7 @@ func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, e
 }
 
 func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
-	variants, out, err := gradle.ListVariants(ctx, in.ProjectDir)
+	variants, out, err := gradle.ListVariants(ctx, in.ProjectDir, in.Task)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}

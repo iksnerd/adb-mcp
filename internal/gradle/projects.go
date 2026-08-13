@@ -34,14 +34,42 @@ func ParseProjects(projectsOutput string) []string {
 	return paths
 }
 
-// ListProjectProperties runs Gradle's standard properties task for one module.
-// module is a Gradle path such as :app or :feature:login.
+// secretPropertyKeyRe matches property-key substrings that commonly carry
+// secrets. Gradle's stock `properties` task dumps a module's ENTIRE effective
+// property set, including credentials injected via ~/.gradle/gradle.properties
+// or env vars for private Maven repo auth — indistinguishable in the raw
+// output from harmless entries like compileSdkVersion. Field report:
+// council-hub android-mcp-papercuts #019fdd06.
+var secretPropertyKeyRe = regexp.MustCompile(`(?i)(pass|secret|token|key|credential)`)
+
+// propertyLineRe matches one "key: value" line from gradlew's properties task
+// output, e.g. "NEXUS_PASS: hunter2".
+var propertyLineRe = regexp.MustCompile(`^([A-Za-z_][\w.]*): (.*)$`)
+
+// redactSecretProperties masks the value of any property line whose key looks
+// secret-shaped, so a properties dump doesn't leak credentials into an agent
+// transcript by default. Pure string work, unit-tested directly.
+func redactSecretProperties(output string) string {
+	lines := strings.Split(output, "\n")
+	for i, line := range lines {
+		m := propertyLineRe.FindStringSubmatch(line)
+		if m != nil && secretPropertyKeyRe.MatchString(m[1]) {
+			lines[i] = m[1] + ": ***redacted***"
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ListProjectProperties runs Gradle's standard properties task for one module
+// and redacts any secret-shaped property values before returning. module is a
+// Gradle path such as :app or :feature:login.
 func ListProjectProperties(ctx context.Context, projectDir, module string) (string, error) {
 	module = strings.TrimSpace(module)
 	if module == "" || !strings.HasPrefix(module, ":") || strings.ContainsAny(module, " \t\r\n") {
 		return "", fmt.Errorf("module must be a Gradle path such as :app or :feature:login")
 	}
-	return Gradle(ctx, projectDir, module+":properties")
+	out, err := Gradle(ctx, projectDir, module+":properties")
+	return redactSecretProperties(out), err
 }
 
 // ListProjects runs `gradlew projects` in projectDir and parses out the module

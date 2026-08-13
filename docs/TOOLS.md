@@ -103,10 +103,10 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced) |
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
-| `list_gradle_tasks` | Discover available Gradle tasks |
-| `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run |
+| `list_gradle_tasks` | Discover available Gradle tasks — root project by default, or pass `task=":module:tasks"` to scope to a submodule |
+| `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run. Root project by default; pass `task=":module:tasks"` for a multi-module build (the root usually has no variants of its own) |
 | `list_gradle_projects` | List the Gradle modules of a multi-module build (`gradlew projects`) — e.g. `:app`, `:core`, `:feature:login`; point other Gradle tools at the right module or address a task with `:module:task` |
-| `gradle_project_properties` | Dump evaluated Gradle properties for one module (`:app`, `:feature:login`, …) |
+| `gradle_project_properties` | Dump evaluated Gradle properties for one module (`:app`, `:feature:login`, …) — secret-shaped values (password/token/key/credential) are redacted before returning |
 | `scaffold_android_project` | Create a minimal Kotlin Android project in a new empty directory |
 
 ## Resources (the bundled "skill")

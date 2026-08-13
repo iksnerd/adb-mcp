@@ -1,7 +1,11 @@
 package gradle
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +51,48 @@ func TestParseVariantsSingle(t *testing.T) {
 func TestParseVariantsNone(t *testing.T) {
 	if got := ParseVariants("no assemble tasks here\ntest - run tests\n"); len(got) != 0 {
 		t.Errorf("expected no variants, got %q", got)
+	}
+}
+
+// writeFakeGradlew installs an executable "gradlew" in dir that echoes the
+// task it was invoked with (as an assemble task, so ParseVariants has
+// something to find) — enough to prove which task ListVariants actually ran,
+// without needing a real Gradle project.
+func writeFakeGradlew(t *testing.T, dir string) {
+	t.Helper()
+	script := "#!/bin/sh\necho \"ran: $1\"\necho \"assemble${1}Debug - fake\"\n"
+	path := filepath.Join(dir, "gradlew")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestListVariantsDefaultsToRootTasks covers the field report that
+// list_gradle_variants had no way to scope to a submodule: with no task
+// given it must run the root project's own "tasks", not a hardcoded module.
+func TestListVariantsDefaultsToRootTasks(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeGradlew(t, dir)
+	_, out, err := ListVariants(context.Background(), dir, "")
+	if err != nil {
+		t.Fatalf("ListVariants: %v (out=%q)", err, out)
+	}
+	if !strings.Contains(out, "ran: tasks") {
+		t.Errorf("expected the default task to be \"tasks\", got output %q", out)
+	}
+}
+
+// TestListVariantsAcceptsModuleQualifiedTask proves a module-qualified task
+// (e.g. ":app:tasks", the workaround the field report asked for) actually
+// reaches gradlew, rather than being silently ignored.
+func TestListVariantsAcceptsModuleQualifiedTask(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeGradlew(t, dir)
+	_, out, err := ListVariants(context.Background(), dir, ":app:tasks")
+	if err != nil {
+		t.Fatalf("ListVariants: %v (out=%q)", err, out)
+	}
+	if !strings.Contains(out, "ran: :app:tasks") {
+		t.Errorf("expected the module-qualified task to reach gradlew, got output %q", out)
 	}
 }

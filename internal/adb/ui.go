@@ -143,7 +143,10 @@ func (c *Client) WaitForText(ctx context.Context, query string, partial bool, ti
 			}
 		}
 		if time.Now().After(deadline) {
-			return uiauto.Element{}, fmt.Errorf("text %q did not appear within %s", query, timeout)
+			if !scroll {
+				return uiauto.Element{}, fmt.Errorf("text %q did not appear within %s — this only polls the current viewport; Android omits off-screen ScrollView content from the accessibility tree, so if the text may be scrolled out of view, retry with scroll=true before concluding it's absent", query, timeout)
+			}
+			return uiauto.Element{}, fmt.Errorf("text %q did not appear within %s (scrolled while waiting)", query, timeout)
 		}
 		if scroll {
 			// Android's accessibility tree commonly omits content outside the

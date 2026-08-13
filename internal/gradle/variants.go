@@ -35,11 +35,17 @@ func ParseVariants(tasksOutput string) []string {
 	return variants
 }
 
-// ListVariants runs `gradlew tasks` in projectDir and parses out the buildable
-// build variants. The raw output is returned too, so a caller can surface it
-// when nothing parsed (e.g. project_dir points at the wrong module).
-func ListVariants(ctx context.Context, projectDir string) (variants []string, rawOutput string, err error) {
-	out, err := Gradle(ctx, projectDir, "tasks")
+// ListVariants runs a `tasks` Gradle task in projectDir and parses out the
+// buildable build variants. task is the task to run — "tasks" for the root
+// project, or a module-qualified task such as ":app:tasks" to scope to one
+// submodule of a multi-module build; empty defaults to "tasks". The raw
+// output is returned too, so a caller can surface it when nothing parsed
+// (e.g. project_dir/task points at a module with no Android plugin applied).
+func ListVariants(ctx context.Context, projectDir, task string) (variants []string, rawOutput string, err error) {
+	if strings.TrimSpace(task) == "" {
+		task = "tasks"
+	}
+	out, err := Gradle(ctx, projectDir, task)
 	if err != nil {
 		return nil, out, err
 	}
