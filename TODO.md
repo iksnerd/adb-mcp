@@ -13,7 +13,7 @@ Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) rea
 |---|---|
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.19.0) |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/tools) + how to add a tool (with diagram) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/scaffold/selfupdate/tools) + how to add a tool (with diagram) |
 
 ## Recently shipped (v0.19.0)
 

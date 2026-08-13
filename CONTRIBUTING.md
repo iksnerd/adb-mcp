@@ -22,21 +22,23 @@ make run       # run over stdio for manual JSON-RPC poking
 
 ## Architecture
 
-The code is two mirrored layers — read [ARCHITECTURE.md](ARCHITECTURE.md) for the
-full map and diagram:
+The code is execution layers mirrored by a thin adapter layer — read
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full map and diagram:
 
-- `internal/android/` — the pure execution/parse layer that wraps `adb`/`emulator`.
-  It has **no** dependency on the MCP SDK, so its logic stays unit-testable.
+- `internal/adb/` — the device layer: an `adb.Client` whose methods wrap
+  `adb`/`emulator`. No dependency on the MCP SDK, so it stays unit-testable.
+- `internal/gradle/`, `internal/uiauto/`, `internal/sdk/` — the other pure
+  execution/parse layers (builds, UI-hierarchy parsing, SDK resolution).
 - `internal/tools/` — thin MCP tool bindings. Each `tools/<domain>.go` mirrors an
-  `android/<domain>.go` of the same name.
+  execution file of the same name (e.g. `adb/<domain>.go`).
 - `internal/guides/` — the driving "skill" guides, embedded and served as MCP
   resources.
 
 ## Conventions
 
-- **Keep the layers honest.** Real logic lives in `internal/android` (testable);
-  `internal/tools` just resolves the device, calls into `android`, and formats
-  the result. Don't put `adb` calls or parsing in the tools layer.
+- **Keep the layers honest.** Real logic lives in the execution packages
+  (testable); `internal/tools` just resolves the device, calls into them, and
+  formats the result. Don't put `adb` calls or parsing in the tools layer.
 - **Every device-facing tool takes an optional `serial`** (adb `-s`). Omit it and
   the server targets the single attached device; with several it returns an
   actionable "pass serial" error.

@@ -23,10 +23,13 @@ flowchart TB
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
+    scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
+    selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
+    server -. "adb-mcp update" .-> selfupdate
     register --> t_files
     t_files --> t_helpers
 
@@ -34,6 +37,7 @@ flowchart TB
     t_helpers --> client_t
     t_files --> gradle
     t_files --> uiauto
+    t_files --> scaffold
 
     %% device commands are Client methods; they parse via uiauto and shell out via sdk
     a_cmds -. "c.adb(...)" .-> client_t

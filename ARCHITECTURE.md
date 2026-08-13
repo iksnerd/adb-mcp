@@ -1,6 +1,6 @@
 # Architecture
 
-Five packages in a strict dependency line, and one convention: **every MCP tool
+Seven packages in a strict dependency line, and one convention: **every MCP tool
 file mirrors an execution file of the same name.** Find a tool and its real
 logic sits one layer down under the matching filename.
 
@@ -12,11 +12,14 @@ internal/gradle/       host-side Gradle: build, find APKs, parse test reports
 internal/uiauto/       pure uiautomator-hierarchy model + parsing (Element, filters, find)
 internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
 internal/guides/       the skill guides, embedded and served as MCP resources
+internal/scaffold/     generates a new Android project (scaffold_android_project)
+internal/selfupdate/   the `adb-mcp update` self-updater (cmd/adb-mcp only)
 ```
 
 Dependencies point inward only: `sdk` and `uiauto` are leaves; `gradle → sdk`;
-`adb → sdk, uiauto`; `tools → adb, gradle, uiauto`. Nothing imports `tools`, and
-no execution package imports the MCP SDK.
+`adb → sdk, uiauto`; `tools → adb, gradle, uiauto, scaffold`. Nothing imports
+`tools`, and no execution package imports the MCP SDK. `selfupdate` is wired
+only from `cmd/adb-mcp/main.go`, not from `tools`.
 
 ## Diagram
 
@@ -46,16 +49,20 @@ flowchart TB
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
+    scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
+    selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
+    server -. "adb-mcp update" .-> selfupdate
     register --> t_files
     t_files --> t_helpers
 
     t_helpers --> client_t
     t_files --> gradle
     t_files --> uiauto
+    t_files --> scaffold
 
     a_cmds -. "c.adb(...)" .-> client_t
     a_cmds --> uiauto
@@ -91,6 +98,16 @@ the target device into an `*adb.Client`, call one method (or a gradle/uiauto
 function), format the result. `register.go` is *only* the tool catalog
 (`add(name, description, handler)`); it holds no handler bodies.
 
+**`internal/scaffold` — project generation.** `scaffold_android_project`'s
+implementation: writes a minimal Kotlin Android project into a new empty
+directory. No dependency on `adb`/`gradle`/`sdk` — it never touches a device
+or build tool, just template files.
+
+**`internal/selfupdate` — the `adb-mcp update` CLI subcommand.** Fetches the
+latest GitHub release, verifies its checksum, swaps the running binary. Wired
+only from `cmd/adb-mcp/main.go`, not from `internal/tools` — it's a CLI path,
+not an MCP tool.
+
 ## The mirror
 
 Each domain has a file in `internal/tools` and a matching execution file. To
@@ -112,7 +129,9 @@ one for the behavior.
 | file transfer | `adb/files.go` | `apps.go` |
 | environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` | `environment.go` |
 | gradle build & test | `gradle/gradle.go`, `gradle/testreport.go` | `gradle.go` |
+| project scaffolding | `scaffold/scaffold.go` | `gradle.go` |
 | SDK paths / shared helpers | `sdk/sdk.go` | `helpers.go` |
+| self-update (CLI only, not an MCP tool) | `selfupdate/selfupdate.go` | — (`cmd/adb-mcp/main.go`) |
 
 ## Conventions
 
