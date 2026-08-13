@@ -4,6 +4,41 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.20.0 — renamed to adb-mcp, Gradle property redaction, module-scoped Gradle listing
+
+**Project renamed `adb_mcp` → `adb-mcp`, including the Go module path.**
+The CLI binary, `cmd/adb-mcp`, and every tool description already used the
+hyphenated form; the module path and GitHub URLs were the odd ones out. The
+GitHub repo itself is now `iksnerd/adb-mcp` (the old `adb_mcp` URL
+redirects). **If you `go install`ed a previous version, re-run install with
+the new path** — `go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest` —
+since a module's declared path must match the path it's fetched under, and
+`v0.19.0` was tagged under the old name.
+
+**`gradle_project_properties` redacts secret-shaped values by default.**
+Gradle's stock `properties` task dumps a module's entire effective property
+set, which routinely includes credentials injected via
+`~/.gradle/gradle.properties` or env for private Maven repo auth —
+indistinguishable in the raw output from harmless entries like
+`compileSdkVersion`. Property values whose key matches
+password/token/key/credential (case-insensitive) are now masked before the
+tool returns them. Field report: council-hub `android-mcp-papercuts`
+`#019fdd06`.
+
+**`list_gradle_variants` / `list_gradle_tasks` can now scope to a
+submodule.** Both previously always ran against the Gradle root —
+`list_gradle_tasks` silently ignored its own `task` parameter — so a
+multi-module build where only a submodule applied the Android plugin got
+"No build variants found" even though the submodule plainly had them. Both
+now honor `task="<module>:tasks"` the same way `gradle_build`'s `task=`
+already does.
+
+**`wait_for_text`'s timeout message now points at the viewport caveat.**
+Android's accessibility tree only covers the current viewport (see
+`v0.19.0`'s `scroll` option below), but the timeout error still read as
+unconditional absence. It now says so and suggests `scroll=true` when the
+call didn't already use it.
+
 ## v0.19.0 — logcat redaction, dev-client scheme hints, describe_ui occlusion check, wait_for_text scroll
 
 **`logcat` / `start_logcat_capture` / `stop_logcat_capture` get `redact:true`.**
