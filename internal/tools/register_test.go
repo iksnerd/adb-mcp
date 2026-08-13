@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
 func TestParseCoords(t *testing.T) {

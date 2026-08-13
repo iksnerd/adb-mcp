@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/gradle"
-	"github.com/iksnerd/adb_mcp/internal/scaffold"
+	"github.com/iksnerd/adb-mcp/internal/gradle"
+	"github.com/iksnerd/adb-mcp/internal/scaffold"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

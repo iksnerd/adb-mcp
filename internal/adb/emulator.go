@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/sdk"
+	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
 
 // ListAVDs returns the names of available AVDs via `emulator -list-avds`.

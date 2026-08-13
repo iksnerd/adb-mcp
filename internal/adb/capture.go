@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/sdk"
+	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
 
 // Capture sessions are stateful: start spawns a background process that keeps

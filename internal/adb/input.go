@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
 // PreferPIN dismisses a standard biometric prompt toward its credential

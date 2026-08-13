@@ -3,7 +3,7 @@ package adb
 import (
 	"testing"
 
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
 func TestEscapeInputText(t *testing.T) {

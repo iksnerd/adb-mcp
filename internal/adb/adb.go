@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/sdk"
+	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
 
 // Runner executes an adb invocation already targeted at one device and returns

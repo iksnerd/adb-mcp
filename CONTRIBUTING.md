@@ -1,6 +1,6 @@
-# Contributing to adb_mcp
+# Contributing to adb-mcp
 
-Thanks for your interest in improving adb_mcp. This is the Android counterpart to
+Thanks for your interest in improving adb-mcp. This is the Android counterpart to
 [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP): an MCP server that
 drives Android emulators/devices over `adb`.
 
@@ -54,5 +54,5 @@ The code is execution layers mirrored by a thin adapter layer — read
 3. Open a pull request describing the change and how you verified it (include a
    live smoke test against an emulator when the change touches device behavior).
 
-Open a [GitHub issue](https://github.com/iksnerd/adb_mcp/issues) first if you want
+Open a [GitHub issue](https://github.com/iksnerd/adb-mcp/issues) first if you want
 to discuss a larger change before building it.

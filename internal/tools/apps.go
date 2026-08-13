@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/adb"
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

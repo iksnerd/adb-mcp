@@ -1,12 +1,12 @@
 <div align="center">
 <img src="assets/android-head_flat.svg" width="72" alt="Android robot logo">
 
-# adb_mcp
+# adb-mcp
 
 **An [MCP](https://modelcontextprotocol.io) server that drives Android emulators and devices over `adb`**
 
-[![Release](https://img.shields.io/github/v/release/iksnerd/adb_mcp?logo=github&color=3DDC84)](https://github.com/iksnerd/adb_mcp/releases/latest)
-[![CI](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb_mcp/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/iksnerd/adb-mcp?logo=github&color=3DDC84)](https://github.com/iksnerd/adb-mcp/releases/latest)
+[![CI](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![MCP](https://img.shields.io/badge/MCP-stdio-3DDC84)](https://modelcontextprotocol.io)
 
@@ -14,7 +14,7 @@
 
 ---
 
-`adb_mcp` lets an AI agent drive an Android emulator or device over `adb` —
+`adb-mcp` lets an AI agent drive an Android emulator or device over `adb` —
 boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
 lock, read `logcat`, and manage app lifecycle.
 
@@ -22,7 +22,7 @@ It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/Xc
 what XcodeBuildMCP does for iOS simulators, this does for Android emulators. Built on the official
 [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) and communicates over stdio.
 
-> Android is a trademark of Google LLC. `adb_mcp` is an independent, unofficial
+> Android is a trademark of Google LLC. `adb-mcp` is an independent, unofficial
 > tool built for Android and is not affiliated with, sponsored, or endorsed by Google.
 > The Android robot above is reproduced/modified from work created and shared by
 > Google and used according to terms described in the
@@ -62,7 +62,7 @@ Go is **not** required — releases ship prebuilt binaries; it's only needed to
 On macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/iksnerd/adb_mcp/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/iksnerd/adb-mcp/main/install.sh | sh
 ```
 
 The script ([install.sh](install.sh)) picks the right archive for your
@@ -72,7 +72,7 @@ with `VERSION=v0.17.0`).
 
 Prefer to grab the binary yourself? Every platform's archive — macOS, Linux,
 and Windows, amd64 and arm64 — is on the
-[Releases page](https://github.com/iksnerd/adb_mcp/releases/latest), each with a
+[Releases page](https://github.com/iksnerd/adb-mcp/releases/latest), each with a
 checksum in `checksums.txt`. On Windows, download the `windows_amd64` or
 `windows_arm64` zip and put `adb-mcp.exe` somewhere on your `PATH`.
 
@@ -125,7 +125,7 @@ make install                 # builds ./bin/adb-mcp and copies it to ~/.local/bi
 # or:
 go build -o bin/adb-mcp ./cmd/adb-mcp
 # or straight from the module (note the /cmd/adb-mcp suffix):
-go install github.com/iksnerd/adb_mcp/cmd/adb-mcp@latest
+go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 ```
 
 ## Tools

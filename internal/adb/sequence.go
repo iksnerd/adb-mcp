@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
 // Step is one action in a RunSequence batch. Action names the operation; the

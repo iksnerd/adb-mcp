@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/uiauto"
+	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
 // dumpOnce performs a single uiautomator dump + parse with the default filter,

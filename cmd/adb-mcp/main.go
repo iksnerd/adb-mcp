@@ -16,10 +16,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/iksnerd/adb_mcp/internal/adb"
-	"github.com/iksnerd/adb_mcp/internal/guides"
-	"github.com/iksnerd/adb_mcp/internal/selfupdate"
-	"github.com/iksnerd/adb_mcp/internal/tools"
+	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/guides"
+	"github.com/iksnerd/adb-mcp/internal/selfupdate"
+	"github.com/iksnerd/adb-mcp/internal/tools"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

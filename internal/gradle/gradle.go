@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iksnerd/adb_mcp/internal/sdk"
+	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
 
 // Gradle runs one or more Gradle tasks in projectDir using its wrapper

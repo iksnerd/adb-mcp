@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

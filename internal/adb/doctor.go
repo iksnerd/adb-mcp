@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iksnerd/adb_mcp/internal/sdk"
+	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
 
 // Doctor reports the health of the local Android tooling: SDK location, adb and

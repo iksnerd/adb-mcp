@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/iksnerd/adb_mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/adb"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -109,5 +109,5 @@ func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, e
 var ServerVersion = "unknown"
 
 func doctor(ctx context.Context, _ doctorArgs) (*mcp.CallToolResult, error) {
-	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb_mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, adb.Doctor(ctx)), nil
+	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb-mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, adb.Doctor(ctx)), nil
 }

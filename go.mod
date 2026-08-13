@@ -1,4 +1,4 @@
-module github.com/iksnerd/adb_mcp
+module github.com/iksnerd/adb-mcp
 
 go 1.26
 

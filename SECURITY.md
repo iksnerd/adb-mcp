@@ -4,7 +4,7 @@
 
 Please report security issues privately rather than opening a public issue.
 
-Use GitHub's [private vulnerability reporting](https://github.com/iksnerd/adb_mcp/security/advisories/new)
+Use GitHub's [private vulnerability reporting](https://github.com/iksnerd/adb-mcp/security/advisories/new)
 to open a confidential advisory. Include:
 
 - what the issue is and its impact,
@@ -17,7 +17,7 @@ remain anonymous.
 
 ## Scope
 
-adb_mcp drives Android emulators and devices over `adb` on the local machine: it
+adb-mcp drives Android emulators and devices over `adb` on the local machine: it
 runs `adb`/`emulator`/`gradlew`, installs APKs, and reads device state. Reports
 that are especially in scope:
 

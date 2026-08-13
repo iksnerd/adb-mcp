@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const repo = "iksnerd/adb_mcp"
+const repo = "iksnerd/adb-mcp"
 
 // maxArchiveBytes bounds release downloads (and the extracted binary) so a
 // compromised or corrupted release can't OOM the updater. Real archives are

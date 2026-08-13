@@ -1,4 +1,4 @@
-# adb_mcp — roadmap
+# adb-mcp — roadmap
 
 The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP).
 This file is the lean hub — only what's **open**. Shipped work lives in the
@@ -53,8 +53,8 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 **XcodeBuildMCP parity gaps** (priority order)
 - [x] Deeper project discovery — **`list_gradle_projects` + `gradle_project_properties` shipped** (module map plus per-module evaluated properties).
 - [x] Project scaffolding — **`scaffold_android_project` shipped**: creates a minimal Kotlin Android project in a new empty directory.
-- [ ] Debugging — XcodeBuildMCP has 7 LLDB-backed tools (attach, breakpoints, continue, detach, raw command, stack, variables); adb_mcp has no attach/breakpoint/variable-inspection equivalent. Android's analogue is JDWP (`jdb`), a different mechanism — needs a deliberate scope decision, not silent drift. Re-audited 2026-08-13 against XcodeBuildMCP's actual source tree; see BACKLOG.md.
-- [ ] Code coverage reporting — `get_coverage_report`/`get_file_coverage` (xcresult → per-target/per-function coverage) has no adb_mcp equivalent; `run_unit_tests`/`run_instrumented_tests` run tests but don't surface JaCoCo output.
+- [ ] Debugging — XcodeBuildMCP has 7 LLDB-backed tools (attach, breakpoints, continue, detach, raw command, stack, variables); adb-mcp has no attach/breakpoint/variable-inspection equivalent. Android's analogue is JDWP (`jdb`), a different mechanism — needs a deliberate scope decision, not silent drift. Re-audited 2026-08-13 against XcodeBuildMCP's actual source tree; see BACKLOG.md.
+- [ ] Code coverage reporting — `get_coverage_report`/`get_file_coverage` (xcresult → per-target/per-function coverage) has no adb-mcp equivalent; `run_unit_tests`/`run_instrumented_tests` run tests but don't surface JaCoCo output.
 - [ ] Session defaults — `session_set/show/clear_defaults` (pin a default project/scheme/device) has no analogue beyond the optional `serial`. Lower priority; no field report has asked for it.
 
 **Field feedback** (open items; most rounds shipped in v0.8.0–v0.16.0, see CHANGELOG)
