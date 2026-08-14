@@ -4,6 +4,30 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.21.0 — EXPERIMENTAL accessibility-click bridge for native views
+
+**`tap_on_text`/`tap_element` gain `via_accessibility` — a real accessibility
+click for views a coordinate tap can't reach.** `adb shell input tap` is a
+raw touch-injection event; some native views (Compose/RN `NativeTabs` bars,
+some overlays) only respond to a genuine
+`AccessibilityNodeInfo.performAction(ACTION_CLICK)`, which is how Maestro's
+`tapOn` and TalkBack both work. There is no adb-shell-only way to do this
+(no `uiautomator` action subcommand, no `cmd accessibility` action verb, raw
+`service call accessibility` binder calls are too fragile to maintain across
+Android versions), so this ships a small companion app — a single plain
+`AccessibilityService` (repo-root `bridge/`, not part of the Go module; see
+[bridge/README.md](../bridge/README.md)), far lighter than Maestro's
+two-APK `am instrument` gRPC server. One-time setup per device:
+`adb-mcp bridge install` downloads, installs, and enables it; `doctor` now
+reports its install/enable status per attached device. Verified live
+end-to-end (built binary, real MCP stdio calls, text and resource_id
+matching, no-match handling) on `emulator-5556`. **EXPERIMENTAL**: this
+proves the mechanism works, not the specific "coordinate tap no-ops,
+accessibility click succeeds" differential from the original field report
+(`android-mcp` `#019f75a8`) — that needs the reporter's actual `NativeTabs`
+app, which wasn't available for this pass. Closes the round-6 BACKLOG item
+open since v0.14.0.
+
 ## v0.20.1 — narrower Gradle args schemas
 
 **`list_gradle_projects`/`list_gradle_variants` no longer advertise `json`/

@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/bridgeupdate"
 	"github.com/iksnerd/adb-mcp/internal/guides"
 	"github.com/iksnerd/adb-mcp/internal/selfupdate"
 	"github.com/iksnerd/adb-mcp/internal/tools"
@@ -26,7 +27,7 @@ import (
 
 // version is overridable at build time via -ldflags "-X main.version=...".
 // The Makefile injects the value from the VERSION file / git.
-var version = "0.20.1"
+var version = "0.21.0"
 
 func main() {
 	log.SetFlags(0)
@@ -45,6 +46,22 @@ func main() {
 			return
 		case "version":
 			fmt.Printf("adb-mcp %s\n", version)
+			return
+		case "bridge":
+			// EXPERIMENTAL: one-time per-device setup for the accessibility-click
+			// bridge (tap_on_text/tap_element's via_accessibility=true). See
+			// bridge/README.md.
+			if len(os.Args) < 3 || os.Args[2] != "install" {
+				log.Fatalf("usage: adb-mcp bridge install [--serial=<serial>]")
+			}
+			fs := flag.NewFlagSet("bridge install", flag.ExitOnError)
+			serial := fs.String("serial", "", "target device serial (adb -s); optional when exactly one device is attached")
+			_ = fs.Parse(os.Args[3:])
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			if err := bridgeupdate.Run(ctx, *serial, os.Stdout); err != nil {
+				log.Fatalf("bridge install failed: %v", err)
+			}
 			return
 		}
 	}

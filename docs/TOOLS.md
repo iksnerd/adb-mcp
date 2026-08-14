@@ -26,8 +26,8 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed`, `identify` reports which element the coordinate hit (or that it hit a non-clickable wrapper / no reported element) |
-| `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed` |
-| `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed` |
+| `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed`; `via_accessibility` (EXPERIMENTAL) dispatches a real accessibility click through the bridge instead — see [bridge/README.md](../bridge/README.md) |
+| `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed`; `via_accessibility` (EXPERIMENTAL) dispatches a real accessibility click through the bridge instead — see [bridge/README.md](../bridge/README.md) |
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center; `scroll:true` opt-in swipes through off-screen ScrollView content while polling |
 | `wait` | Plain sleep (seconds) — for time-based conditions (background-timer flows, cooldowns) |
@@ -94,7 +94,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `set_location` | Set the mock GPS location |
 | `set_status_bar` | Pin a clean status bar (SystemUI demo mode) — clock/battery/mobile signal+carrier+data-type/notifications — for tidy screenshots |
 | `stay_awake` | Keep the display on for a driving session (`svc power stayon`) — stops a doze-happy emulator blanking screenshots to black mid-flow |
-| `doctor` | Report SDK/adb/emulator/AVD/device health |
+| `doctor` | Report SDK/adb/emulator/AVD/device health, plus per-device accessibility bridge install/enable status (EXPERIMENTAL) |
 
 ### Build & test (Gradle)
 | Tool | Purpose |

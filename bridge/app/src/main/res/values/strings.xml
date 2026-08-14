@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">adb-mcp bridge</string>
+    <string name="accessibility_service_description">Lets adb-mcp dispatch a real accessibility click (AccessibilityNodeInfo.performAction(ACTION_CLICK)) to views that ignore raw coordinate taps. Driven only by local adb broadcasts from the adb-mcp MCP server; performs no other action.</string>
+</resources>

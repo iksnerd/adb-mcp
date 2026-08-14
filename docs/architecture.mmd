@@ -25,11 +25,13 @@ flowchart TB
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
     selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
+    bridgeupdate["internal/bridgeupdate<br/><i>adb-mcp bridge install (EXPERIMENTAL)</i>"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
     server -. "adb-mcp update" .-> selfupdate
+    server -. "adb-mcp bridge install" .-> bridgeupdate
     register --> t_files
     t_files --> t_helpers
 
@@ -42,5 +44,6 @@ flowchart TB
     %% device commands are Client methods; they parse via uiauto and shell out via sdk
     a_cmds -. "c.adb(...)" .-> client_t
     a_cmds --> uiauto
+    bridgeupdate --> client_t
     client_t --> sdk
     gradle --> sdk

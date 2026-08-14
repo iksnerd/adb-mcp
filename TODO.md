@@ -4,20 +4,28 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.20.1 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.21.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
 
 | Doc | What's in it |
 |---|---|
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.20.1) |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.21.0) |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/scaffold/selfupdate/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.20.1)
+## Recently shipped (v0.21.0)
 
-See [CHANGELOG](docs/CHANGELOG.md). v0.20.1: **`list_gradle_projects`/
+See [CHANGELOG](docs/CHANGELOG.md). v0.21.0: **EXPERIMENTAL accessibility-click
+bridge** — `tap_on_text`/`tap_element` gain `via_accessibility`, dispatching a
+real `AccessibilityNodeInfo.performAction(ACTION_CLICK)` through a small
+companion app (repo-root `bridge/`, one-time `adb-mcp bridge install` per
+device) for native views (Compose/RN `NativeTabs` bars) a coordinate tap
+can't reach. `doctor` reports its status. Closes the round-6 BACKLOG item
+open since v0.14.0.
+
+v0.20.1: **`list_gradle_projects`/
 `list_gradle_variants` schemas no longer advertise the `json`/`args` params
 they ignore** (contributed by @Ani07-05, fixes #2).
 
@@ -74,7 +82,7 @@ Pulled from [docs/BACKLOG.md](docs/BACKLOG.md) — see there for full context.
 - [~] `biometric_auth` — **`has_biometric_enrolled` + `prefer_pin` shipped** (count probe and best-effort credential fallback). Still open: deterministic re-enroll that captures the assigned finger id from the enrollment HAL log; id-guessing remains unsafe.
 - [~] Verify `reload_app`/`open_dev_menu` on a real Expo dev client — tool paths are documented; current Expo classic/bridgeless behavior still needs a live matrix pass.
 - [x] Residual `describe_ui` auto-filter noise — auto now collapses unlabelled, non-clickable single-child layout chains as well as identical-bounds wrappers.
-- [~] Accessibility-action tap for native surfaces — coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; the real fix needs a device-side UiAutomator/accessibility bridge, not another coordinate wrapper.
+- [x] Accessibility-action tap for native surfaces — **shipped v0.21.0 (EXPERIMENTAL)**: coordinate `input tap` no-ops on Compose/RN `NativeTabs` bars where Maestro's `tapOn` (UiAutomator `ACTION_CLICK`) works (`android-mcp` #019f75a8). `tap identify` (v0.14.0) diagnoses it; `tap_on_text`/`tap_element`'s `via_accessibility` now fixes it via a companion `AccessibilityService` bridge (`adb-mcp bridge install`, see `bridge/README.md`).
 - [x] DECISION: `run_sequence` batching — **shipped v0.16.0**. Steps + sleeps + if_present/if_absent guards + optional, over the existing client methods; returns per-step results + final hierarchy. Batch-tap folds in (a sequence of `tap` steps).
 - [x] DECISION: Maestro integration (`run_maestro_flow`) — defer. `run_sequence` covers in-process batching/guards; keep Maestro as an external E2E runner until structured cross-tool reporting is a demonstrated requirement.
 

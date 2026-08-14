@@ -14,12 +14,19 @@ internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
 internal/guides/       the skill guides, embedded and served as MCP resources
 internal/scaffold/     generates a new Android project (scaffold_android_project)
 internal/selfupdate/   the `adb-mcp update` self-updater (cmd/adb-mcp only)
+internal/bridgeupdate/ the `adb-mcp bridge install` installer (cmd/adb-mcp only)
 ```
 
 Dependencies point inward only: `sdk` and `uiauto` are leaves; `gradle → sdk`;
-`adb → sdk, uiauto`; `tools → adb, gradle, uiauto, scaffold`. Nothing imports
-`tools`, and no execution package imports the MCP SDK. `selfupdate` is wired
-only from `cmd/adb-mcp/main.go`, not from `tools`.
+`adb → sdk, uiauto`; `tools → adb, gradle, uiauto, scaffold`; `bridgeupdate →
+adb`. Nothing imports `tools`, and no execution package imports the MCP SDK.
+`selfupdate`/`bridgeupdate` are wired only from `cmd/adb-mcp/main.go`, not
+from `tools`.
+
+**`bridge/`** (repo root, sibling to `cmd/`/`internal/`) is a separate,
+non-Go Android Gradle project — the small companion AccessibilityService APK
+that `internal/bridgeupdate` downloads and `internal/adb/bridge.go` drives.
+EXPERIMENTAL; see `bridge/README.md`.
 
 ## Diagram
 
@@ -51,11 +58,13 @@ flowchart TB
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
     selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
+    bridgeupdate["internal/bridgeupdate<br/><i>adb-mcp bridge install (EXPERIMENTAL)</i>"]
 
     client -->|stdio JSON-RPC| server
     server --> register
     server --> guides
     server -. "adb-mcp update" .-> selfupdate
+    server -. "adb-mcp bridge install" .-> bridgeupdate
     register --> t_files
     t_files --> t_helpers
 
@@ -66,6 +75,7 @@ flowchart TB
 
     a_cmds -. "c.adb(...)" .-> client_t
     a_cmds --> uiauto
+    bridgeupdate --> client_t
     client_t --> sdk
     gradle --> sdk
 ```
@@ -108,6 +118,14 @@ latest GitHub release, verifies its checksum, swaps the running binary. Wired
 only from `cmd/adb-mcp/main.go`, not from `internal/tools` — it's a CLI path,
 not an MCP tool.
 
+**`internal/bridgeupdate` — the `adb-mcp bridge install` CLI subcommand
+(EXPERIMENTAL).** Same fetch/verify shape as `selfupdate`, but installs the
+`bridge/` APK on a resolved device (`adb.Client.InstallBridge`) and enables
+its `AccessibilityService` (`adb.Client.EnableBridgeService`) instead of
+replacing the running binary. Also CLI-only, not wired from `internal/tools`
+— installing an app and flipping a system accessibility setting is a real
+side effect that shouldn't happen silently from an agent tool call.
+
 ## The mirror
 
 Each domain has a file in `internal/tools` and a matching execution file. To
@@ -132,6 +150,8 @@ one for the behavior.
 | project scaffolding | `scaffold/scaffold.go` | `gradle.go` |
 | SDK paths / shared helpers | `sdk/sdk.go` | `helpers.go` |
 | self-update (CLI only, not an MCP tool) | `selfupdate/selfupdate.go` | — (`cmd/adb-mcp/main.go`) |
+| accessibility bridge (EXPERIMENTAL) | `adb/bridge.go` | `interact.go` (`via_accessibility` on `tap_on_text`/`tap_element`) |
+| bridge install (CLI only, not an MCP tool) | `bridgeupdate/bridgeupdate.go` | — (`cmd/adb-mcp/main.go`) |
 
 ## Conventions
 

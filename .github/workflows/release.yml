@@ -22,6 +22,15 @@ jobs:
           go-version: '1.26.x'
           check-latest: true # picks up 1.26.5+ (crypto/tls advisory fix)
 
+      - name: Set up JDK (accessibility bridge)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK (accessibility bridge)
+        uses: android-actions/setup-android@v3
+
       - name: Verify formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -58,6 +67,17 @@ jobs:
             fi
             rm -f "$out"
           done
+          ls -l dist
+
+      - name: Build accessibility bridge APK
+        run: |
+          set -euo pipefail
+          cd bridge
+          ./gradlew :app:assembleRelease --console=plain
+          cp app/build/outputs/apk/release/app-release.apk ../dist/adb-mcp-bridge.apk
+
+      - name: Checksums
+        run: |
           (cd dist && sha256sum * > checksums.txt)
           ls -l dist
 
