@@ -20,6 +20,15 @@ type gradleArgs struct {
 	JSON       bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
 }
 
+type gradleProjectsArgs struct {
+	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
+}
+
+type gradleVariantsArgs struct {
+	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
+	Task       string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list variants for the :app module. Defaults to the root project's tasks."`
+}
+
 type gradlePropertiesArgs struct {
 	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
 	Module     string `json:"module" jsonschema:"Gradle module path, e.g. :app or :feature:login."`
@@ -144,7 +153,7 @@ func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, e
 	return text("%s", tailLines(out, 120)), nil
 }
 
-func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+func listGradleVariants(ctx context.Context, in gradleVariantsArgs) (*mcp.CallToolResult, error) {
 	variants, out, err := gradle.ListVariants(ctx, in.ProjectDir, in.Task)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
@@ -160,7 +169,7 @@ func listGradleVariants(ctx context.Context, in gradleArgs) (*mcp.CallToolResult
 	return text("%s", strings.TrimRight(b.String(), "\n")), nil
 }
 
-func listGradleProjects(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+func listGradleProjects(ctx context.Context, in gradleProjectsArgs) (*mcp.CallToolResult, error) {
 	paths, out, err := gradle.ListProjects(ctx, in.ProjectDir)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
