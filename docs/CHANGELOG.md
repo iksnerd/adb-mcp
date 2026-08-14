@@ -4,6 +4,18 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.20.1 — narrower Gradle args schemas
+
+**`list_gradle_projects`/`list_gradle_variants` no longer advertise `json`/
+`args` params they ignore.** Both previously bound to the shared
+`gradleArgs` struct written for `gradle_build`/`run_unit_tests`/
+`run_instrumented_tests`, so their MCP schema listed a `json` and `args`
+field neither handler read or forwarded — noise for a model reading the
+tool schema and expecting those params to do something. Each now has its
+own narrow struct (`list_gradle_projects`: `project_dir` only;
+`list_gradle_variants`: `project_dir` + `task`). No behavior change to the
+other four tools still on `gradleArgs`. Contributed by @Ani07-05, fixes #2.
+
 ## v0.20.0 — renamed to adb-mcp, Gradle property redaction, module-scoped Gradle listing
 
 **Project renamed `adb_mcp` → `adb-mcp`, including the Go module path.**

@@ -4,20 +4,24 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.20.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.20.1 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
 
 | Doc | What's in it |
 |---|---|
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.20.0) |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.20.1) |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/scaffold/selfupdate/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.20.0)
+## Recently shipped (v0.20.1)
 
-See [CHANGELOG](docs/CHANGELOG.md). v0.20.0: **project renamed `adb_mcp` →
+See [CHANGELOG](docs/CHANGELOG.md). v0.20.1: **`list_gradle_projects`/
+`list_gradle_variants` schemas no longer advertise the `json`/`args` params
+they ignore** (contributed by @Ani07-05, fixes #2).
+
+v0.20.0: **project renamed `adb_mcp` →
 `adb-mcp`** (module path + GitHub repo — re-run `go install` under the new
 path if you installed a previous version), **`gradle_project_properties`**
 redacts secret-shaped values by default, **`list_gradle_variants`/
