@@ -24,7 +24,7 @@ what XcodeBuildMCP does for iOS simulators, this does for Android emulators. Bui
 [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) and communicates over stdio.
 
 <div align="center">
-<img src="assets/demo.gif" width="360" alt="An agent driving a real emulator with adb-mcp: describe_ui finds the Chrome icon, tap_on_text taps it, and a screenshot confirms Chrome launched.">
+<img src="assets/demo.gif" width="600" alt="An agent driving a real emulator with adb-mcp: describe_ui finds the Chrome icon, tap_on_text taps it, and a screenshot confirms Chrome launched. The emulator screen is shown side by side with the actual tool call and result.">
 
 `describe_ui` → `tap_on_text` → `screenshot`, driven live against a real emulator (`emulator-5556`) — the actual tool calls and their actual output.
 </div>
