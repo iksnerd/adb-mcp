@@ -23,6 +23,12 @@ It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/Xc
 what XcodeBuildMCP does for iOS simulators, this does for Android emulators. Built on the official
 [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) and communicates over stdio.
 
+<div align="center">
+<img src="assets/demo.gif" width="360" alt="An agent driving a real emulator with adb-mcp: describe_ui finds the Chrome icon, tap_on_text taps it, and a screenshot confirms Chrome launched.">
+
+`describe_ui` → `tap_on_text` → `screenshot`, driven live against a real emulator (`emulator-5556`) — the actual tool calls and their actual output.
+</div>
+
 > Android is a trademark of Google LLC. `adb-mcp` is an independent, unofficial
 > tool built for Android and is not affiliated with, sponsored, or endorsed by Google.
 > The Android robot above is reproduced/modified from work created and shared by
