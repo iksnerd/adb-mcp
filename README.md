@@ -15,13 +15,12 @@
 
 ---
 
-`adb-mcp` lets an AI agent drive an Android emulator or device over `adb` —
-boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
-lock, read `logcat`, and manage app lifecycle.
+Boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
+lock, read `logcat`, run Gradle builds and tests — 73 tools, from Claude Code,
+Cursor, VS Code, or any MCP client over stdio.
 
-It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP):
-what XcodeBuildMCP does for iOS simulators, this does for Android emulators. Built on the official
-[Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) and communicates over stdio.
+It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP),
+built on the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
 
 <div align="center">
 <img src="assets/demo.gif" width="600" alt="An agent driving a real emulator with adb-mcp: describe_ui finds the Chrome icon, tap_on_text taps it, and a screenshot confirms Chrome launched. The emulator screen is shown side by side with the actual tool call and result.">
