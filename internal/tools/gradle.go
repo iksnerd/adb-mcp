@@ -24,19 +24,24 @@ type gradleProjectsArgs struct {
 	projectDirArg
 }
 
-type coverageReportArgs struct {
+// coverageTaskArgs is the shared shape of both coverage tools: which report
+// task to run and how to render the result. Embedded rather than repeated so
+// the task hint — the one an agent reads when the default doesn't exist — can
+// only be described in one place.
+type coverageTaskArgs struct {
 	projectDirArg
-	Task string   `json:"task,omitempty" jsonschema:"Gradle task that generates the JaCoCo XML report. Defaults to jacocoTestReport; use a module-qualified task (e.g. \":app:jacocoTestReport\") or your project's custom report task name if it differs."`
+	Task string   `json:"task,omitempty" jsonschema:"Gradle task that generates the JaCoCo XML report. Defaults to jacocoTestReport, which is NOT a task the Android Gradle plugin defines — it exists only if the project declares it. If it is missing, check list_gradle_tasks for AGP's built-in \"createDebugUnitTestCoverageReport\" (present when a build type sets enableUnitTestCoverage = true). Module-qualified names work: \":app:jacocoTestReport\"."`
 	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace)."`
-	JSON bool     `json:"json,omitempty" jsonschema:"Return structured JSON (per-package breakdown) instead of the human-readable text summary."`
+	JSON bool     `json:"json,omitempty" jsonschema:"Return structured JSON instead of the human-readable text summary."`
+}
+
+type coverageReportArgs struct {
+	coverageTaskArgs
 }
 
 type fileCoverageArgs struct {
-	projectDirArg
-	File string   `json:"file" jsonschema:"Source file to report coverage for — a filename (e.g. Foo.kt) or package-qualified path (e.g. com/example/Foo.kt). Matched by suffix; an ambiguous bare filename returns every match."`
-	Task string   `json:"task,omitempty" jsonschema:"Gradle task that generates the JaCoCo XML report. Defaults to jacocoTestReport."`
-	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace)."`
-	JSON bool     `json:"json,omitempty" jsonschema:"Return structured JSON instead of the human-readable text summary."`
+	coverageTaskArgs
+	File string `json:"file" jsonschema:"Source file to report coverage for — a filename (e.g. Foo.kt) or package-qualified path (e.g. com/example/Foo.kt). Matched by suffix; an ambiguous bare filename returns every match."`
 }
 
 type gradleVariantsArgs struct {

@@ -41,7 +41,7 @@ twice.
 
 **`android://guide/build-and-test` — a fifth guide resource, for the Gradle
 half of the server.** The four existing guides are all about driving a device;
-the ten Gradle tools had no guide at all. It covers mapping a multi-module
+the eleven Gradle tools had no guide at all. It covers mapping a multi-module
 build before guessing a task name (the root project usually has no variants of
 its own), variant selection, JVM vs on-device tests, and using coverage as a
 funnel — worst-covered package, then the exact missed lines in a file, then the

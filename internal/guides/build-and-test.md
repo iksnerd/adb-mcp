@@ -4,12 +4,7 @@ These tools run **on the host**, not on a device. Only `run_instrumented_tests`
 and `build_and_run` need a booted device. `project_dir` must be the directory
 holding the Gradle wrapper (`gradlew`), not a module inside it.
 
-If a build fails with **"SDK location not found"**, the server could not resolve
-an Android SDK to hand Gradle. Run `doctor` — it prints the location it resolved
-and flags a path with no `platform-tools/` in it. The fix is on the client side:
-set `ANDROID_HOME`, or launch the server with `--sdk /path/to/sdk`.
-
-Pin it once instead of repeating it:
+Pin `project_dir` once instead of repeating it on every call:
 
 ```
 session_set_defaults {project_dir: "/path/to/project"}
@@ -17,6 +12,11 @@ session_set_defaults {project_dir: "/path/to/project"}
 
 Every Gradle tool below then takes it from there. An explicit `project_dir` on a
 single call still wins.
+
+If a build fails with **"SDK location not found"**, the server could not resolve
+an Android SDK to hand Gradle. Run `doctor` — it prints the location it resolved
+and flags a path with no `platform-tools/` in it. The fix is on the client side:
+set `ANDROID_HOME`, or launch the server with `--sdk /path/to/sdk`.
 
 ## Map the project before you build it
 

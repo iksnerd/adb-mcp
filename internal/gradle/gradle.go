@@ -35,11 +35,6 @@ func Gradle(ctx context.Context, projectDir string, args ...string) (string, err
 	return string(out), nil
 }
 
-// HasWrapper reports whether projectDir already contains a Gradle wrapper.
-func HasWrapper(projectDir string) bool {
-	return sdk.FileExists(filepath.Join(projectDir, wrapperName()))
-}
-
 // GenerateWrapper runs the *system* `gradle wrapper` in projectDir to create
 // the wrapper scripts and gradle-wrapper.jar. Every other Gradle call in this
 // package goes through the wrapper, so a freshly scaffolded project can't be

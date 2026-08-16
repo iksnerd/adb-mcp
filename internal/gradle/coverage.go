@@ -72,6 +72,17 @@ func counterOf(counters []jacocoCounter, typ string) (missed, covered int, ok bo
 	return 0, 0, false
 }
 
+// counterStats reads one counter type and returns it already reduced to the
+// missed/covered/percent triple every result struct stores. It exists to keep
+// callers from re-deriving the percentage themselves: counterOf yields
+// (missed, covered) but pct takes (covered, missed), and that inversion is easy
+// to get backwards at nine separate call sites. An absent counter reads as
+// 0/0/0, which is what every caller wanted anyway.
+func counterStats(counters []jacocoCounter, typ string) (missed, covered int, percent float64) {
+	m, c, _ := counterOf(counters, typ)
+	return m, c, pct(c, m)
+}
+
 func pct(covered, missed int) float64 {
 	total := covered + missed
 	if total == 0 {
@@ -253,32 +264,15 @@ type PackageCoverage struct {
 // per-package coverage, worst-covered package first.
 func SummarizeCoverage(r CoverageReport, reportPaths []string) CoverageSummary {
 	sum := CoverageSummary{ReportPaths: reportPaths}
-	if m, c, ok := counterOf(r.Counters, "LINE"); ok {
-		sum.LineMissed, sum.LineCovered = m, c
-	}
-	sum.LinePercent = pct(sum.LineCovered, sum.LineMissed)
-	if m, c, ok := counterOf(r.Counters, "BRANCH"); ok {
-		sum.BranchMissed, sum.BranchCovered = m, c
-		sum.BranchPercent = pct(c, m)
-	}
-	if m, c, ok := counterOf(r.Counters, "METHOD"); ok {
-		sum.MethodMissed, sum.MethodCovered = m, c
-		sum.MethodPercent = pct(c, m)
-	}
-	if m, c, ok := counterOf(r.Counters, "CLASS"); ok {
-		sum.ClassMissed, sum.ClassCovered = m, c
-		sum.ClassPercent = pct(c, m)
-	}
+	sum.LineMissed, sum.LineCovered, sum.LinePercent = counterStats(r.Counters, "LINE")
+	sum.BranchMissed, sum.BranchCovered, sum.BranchPercent = counterStats(r.Counters, "BRANCH")
+	sum.MethodMissed, sum.MethodCovered, sum.MethodPercent = counterStats(r.Counters, "METHOD")
+	sum.ClassMissed, sum.ClassCovered, sum.ClassPercent = counterStats(r.Counters, "CLASS")
 
 	for _, p := range r.Packages {
 		pkg := PackageCoverage{Name: strings.ReplaceAll(p.Name, "/", "."), ClassCount: len(p.Classes)}
-		if m, c, ok := counterOf(p.Counters, "LINE"); ok {
-			pkg.LineMissed, pkg.LineCovered = m, c
-		}
-		pkg.LinePercent = pct(pkg.LineCovered, pkg.LineMissed)
-		if m, c, ok := counterOf(p.Counters, "BRANCH"); ok {
-			pkg.BranchPercent = pct(c, m)
-		}
+		pkg.LineMissed, pkg.LineCovered, pkg.LinePercent = counterStats(p.Counters, "LINE")
+		_, _, pkg.BranchPercent = counterStats(p.Counters, "BRANCH")
 		sum.Packages = append(sum.Packages, pkg)
 	}
 	sort.Slice(sum.Packages, func(i, j int) bool {
@@ -375,14 +369,8 @@ func FileCoverageFor(r CoverageReport, file string) (matches []FileCoverage, ava
 
 func buildFileCoverage(p jacocoPackage, sf jacocoSourceFile) FileCoverage {
 	fc := FileCoverage{Package: strings.ReplaceAll(p.Name, "/", "."), SourceFile: sf.Name}
-	if m, c, ok := counterOf(sf.Counters, "LINE"); ok {
-		fc.LineMissed, fc.LineCovered = m, c
-	}
-	fc.LinePercent = pct(fc.LineCovered, fc.LineMissed)
-	if m, c, ok := counterOf(sf.Counters, "BRANCH"); ok {
-		fc.BranchMissed, fc.BranchCovered = m, c
-		fc.BranchPercent = pct(c, m)
-	}
+	fc.LineMissed, fc.LineCovered, fc.LinePercent = counterStats(sf.Counters, "LINE")
+	fc.BranchMissed, fc.BranchCovered, fc.BranchPercent = counterStats(sf.Counters, "BRANCH")
 
 	var missed, partial []int
 	for _, ln := range sf.Lines {
@@ -402,10 +390,8 @@ func buildFileCoverage(p jacocoPackage, sf jacocoSourceFile) FileCoverage {
 		}
 		for _, m := range cls.Methods {
 			mc := MethodCoverage{Class: strings.ReplaceAll(cls.Name, "/", "."), Name: m.Name, Line: m.Line}
-			if mi, ci, ok := counterOf(m.Counters, "LINE"); ok {
-				mc.LinePercent = pct(ci, mi)
-				mc.Covered = ci > 0
-			}
+			_, covered, percent := counterStats(m.Counters, "LINE")
+			mc.LinePercent, mc.Covered = percent, covered > 0
 			fc.Methods = append(fc.Methods, mc)
 		}
 	}
