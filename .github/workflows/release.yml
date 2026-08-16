@@ -16,6 +16,36 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Verify version consistency
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"          # e.g. v0.21.1
+          bare="${tag#v}"                 # e.g. 0.21.1
+          fail=0
+
+          file_ver=$(tr -d ' \t\n' < VERSION)
+          if [ "$file_ver" != "$bare" ]; then
+            echo "::error file=VERSION::VERSION file has '$file_ver', tag is '$bare'"
+            fail=1
+          fi
+
+          main_ver=$(sed -n 's/^var version = "\(.*\)"$/\1/p' cmd/adb-mcp/main.go)
+          if [ "$main_ver" != "$bare" ]; then
+            echo "::error file=cmd/adb-mcp/main.go::hardcoded version is '$main_ver', tag is '$bare'"
+            fail=1
+          fi
+
+          if ! grep -qF "## $tag " docs/CHANGELOG.md; then
+            echo "::error file=docs/CHANGELOG.md::no '## $tag — ...' heading found; the release body will fall back to a generic link"
+            fail=1
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo "Fix the mismatch(es) above, push a follow-up commit, then re-tag." >&2
+            exit 1
+          fi
+          echo "VERSION, main.go, and CHANGELOG.md all agree with tag $tag"
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
