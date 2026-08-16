@@ -4,6 +4,44 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.22.0 — JaCoCo coverage reporting and session defaults
+
+**`get_coverage_report`/`get_file_coverage` surface JVM unit-test coverage.**
+`run_unit_tests` ran the tests but threw the coverage data away. These run the
+JaCoCo report task (default `jacocoTestReport`, which runs the unit tests
+first) and parse its XML: overall line/branch/method/class percentages plus a
+per-package breakdown, worst-covered package first, and — scoped to one file —
+collapsed missed/partial line ranges (`12-15,22`) with per-method detail.
+`file` matches by suffix, so `Foo.kt` and `com/example/Foo.kt` both work; an
+ambiguous bare name returns every match, and a miss lists the files that do
+have coverage data. A multi-module build merges every module's report into one
+set of totals rather than reporting whichever module Gradle wrote last, and
+names the files it merged. Both need the project to already apply the jacoco
+plugin with XML reporting on; without it the error says so. Scoped to JVM unit
+tests — instrumented (on-device) coverage lives in AGP's `.ec` format and needs
+execution data merged with class files, which is far more AGP-version-dependent,
+so it was deliberately left out.
+
+**`session_set_defaults`/`session_show_defaults`/`session_clear_defaults` pin
+`project_dir` and `serial` for the rest of the session.** A multi-module or
+multi-flavor project meant repeating `project_dir` on every Gradle call, and a
+multi-device session meant repeating `serial` on every device call; pin either
+once and later calls can omit it. Explicit arguments always win, and `serial`
+resolution still falls back to the single-attached-device default. Pinning a
+default *task*/variant was left out on purpose: "task" means something
+different per tool (build target vs. test target vs. list-scope), and inferring
+an AGP task name from a variant string risked silently running the wrong one.
+
+**Fixed: `scaffold_android_project` generated a project that wouldn't compile.**
+Found while verifying the coverage work. The generated Activity extends
+`androidx.activity.ComponentActivity` but nothing declared the
+`androidx.activity` dependency, so `compileDebugKotlin` failed on an
+unresolved reference; and with no `compileOptions`/`kotlinOptions`, javac's
+implicit 1.8 target collided with kotlinc's implicit 17 on any machine running
+JDK 17 ("Inconsistent JVM-target compatibility"). The scaffold now declares
+`activity-ktx` and pins both to 17 — a freshly scaffolded, unmodified project
+builds an APK.
+
 ## v0.21.1 — concurrent device probes, and a `describe_ui`/`dumpsys` bug fix
 
 **`doctor`, `app_state`, and `describe_ui` fan out their independent adb
