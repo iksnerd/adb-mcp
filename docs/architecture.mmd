@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph tools["internal/tools — MCP adapters (thin)"]
         register["register.go<br/><i>tool catalog: add(name, desc, handler)</i>"]
-        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle"]
+        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle · session"]
         t_helpers["helpers.go<br/><i>resolve → *adb.Client, text, jsonResult, boolOr</i>"]
     end
 
@@ -19,7 +19,7 @@ flowchart TB
         a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
-    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]

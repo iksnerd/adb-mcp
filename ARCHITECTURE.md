@@ -1,6 +1,6 @@
 # Architecture
 
-Seven packages in a strict dependency line, and one convention: **every MCP tool
+Ten packages in a strict dependency line, and one convention: **every MCP tool
 file mirrors an execution file of the same name.** Find a tool and its real
 logic sits one layer down under the matching filename.
 
@@ -8,7 +8,7 @@ logic sits one layer down under the matching filename.
 cmd/adb-mcp/main.go    entry: build server, register tools + resources, Run(stdio)
 internal/tools/        thin MCP adapters — resolve a device, call adb/gradle, format
 internal/adb/          the device layer: an adb.Client whose methods are the commands
-internal/gradle/       host-side Gradle: build, find APKs, parse test reports
+internal/gradle/       host-side Gradle: build, find APKs, parse test + coverage reports
 internal/uiauto/       pure uiautomator-hierarchy model + parsing (Element, filters, find)
 internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
 internal/concurrent/   RunAll/RunIndexed — fan out independent I/O calls, join, done
@@ -45,7 +45,7 @@ flowchart TB
 
     subgraph tools["internal/tools — MCP adapters (thin)"]
         register["register.go<br/><i>tool catalog: add(name, desc, handler)</i>"]
-        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle"]
+        t_files["emulator · observe · interact · lock · logs · apps · environment · gradle · session"]
         t_helpers["helpers.go<br/><i>resolve → *adb.Client, text, jsonResult, boolOr</i>"]
     end
 
@@ -54,7 +54,7 @@ flowchart TB
         a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
-    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
     concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
@@ -116,7 +116,11 @@ with **no device** (see `client_test.go`). Hostless helpers that have no serial
 
 **`internal/gradle` — host-side builds.** `Gradle` runs the wrapper; `FindAPKs`
 locates outputs (newest-first, `node_modules`/dot-dirs pruned); `PickAPK` skips
-androidTest APKs; `ParseTestResults` reads the JUnit XML. Depends only on `sdk`.
+androidTest APKs; `ParseTestResults` reads the JUnit XML. `FindCoverageReports`
+locates the JaCoCo XML — newest *per module*, since a multi-module build emits
+one report each and only merging them describes the whole build — and
+`MergeReports`/`SummarizeCoverage`/`FileCoverageFor` reduce them to the
+report-wide, per-package and per-file views. Depends only on `sdk`.
 
 **`internal/tools` — MCP adapters.** Each handler is deliberately thin: `resolve`
 the target device into an `*adb.Client`, call one method (or a gradle/uiauto
@@ -162,7 +166,9 @@ one for the behavior.
 | file transfer | `adb/files.go` | `apps.go` |
 | environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` | `environment.go` |
 | gradle build & test | `gradle/gradle.go`, `gradle/testreport.go` | `gradle.go` |
+| JaCoCo coverage reports | `gradle/coverage.go` | `gradle.go` |
 | project scaffolding | `scaffold/scaffold.go` | `gradle.go` |
+| session defaults (`project_dir`/`serial`) | — (no execution layer; process-local state) | `session.go` (`resolveProjectDir`, `resolve`) |
 | SDK paths / shared helpers | `sdk/sdk.go` | `helpers.go` |
 | self-update (CLI only, not an MCP tool) | `selfupdate/selfupdate.go` | — (`cmd/adb-mcp/main.go`) |
 | accessibility bridge (EXPERIMENTAL) | `adb/bridge.go` | `interact.go` (`via_accessibility` on `tap_on_text`/`tap_element`) |
