@@ -19,9 +19,9 @@ flowchart TB
         a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
-    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage</i>"]
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage<br/>GenerateWrapper · ToolchainReport</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
-    sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
+    sdk["internal/sdk<br/><i>Root · IsSDKRoot · AdbPath · EmulatorPath · CommandEnv</i>"]
     concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]

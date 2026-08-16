@@ -10,7 +10,7 @@ internal/tools/        thin MCP adapters — resolve a device, call adb/gradle, 
 internal/adb/          the device layer: an adb.Client whose methods are the commands
 internal/gradle/       host-side Gradle: build, find APKs, parse test + coverage reports
 internal/uiauto/       pure uiautomator-hierarchy model + parsing (Element, filters, find)
-internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
+internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH + ANDROID_HOME)
 internal/concurrent/   RunAll/RunIndexed — fan out independent I/O calls, join, done
 internal/guides/       the skill guides, embedded and served as MCP resources
 internal/scaffold/     generates a new Android project (scaffold_android_project)
@@ -54,9 +54,9 @@ flowchart TB
         a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
-    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage</i>"]
+    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage<br/>GenerateWrapper · ToolchainReport</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
-    sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
+    sdk["internal/sdk<br/><i>Root · IsSDKRoot · AdbPath · EmulatorPath · CommandEnv</i>"]
     concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
@@ -89,8 +89,13 @@ flowchart TB
 ## The layers
 
 **`internal/sdk` — SDK resolution.** Where `adb` and `emulator` live and the
-`PATH` they need. The leaf both the device and build layers share, so neither
-re-derives SDK paths.
+environment they need. The leaf both the device and build layers share, so
+neither re-derives SDK paths. `CommandEnv` prepends the SDK tool dirs to `PATH`
+and exports `ANDROID_HOME` when the caller hasn't set one — the Android Gradle
+plugin does its own SDK lookup and knows nothing about `Root`'s per-platform
+fallback, so without that every Gradle tool fails with "SDK location not
+found". `IsSDKRoot` is the shared answer to "is this really an SDK", so
+`doctor`'s warning and that export can't disagree.
 
 **`internal/uiauto` — the UI model.** `Element`/`Bounds`/`Point`/`UIFilter` and
 the pure functions over them: parse a uiautomator XML dump, filter it, find an
@@ -120,7 +125,11 @@ androidTest APKs; `ParseTestResults` reads the JUnit XML. `FindCoverageReports`
 locates the JaCoCo XML — newest *per module*, since a multi-module build emits
 one report each and only merging them describes the whole build — and
 `MergeReports`/`SummarizeCoverage`/`FileCoverageFor` reduce them to the
-report-wide, per-package and per-file views. Depends only on `sdk`.
+report-wide, per-package and per-file views. `GenerateWrapper` shells out to a
+*system* `gradle` (everything else here drives `./gradlew`) so a scaffolded
+project is buildable, and `ToolchainReport` probes the host JDK and Gradle for
+`doctor` — that check lives here rather than in `adb` because the device layer
+has no business knowing what a JDK is. Depends only on `sdk`.
 
 **`internal/tools` — MCP adapters.** Each handler is deliberately thin: `resolve`
 the target device into an `*adb.Client`, call one method (or a gradle/uiauto
@@ -164,7 +173,7 @@ one for the behavior.
 | app lifecycle | `adb/packages.go` | `apps.go` |
 | permissions | `adb/permissions.go` | `apps.go` |
 | file transfer | `adb/files.go` | `apps.go` |
-| environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` | `environment.go` |
+| environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` (device side) + `gradle/toolchain.go` (host JDK/Gradle) | `environment.go` (composes both) |
 | gradle build & test | `gradle/gradle.go`, `gradle/testreport.go` | `gradle.go` |
 | JaCoCo coverage reports | `gradle/coverage.go` | `gradle.go` |
 | project scaffolding | `scaffold/scaffold.go` | `gradle.go` |
