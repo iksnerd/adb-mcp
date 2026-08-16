@@ -16,9 +16,17 @@ the caller hasn't set it and the resolved root really is an SDK. An explicit
 `ANDROID_HOME`/`ANDROID_SDK_ROOT` is never overridden.
 
 **`--sdk /path/to/sdk`** for when the MCP client launches the server without
-those variables set and its config has nowhere convenient to add them. `doctor`
-now also flags a resolved root with no `platform-tools/` in it, instead of
-printing the guessed path as though it were fine and letting Gradle fail later.
+those variables set and its config has nowhere convenient to add them.
+
+**`doctor` checks the host build toolchain, not just the device side.** It now
+reports the JDK (Gradle needs one; without it Gradle fails with a startup error
+that never mentions Java) and whether a system `gradle` is on PATH (needed only
+so `scaffold_android_project` can generate a wrapper, so it's a warning rather
+than a failure). It also flags an SDK path with no `platform-tools/` in it
+instead of printing the guessed path as though it were fine and letting Gradle
+fail later — the first release of that check was itself broken, reporting every
+working SDK as "not an SDK install" because it tested a directory with a helper
+that only matches files.
 
 **`scaffold_android_project` generates the Gradle wrapper.** It previously left
 a project no tool here could build — every Gradle tool drives `./gradlew` — and

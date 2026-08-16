@@ -28,6 +28,41 @@ func fakeSDK(t *testing.T) string {
 	return root
 }
 
+// FileExists rejects directories on purpose, so using it to look for
+// platform-tools/ reports every real SDK as missing. That shipped once: doctor
+// declared a working SDK "not an SDK install" on the line above successfully
+// running adb out of it.
+func TestDirExistsAndIsSDKRoot(t *testing.T) {
+	root := fakeSDK(t)
+	tools := filepath.Join(root, "platform-tools")
+
+	if !DirExists(tools) {
+		t.Error("DirExists = false for a directory that exists")
+	}
+	if FileExists(tools) {
+		t.Error("FileExists = true for a directory; IsSDKRoot must not be built on it")
+	}
+	if !IsSDKRoot(root) {
+		t.Errorf("IsSDKRoot(%q) = false, want true", root)
+	}
+
+	// A path that exists but holds no platform-tools/ is not an SDK.
+	if IsSDKRoot(t.TempDir()) {
+		t.Error("IsSDKRoot = true for a directory with no platform-tools/")
+	}
+	if IsSDKRoot("") {
+		t.Error("IsSDKRoot = true for an empty root")
+	}
+	// A *file* named platform-tools doesn't make an SDK either.
+	odd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(odd, "platform-tools"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if IsSDKRoot(odd) {
+		t.Error("IsSDKRoot = true where platform-tools is a file, not a directory")
+	}
+}
+
 // The Android Gradle plugin does its own SDK lookup and knows nothing about
 // Root()'s per-platform fallback, so the resolved root has to be exported or
 // every Gradle tool fails with "SDK location not found".

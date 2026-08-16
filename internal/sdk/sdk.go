@@ -112,7 +112,7 @@ func androidHomeEnv(env []string, root string) []string {
 			existing = i // set but empty — overwrite it rather than add a duplicate key
 		}
 	}
-	if !dirExists(filepath.Join(root, "platform-tools")) {
+	if !IsSDKRoot(root) {
 		return env
 	}
 	if existing >= 0 {
@@ -136,9 +136,20 @@ func FileExists(p string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// dirExists is FileExists's counterpart for directories — FileExists rejects
-// them on purpose, since its callers are looking for executables.
-func dirExists(p string) bool {
+// DirExists is FileExists's counterpart for directories — FileExists rejects
+// them on purpose, since its callers are looking for executables. Passing a
+// directory to FileExists silently reports "missing", so anything checking for
+// a directory (an SDK's platform-tools/, say) must use this instead.
+func DirExists(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.IsDir()
+}
+
+// IsSDKRoot reports whether root looks like a real Android SDK install rather
+// than a path that merely exists. Root() falls back to the conventional
+// location whether or not anything is there, so callers that need to warn a
+// user share this one predicate — doctor's message and the ANDROID_HOME export
+// must agree about what counts as an SDK.
+func IsSDKRoot(root string) bool {
+	return root != "" && DirExists(filepath.Join(root, "platform-tools"))
 }

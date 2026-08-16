@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/concurrent"
+	"github.com/iksnerd/adb-mcp/internal/gradle"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -109,5 +111,13 @@ func setStatusBar(ctx context.Context, in statusBarArgs) (*mcp.CallToolResult, e
 var ServerVersion = "unknown"
 
 func doctor(ctx context.Context, _ doctorArgs) (*mcp.CallToolResult, error) {
-	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb-mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s", ServerVersion, adb.Doctor(ctx)), nil
+	// The device checks and the host build-toolchain checks come from two
+	// different layers and are independent, so run them concurrently and
+	// compose here — internal/adb has no business probing for a JDK.
+	var device, toolchain string
+	concurrent.RunAll(
+		func() { device = adb.Doctor(ctx) },
+		func() { toolchain = gradle.ToolchainReport(ctx) },
+	)
+	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb-mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s\n%s", ServerVersion, device, toolchain), nil
 }

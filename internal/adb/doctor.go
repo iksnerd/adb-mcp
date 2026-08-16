@@ -3,7 +3,6 @@ package adb
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/iksnerd/adb-mcp/internal/concurrent"
@@ -11,22 +10,27 @@ import (
 )
 
 // Doctor reports the health of the local Android tooling: SDK location, adb and
-// emulator availability/versions, known AVDs, and attached devices — so a user
-// can diagnose "nothing works" without leaving the MCP.
+// emulator availability/versions, known AVDs, attached devices, and the
+// accessibility bridge per ready device — so a user can diagnose "nothing
+// works" without leaving the MCP.
+//
+// Device-side only. The host build toolchain (JDK, system Gradle) is
+// gradle.ToolchainReport's job; the doctor tool composes the two, so this
+// package never has to know what a JDK is.
 func Doctor(ctx context.Context) string {
 	var b strings.Builder
 	root := sdk.Root()
 	switch {
 	case root == "":
 		b.WriteString("✗ Android SDK: could not resolve (set ANDROID_HOME, or pass --sdk)\n")
-	case !sdk.FileExists(filepath.Join(root, "platform-tools")):
+	case !sdk.IsSDKRoot(root):
 		// Root() falls back to the conventional install path, so a nonexistent
 		// SDK still yields a plausible-looking path. Say it isn't there, or the
 		// Gradle tools fail later with "SDK location not found" and this line
 		// reads like confirmation that the SDK is fine.
-		b.WriteString(fmt.Sprintf("✗ Android SDK: %s has no platform-tools/ — not an SDK install (set ANDROID_HOME, or pass --sdk)\n", root))
+		fmt.Fprintf(&b, "✗ Android SDK: %s has no platform-tools/ — not an SDK install (set ANDROID_HOME, or pass --sdk)\n", root)
 	default:
-		b.WriteString(fmt.Sprintf("• Android SDK: %s\n", root))
+		fmt.Fprintf(&b, "• Android SDK: %s\n", root)
 	}
 
 	// adb version, AVDs, and attached devices are three independent probes —
@@ -46,20 +50,20 @@ func Doctor(ctx context.Context) string {
 
 	adb := sdk.AdbPath()
 	if versionErr == nil {
-		first := strings.SplitN(strings.TrimSpace(versionOut), "\n", 2)[0]
-		b.WriteString(fmt.Sprintf("✓ adb: %s (%s)\n", first, adb))
+		first, _, _ := strings.Cut(strings.TrimSpace(versionOut), "\n")
+		fmt.Fprintf(&b, "✓ adb: %s (%s)\n", first, adb)
 	} else {
-		b.WriteString(fmt.Sprintf("✗ adb: not runnable at %s (%v)\n", adb, versionErr))
+		fmt.Fprintf(&b, "✗ adb: not runnable at %s (%v)\n", adb, versionErr)
 	}
 
 	if avdsErr == nil {
 		if len(avds) == 0 {
 			b.WriteString("⚠ emulator: no AVDs found — create one in Android Studio's Device Manager\n")
 		} else {
-			b.WriteString(fmt.Sprintf("✓ emulator: %d AVD(s): %s\n", len(avds), strings.Join(avds, ", ")))
+			fmt.Fprintf(&b, "✓ emulator: %d AVD(s): %s\n", len(avds), strings.Join(avds, ", "))
 		}
 	} else {
-		b.WriteString(fmt.Sprintf("✗ emulator: not runnable (%v)\n", avdsErr))
+		fmt.Fprintf(&b, "✗ emulator: not runnable (%v)\n", avdsErr)
 	}
 
 	var ready []Device
@@ -74,10 +78,10 @@ func Doctor(ctx context.Context) string {
 					ready = append(ready, d)
 				}
 			}
-			b.WriteString(fmt.Sprintf("✓ devices: %s\n", strings.Join(parts, ", ")))
+			fmt.Fprintf(&b, "✓ devices: %s\n", strings.Join(parts, ", "))
 		}
 	} else {
-		b.WriteString(fmt.Sprintf("✗ devices: %v\n", devicesErr))
+		fmt.Fprintf(&b, "✗ devices: %v\n", devicesErr)
 	}
 
 	// Accessibility bridge (EXPERIMENTAL, see bridge.go): only meaningful per
@@ -97,13 +101,13 @@ func Doctor(ctx context.Context) string {
 		status, err := results[i].status, results[i].err
 		switch {
 		case err != nil:
-			b.WriteString(fmt.Sprintf("⚠ accessibility bridge (%s): could not check (%v)\n", d.Serial, err))
+			fmt.Fprintf(&b, "⚠ accessibility bridge (%s): could not check (%v)\n", d.Serial, err)
 		case status.Installed && status.Enabled:
-			b.WriteString(fmt.Sprintf("✓ accessibility bridge (%s): installed & enabled — tap_on_text/tap_element via_accessibility=true is usable\n", d.Serial))
+			fmt.Fprintf(&b, "✓ accessibility bridge (%s): installed & enabled — tap_on_text/tap_element via_accessibility=true is usable\n", d.Serial)
 		case status.Installed:
-			b.WriteString(fmt.Sprintf("⚠ accessibility bridge (%s): installed but not enabled — run `adb-mcp bridge install` again, or check enabled_accessibility_services\n", d.Serial))
+			fmt.Fprintf(&b, "⚠ accessibility bridge (%s): installed but not enabled — run `adb-mcp bridge install` again, or check enabled_accessibility_services\n", d.Serial)
 		default:
-			b.WriteString(fmt.Sprintf("• accessibility bridge (%s): not installed (EXPERIMENTAL — run `adb-mcp bridge install` to enable tap_on_text/tap_element via_accessibility=true)\n", d.Serial))
+			fmt.Fprintf(&b, "• accessibility bridge (%s): not installed (EXPERIMENTAL — run `adb-mcp bridge install` to enable tap_on_text/tap_element via_accessibility=true)\n", d.Serial)
 		}
 	}
 

@@ -233,7 +233,7 @@ func Register(s *mcp.Server) {
 		"Pin a clean status bar via SystemUI demo mode (enabled=true) — fixed clock, chosen signal/battery, no notification icons by default — so screenshots for docs don't leak the wall clock or a random signal state. Optionally set clock (HHMM), battery (0-100), network_type (wifi/mobile/none) with mobile_level/data_type/carrier for mobile, and notifications_visible/notification_icon. Call with enabled=false to restore the live bar.",
 		setStatusBar)
 	add(s, "doctor",
-		"Diagnose the local Android tooling: SDK path, adb/emulator availability, known AVDs, and attached devices. Run this first when something isn't working.",
+		"Diagnose the local toolchain: Android SDK path (and whether it really is an SDK), adb/emulator availability, known AVDs, attached devices, per-device accessibility bridge status, plus the host build tools — a JDK (Gradle needs one) and a system gradle (needed only so scaffold_android_project can generate a wrapper). Run this first when something isn't working, especially a Gradle tool failing with \"SDK location not found\".",
 		doctor)
 
 	// --- Session defaults ---
