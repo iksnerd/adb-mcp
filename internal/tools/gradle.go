@@ -14,24 +14,24 @@ import (
 // ---- Arguments ----
 
 type gradleArgs struct {
-	ProjectDir string   `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
-	Task       string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to the tool's standard task."`
-	Args       []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
-	JSON       bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
+	projectDirArg
+	Task string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to the tool's standard task."`
+	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
+	JSON bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
 }
 
 type gradleProjectsArgs struct {
-	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
+	projectDirArg
 }
 
 type gradleVariantsArgs struct {
-	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
-	Task       string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list variants for the :app module. Defaults to the root project's tasks."`
+	projectDirArg
+	Task string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list variants for the :app module. Defaults to the root project's tasks."`
 }
 
 type gradlePropertiesArgs struct {
-	ProjectDir string `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
-	Module     string `json:"module" jsonschema:"Gradle module path, e.g. :app or :feature:login."`
+	projectDirArg
+	Module string `json:"module" jsonschema:"Gradle module path, e.g. :app or :feature:login."`
 }
 
 type scaffoldArgs struct {
@@ -42,10 +42,10 @@ type scaffoldArgs struct {
 
 type buildAndRunArgs struct {
 	serialArg
-	ProjectDir string   `json:"project_dir" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew)."`
-	Package    string   `json:"package" jsonschema:"Application package name to install and launch, e.g. com.example.app."`
-	Task       string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to assembleDebug."`
-	Args       []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
+	projectDirArg
+	Package string   `json:"package" jsonschema:"Application package name to install and launch, e.g. com.example.app."`
+	Task    string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to assembleDebug."`
+	Args    []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
 }
 
 // ---- Handlers ----
@@ -65,7 +65,11 @@ func buildAPKs(ctx context.Context, projectDir, task string, extra []string) (re
 }
 
 func gradleBuild(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
-	task, apks, out, err := buildAPKs(ctx, in.ProjectDir, in.Task, in.Args)
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	task, apks, out, err := buildAPKs(ctx, projectDir, in.Task, in.Args)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
@@ -81,12 +85,16 @@ func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, 
 	if err != nil {
 		return nil, err
 	}
-	task, apks, out, err := buildAPKs(ctx, in.ProjectDir, in.Task, in.Args)
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	task, apks, out, err := buildAPKs(ctx, projectDir, in.Task, in.Args)
 	if err != nil {
 		return nil, fmt.Errorf("build failed: %v\n%s", err, tailLines(out, 40))
 	}
 	if len(apks) == 0 {
-		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one", task, in.ProjectDir)
+		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one", task, projectDir)
 	}
 	apk := gradle.PickAPK(apks)
 	if _, err := c.InstallApp(ctx, apk); err != nil {
@@ -116,15 +124,19 @@ func runInstrumentedTests(ctx context.Context, in gradleArgs) (*mcp.CallToolResu
 }
 
 func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) (*mcp.CallToolResult, error) {
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
 	task := in.Task
 	if task == "" {
 		task = defaultTask
 	}
-	out, err := gradle.Gradle(ctx, in.ProjectDir, append([]string{task}, in.Args...)...)
+	out, err := gradle.Gradle(ctx, projectDir, append([]string{task}, in.Args...)...)
 	// Parse the JUnit XML regardless of exit code: a non-zero Gradle exit is
 	// exactly when the per-test breakdown (which tests failed and why) is most
 	// useful, so surface it in both the success and failure paths.
-	summary, found := gradle.ParseTestResults(in.ProjectDir)
+	summary, found := gradle.ParseTestResults(projectDir)
 	if err != nil {
 		msg := fmt.Sprintf("%v", err)
 		if found {
@@ -142,11 +154,15 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 }
 
 func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
 	task := in.Task
 	if task == "" {
 		task = "tasks"
 	}
-	out, err := gradle.Gradle(ctx, in.ProjectDir, task)
+	out, err := gradle.Gradle(ctx, projectDir, task)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
@@ -154,7 +170,11 @@ func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, e
 }
 
 func listGradleVariants(ctx context.Context, in gradleVariantsArgs) (*mcp.CallToolResult, error) {
-	variants, out, err := gradle.ListVariants(ctx, in.ProjectDir, in.Task)
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	variants, out, err := gradle.ListVariants(ctx, projectDir, in.Task)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
@@ -170,7 +190,11 @@ func listGradleVariants(ctx context.Context, in gradleVariantsArgs) (*mcp.CallTo
 }
 
 func listGradleProjects(ctx context.Context, in gradleProjectsArgs) (*mcp.CallToolResult, error) {
-	paths, out, err := gradle.ListProjects(ctx, in.ProjectDir)
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	paths, out, err := gradle.ListProjects(ctx, projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
@@ -186,7 +210,11 @@ func listGradleProjects(ctx context.Context, in gradleProjectsArgs) (*mcp.CallTo
 }
 
 func gradleProjectProperties(ctx context.Context, in gradlePropertiesArgs) (*mcp.CallToolResult, error) {
-	out, err := gradle.ListProjectProperties(ctx, in.ProjectDir, in.Module)
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	out, err := gradle.ListProjectProperties(ctx, projectDir, in.Module)
 	if err != nil {
 		return nil, fmt.Errorf("could not read properties for %s: %v\n%s", in.Module, err, tailLines(out, 40))
 	}

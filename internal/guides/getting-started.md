@@ -15,7 +15,18 @@ If you already have an emulator running, skip straight to `list_devices`.
 Every device-facing tool takes an optional `serial`. When exactly one device is
 attached you can omit it — the tool auto-selects that device. With **multiple**
 devices attached, you must pass `serial` (from `list_devices`) or the tool
-returns an actionable error telling you to pick one.
+returns an actionable error telling you to pick one — unless you pin one with
+`session_set_defaults` (see below).
+
+## Session defaults (skip repeating `project_dir`/`serial`)
+
+Working a multi-device session, or a multi-module/multi-flavor Gradle project?
+`session_set_defaults {project_dir: "...", serial: "..."}` pins either or both
+for the rest of this session, so later calls can omit them — no more repeating
+the same `project_dir` on every `gradle_build`/`run_unit_tests`/etc. call, or
+`serial` on every device call. `session_show_defaults` reports what's pinned;
+`session_clear_defaults` resets. An explicit value on any individual call
+always overrides the session default for that one call.
 
 ## A first real interaction
 

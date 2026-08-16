@@ -236,6 +236,17 @@ func Register(s *mcp.Server) {
 		"Diagnose the local Android tooling: SDK path, adb/emulator availability, known AVDs, and attached devices. Run this first when something isn't working.",
 		doctor)
 
+	// --- Session defaults ---
+	add(s, "session_set_defaults",
+		"Pin a default project_dir and/or serial for the rest of this session so later calls can omit them — the fix for a multi-module or multi-flavor project (or multiple attached devices) forcing you to repeat the same project_dir/serial on every Gradle or device call. Only the fields you pass are changed; omit a field to leave its current default alone. An explicit project_dir/serial on any individual call always overrides the session default for that one call.",
+		sessionSetDefaults)
+	add(s, "session_show_defaults",
+		"Show the project_dir/serial defaults currently pinned for this session (set via session_set_defaults).",
+		sessionShowDefaults)
+	add(s, "session_clear_defaults",
+		"Clear any project_dir/serial defaults pinned for this session, reverting to requiring them on every call (serial still falls back to the single-attached-device default).",
+		sessionClearDefaults)
+
 	// --- Build & test (Gradle) ---
 	add(s, "gradle_build",
 		"Build the app with Gradle (default task assembleDebug) in project_dir, and report the produced APK path(s). project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device.",

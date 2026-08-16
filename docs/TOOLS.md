@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-73 tools + 4 guide resources, across the nine areas below.
+76 tools + 4 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -97,6 +97,14 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | `set_status_bar` | Pin a clean status bar (SystemUI demo mode) — clock/battery/mobile signal+carrier+data-type/notifications — for tidy screenshots |
 | `stay_awake` | Keep the display on for a driving session (`svc power stayon`) — stops a doze-happy emulator blanking screenshots to black mid-flow |
 | `doctor` | Report SDK/adb/emulator/AVD/device health, plus per-device accessibility bridge install/enable status (EXPERIMENTAL) |
+
+### Session defaults
+Pin a `project_dir`/`serial` for the rest of this session so later calls can omit them — the fix for a multi-module/multi-flavor project (or multiple attached devices) forcing you to repeat the same value on every call. An explicit value on any individual call always overrides the session default for that call.
+| Tool | Purpose |
+|---|---|
+| `session_set_defaults` | Set `project_dir` and/or `serial`; only the fields passed are changed |
+| `session_show_defaults` | Show the currently pinned defaults |
+| `session_clear_defaults` | Clear pinned defaults (serial still falls back to the single-device default) |
 
 ### Build & test (Gradle)
 | Tool | Purpose |

@@ -15,6 +15,11 @@ type serialArg struct {
 	Serial string `json:"serial,omitempty" jsonschema:"Target device serial (adb -s). Optional when exactly one device is attached."`
 }
 
+// projectDirArg is embedded by every Gradle-project-targeted tool's arguments.
+type projectDirArg struct {
+	ProjectDir string `json:"project_dir,omitempty" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew). Optional if session_set_defaults has pinned a project_dir for this session."`
+}
+
 // text formats a plain-text tool result.
 func text(format string, args ...any) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(format, args...)}}}
@@ -33,6 +38,9 @@ func jsonResult(v any) (*mcp.CallToolResult, error) {
 // the single-device default (adb.ResolveSerial) and returns a client bound
 // to that device. Handlers read c.Serial for messages and call c.Method(...).
 func resolve(ctx context.Context, serial string) (*adb.Client, error) {
+	if serial == "" {
+		_, serial = getSessionDefaults()
+	}
 	s, err := adb.ResolveSerial(ctx, serial)
 	if err != nil {
 		return nil, err
