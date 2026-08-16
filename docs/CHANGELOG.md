@@ -4,7 +4,28 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
-## v0.22.1 — find AGP's own coverage report, and a Gradle guide
+## v0.22.1 — Gradle actually works out of the box
+
+**Fixed: every Gradle tool failed with "SDK location not found" unless the
+project had a hand-written `local.properties`.** The server resolves the SDK
+itself — env vars first, then the conventional install path — but only ever
+prepended its tool directories to `PATH`. The Android Gradle plugin does its own
+lookup and knows nothing about that fallback, so Gradle was left to find an SDK
+nobody had told it about. `ANDROID_HOME` is now exported to the subprocess when
+the caller hasn't set it and the resolved root really is an SDK. An explicit
+`ANDROID_HOME`/`ANDROID_SDK_ROOT` is never overridden.
+
+**`--sdk /path/to/sdk`** for when the MCP client launches the server without
+those variables set and its config has nowhere convenient to add them. `doctor`
+now also flags a resolved root with no `platform-tools/` in it, instead of
+printing the guessed path as though it were fine and letting Gradle fail later.
+
+**`scaffold_android_project` generates the Gradle wrapper.** It previously left
+a project no tool here could build — every Gradle tool drives `./gradlew` — and
+told you to run `gradle wrapper` yourself. It now does that when a system
+`gradle` is on PATH, and says so plainly when there isn't one. Together with the
+fix above, scaffold → `gradle_build` now produces an APK with no manual steps
+and nothing set in the environment.
 
 **Fixed: coverage reporting missed the more common Android setup entirely.**
 `get_coverage_report`/`get_file_coverage` only looked under

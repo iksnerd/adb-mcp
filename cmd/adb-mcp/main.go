@@ -67,10 +67,21 @@ func main() {
 	}
 
 	showVersion := flag.Bool("version", false, "print version and exit")
+	// An MCP client launches this server itself, often with a minimal
+	// environment that has no ANDROID_HOME — and a client config may have
+	// nowhere convenient to set one. Exporting it here means every later
+	// sdk.Root() lookup, and the Gradle subprocesses that inherit this
+	// environment, agree on the same SDK without threading a path through.
+	sdkPath := flag.String("sdk", "", "Android SDK location (overrides ANDROID_HOME for this process)")
 	flag.Parse()
 	if *showVersion {
 		fmt.Printf("adb-mcp %s\n", version)
 		return
+	}
+	if *sdkPath != "" {
+		if err := os.Setenv("ANDROID_HOME", *sdkPath); err != nil {
+			log.Fatalf("could not apply --sdk: %v", err)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

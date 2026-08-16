@@ -57,7 +57,10 @@ below) — instead of relearning them each session.
 
 - Android SDK with `platform-tools` (`adb`) and `emulator`. The server finds it
   via `$ANDROID_HOME` / `$ANDROID_SDK_ROOT`, else the platform default
-  (`~/Library/Android/sdk` on macOS).
+  (`~/Library/Android/sdk` on macOS). If your MCP client launches the server
+  without those set, pass `--sdk /path/to/sdk` in the client config's `args`
+  (the server then exports it, so Gradle finds the SDK too). `doctor` prints
+  the location it resolved.
 - At least one AVD (create one in Android Studio's Device Manager).
 
 Go is **not** required — releases ship prebuilt binaries; it's only needed to

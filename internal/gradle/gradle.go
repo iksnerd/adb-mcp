@@ -35,6 +35,35 @@ func Gradle(ctx context.Context, projectDir string, args ...string) (string, err
 	return string(out), nil
 }
 
+// HasWrapper reports whether projectDir already contains a Gradle wrapper.
+func HasWrapper(projectDir string) bool {
+	return sdk.FileExists(filepath.Join(projectDir, wrapperName()))
+}
+
+// GenerateWrapper runs the *system* `gradle wrapper` in projectDir to create
+// the wrapper scripts and gradle-wrapper.jar. Every other Gradle call in this
+// package goes through the wrapper, so a freshly scaffolded project can't be
+// built until this has run once — but the wrapper jar is a binary artifact
+// that can't simply be templated out, so it has to come from a real Gradle.
+//
+// Returns a false ok (not an error) when no `gradle` is on PATH: that is a
+// normal, recoverable state the caller reports as a next step, not a failure
+// of the thing the user actually asked for.
+func GenerateWrapper(ctx context.Context, projectDir string) (out string, ok bool, err error) {
+	bin, lookErr := exec.LookPath("gradle")
+	if lookErr != nil {
+		return "", false, nil
+	}
+	cmd := exec.CommandContext(ctx, bin, "wrapper")
+	cmd.Dir = projectDir
+	cmd.Env = sdk.CommandEnv()
+	b, runErr := cmd.CombinedOutput()
+	if runErr != nil {
+		return string(b), false, fmt.Errorf("gradle wrapper failed: %w", runErr)
+	}
+	return string(b), true, nil
+}
+
 // FindAPKs returns any .apk files under projectDir's build outputs, newest
 // modification time first — so right after a build, the first entry is the
 // artifact that build just produced, not a stale one that happens to sort

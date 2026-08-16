@@ -314,12 +314,22 @@ func gradleProjectProperties(ctx context.Context, in gradlePropertiesArgs) (*mcp
 }
 
 func scaffoldProject(ctx context.Context, in scaffoldArgs) (*mcp.CallToolResult, error) {
-	_ = ctx
 	files, err := scaffold.Create(scaffold.Options{Destination: in.Destination, Name: in.Name, Package: in.Package})
 	if err != nil {
 		return nil, err
 	}
-	return text("Created Android project in %s (%d files). Run `gradle wrapper` there, then use gradle_build with task=assembleDebug.", in.Destination, len(files)), nil
+	// Every Gradle tool here drives ./gradlew, so a project without a wrapper
+	// is inert. Generate it now when a system Gradle can, rather than handing
+	// back a project whose very next tool call is guaranteed to fail.
+	out, ok, werr := gradle.GenerateWrapper(ctx, in.Destination)
+	switch {
+	case ok:
+		return text("Created Android project in %s (%d files) and generated the Gradle wrapper. Ready to build: gradle_build with project_dir=%s (task defaults to assembleDebug).", in.Destination, len(files), in.Destination), nil
+	case werr != nil:
+		return text("Created Android project in %s (%d files), but generating the Gradle wrapper failed — run `gradle wrapper` there yourself before gradle_build:\n\n%s", in.Destination, len(files), tailLines(out, 15)), nil
+	default:
+		return text("Created Android project in %s (%d files). No `gradle` on PATH to generate the wrapper — install Gradle and run `gradle wrapper` there (every Gradle tool here drives ./gradlew), then use gradle_build with task=assembleDebug.", in.Destination, len(files)), nil
+	}
 }
 
 // tailLines keeps the last n non-trivial lines of possibly-huge tool output

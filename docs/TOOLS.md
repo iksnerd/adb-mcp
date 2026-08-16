@@ -119,7 +119,7 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 | `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run. Root project by default; pass `task=":module:tasks"` for a multi-module build (the root usually has no variants of its own) |
 | `list_gradle_projects` | List the Gradle modules of a multi-module build (`gradlew projects`) — e.g. `:app`, `:core`, `:feature:login`; point other Gradle tools at the right module or address a task with `:module:task` |
 | `gradle_project_properties` | Dump evaluated Gradle properties for one module (`:app`, `:feature:login`, …) — secret-shaped values (password/token/key/credential) are redacted before returning |
-| `scaffold_android_project` | Create a minimal Kotlin Android project in a new empty directory |
+| `scaffold_android_project` | Create a minimal Kotlin Android project in a new empty directory — also generates the Gradle wrapper when a system `gradle` is on PATH, so it's immediately buildable |
 
 ## Resources (the bundled "skill")
 

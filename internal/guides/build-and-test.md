@@ -4,6 +4,11 @@ These tools run **on the host**, not on a device. Only `run_instrumented_tests`
 and `build_and_run` need a booted device. `project_dir` must be the directory
 holding the Gradle wrapper (`gradlew`), not a module inside it.
 
+If a build fails with **"SDK location not found"**, the server could not resolve
+an Android SDK to hand Gradle. Run `doctor` — it prints the location it resolved
+and flags a path with no `platform-tools/` in it. The fix is on the client side:
+set `ANDROID_HOME`, or launch the server with `--sdk /path/to/sdk`.
+
 Pin it once instead of repeating it:
 
 ```
@@ -125,8 +130,17 @@ does exist, which is faster than guessing again.
 ## Scaffolding a project
 
 `scaffold_android_project` writes a minimal Kotlin app into a **new empty
-directory** (it refuses a non-empty one). It does not generate the wrapper — run
-`gradle wrapper` in the result before any tool that shells out to `gradlew`.
+directory** (it refuses a non-empty one) and generates the Gradle wrapper, so
+the result builds immediately:
+
+```
+scaffold_android_project {destination: "/tmp/demo", name: "Demo", package: "com.example.demo"}
+gradle_build {project_dir: "/tmp/demo"}
+```
+
+The wrapper step needs a system `gradle` on PATH. If there isn't one, the result
+says so and `gradle wrapper` has to be run there by hand — every Gradle tool
+here drives `./gradlew`, so a project without a wrapper is inert.
 
 ## When a build fails
 

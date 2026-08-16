@@ -73,7 +73,6 @@ var all = []guide{
 // Register adds every guide to the server as a readable text/markdown resource.
 func Register(s *mcp.Server) {
 	for _, g := range all {
-		g := g
 		s.AddResource(&mcp.Resource{
 			URI:         g.uri,
 			Name:        g.name,

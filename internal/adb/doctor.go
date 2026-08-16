@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/iksnerd/adb-mcp/internal/concurrent"
@@ -15,9 +16,16 @@ import (
 func Doctor(ctx context.Context) string {
 	var b strings.Builder
 	root := sdk.Root()
-	if root == "" {
-		b.WriteString("✗ Android SDK: could not resolve (set ANDROID_HOME or ANDROID_SDK_ROOT)\n")
-	} else {
+	switch {
+	case root == "":
+		b.WriteString("✗ Android SDK: could not resolve (set ANDROID_HOME, or pass --sdk)\n")
+	case !sdk.FileExists(filepath.Join(root, "platform-tools")):
+		// Root() falls back to the conventional install path, so a nonexistent
+		// SDK still yields a plausible-looking path. Say it isn't there, or the
+		// Gradle tools fail later with "SDK location not found" and this line
+		// reads like confirmation that the SDK is fine.
+		b.WriteString(fmt.Sprintf("✗ Android SDK: %s has no platform-tools/ — not an SDK install (set ANDROID_HOME, or pass --sdk)\n", root))
+	default:
 		b.WriteString(fmt.Sprintf("• Android SDK: %s\n", root))
 	}
 
