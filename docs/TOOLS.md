@@ -2,6 +2,8 @@
 
 ← Back to the [README](../README.md)
 
+73 tools + 4 guide resources, across the nine areas below.
+
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
 

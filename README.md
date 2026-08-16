@@ -16,8 +16,8 @@
 ---
 
 Boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
-lock, read `logcat`, run Gradle builds and tests — 73 tools, from Claude Code,
-Cursor, VS Code, or any MCP client over stdio.
+lock, read `logcat`, run Gradle builds and tests — [73 tools](docs/TOOLS.md),
+from Claude Code, Cursor, VS Code, or any MCP client over stdio.
 
 It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP),
 built on the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
@@ -195,7 +195,6 @@ and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.md).
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the mirror convention, package layout, and how to add a tool
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — shipped work, newest first
 - [docs/BACKLOG.md](docs/BACKLOG.md) — open ideas and XcodeBuildMCP parity gaps
-- [TODO.md](TODO.md) — current roadmap hub
 
 ## Contributing
 
