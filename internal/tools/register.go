@@ -260,6 +260,12 @@ func Register(s *mcp.Server) {
 	add(s, "run_instrumented_tests",
 		"Run Gradle instrumented (on-device) tests (default task 'connectedAndroidTest') in project_dir — requires a booted device/emulator. Returns per-suite timing and failing-test stack traces; pass json=true for a structured JSON summary instead of the text form.",
 		runInstrumentedTests)
+	add(s, "get_coverage_report",
+		"Run the JaCoCo coverage-report Gradle task (default 'jacocoTestReport', which runs the JVM unit tests first) in project_dir and summarize the resulting code coverage: overall line/branch/method/class percentages plus a per-package breakdown, worst-covered package first. Requires the project to already apply the jacoco Gradle plugin with XML reporting enabled — errors with a pointer to that setup if no report is found. Covers JVM unit tests only, not instrumented (on-device) tests — there is no on-device analogue. Pass json=true for structured JSON instead of the text form.",
+		getCoverageReport)
+	add(s, "get_file_coverage",
+		"Same JaCoCo run as get_coverage_report (default task 'jacocoTestReport'), scoped to one source file: line/branch coverage plus per-method detail — the per-function breakdown get_coverage_report's package-level summary doesn't carry. file matches by suffix (e.g. \"Foo.kt\" or \"com/example/Foo.kt\"); an ambiguous bare filename returns every matching file, a miss lists what coverage data does exist so you can correct it. Same JVM-unit-test-only scope as get_coverage_report. Pass json=true for structured JSON instead of the text form.",
+		getFileCoverage)
 	add(s, "list_gradle_tasks",
 		"List the available Gradle tasks in project_dir (gradlew tasks) — to discover build/test/install targets. In a multi-module build this lists the ROOT project's own tasks by default; pass task=\"<module>:tasks\" (e.g. \":app:tasks\", from list_gradle_projects) to scope to a submodule instead.",
 		listGradleTasks)

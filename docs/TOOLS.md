@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-76 tools + 4 guide resources, across the ten areas below.
+78 tools + 4 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -113,6 +113,8 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 | `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced) |
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
+| `get_coverage_report` | `./gradlew jacocoTestReport` (or a given task) → JVM unit-test coverage summary: overall line/branch/method/class %, per-package breakdown worst-covered first. Requires the jacoco plugin already applied; instrumented (on-device) coverage isn't covered |
+| `get_file_coverage` | Same JaCoCo run, scoped to one source file — per-line missed/partial ranges and per-method coverage. `file` matches by suffix (`Foo.kt` or `com/example/Foo.kt`); an ambiguous name returns every match |
 | `list_gradle_tasks` | Discover available Gradle tasks — root project by default, or pass `task=":module:tasks"` to scope to a submodule |
 | `list_gradle_variants` | List buildable build variants (from the `assemble*` tasks) — the "list schemes" analogue; feed a name to `task=` on gradle_build/build_and_run. Root project by default; pass `task=":module:tasks"` for a multi-module build (the root usually has no variants of its own) |
 | `list_gradle_projects` | List the Gradle modules of a multi-module build (`gradlew projects`) — e.g. `:app`, `:core`, `:feature:login`; point other Gradle tools at the right module or address a task with `:module:task` |

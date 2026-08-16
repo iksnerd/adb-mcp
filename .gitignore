@@ -6,7 +6,8 @@
 # Go
 *.test
 *.out
-coverage.*
+coverage.out
+coverage.html
 
 # Compiled objects
 *.dylib

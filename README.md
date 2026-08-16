@@ -16,7 +16,7 @@
 ---
 
 Boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
-lock, read `logcat`, run Gradle builds and tests — [76 tools](docs/TOOLS.md),
+lock, read `logcat`, run Gradle builds and tests — [78 tools](docs/TOOLS.md),
 from Claude Code, Cursor, VS Code, or any MCP client over stdio.
 
 It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP),
@@ -136,7 +136,7 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-76 tools across ten areas. Every device-facing tool takes an optional
+78 tools across ten areas. Every device-facing tool takes an optional
 `serial` (adb `-s`) — omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
@@ -148,7 +148,7 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 - **App lifecycle** — install/uninstall, launch/stop, `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
 - **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window, opt-in `redact` to mask tokens/passwords/API keys before output), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics** — dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
-- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
+- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
 - **Session defaults** — pin `project_dir`/`serial` once (`session_set_defaults`) so a multi-module/multi-flavor project or multi-device session doesn't need them repeated on every call
 
 The driving know-how itself ships as four MCP **resources** (`android://guide/*`)

@@ -24,6 +24,21 @@ type gradleProjectsArgs struct {
 	projectDirArg
 }
 
+type coverageReportArgs struct {
+	projectDirArg
+	Task string   `json:"task,omitempty" jsonschema:"Gradle task that generates the JaCoCo XML report. Defaults to jacocoTestReport; use a module-qualified task (e.g. \":app:jacocoTestReport\") or your project's custom report task name if it differs."`
+	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace)."`
+	JSON bool     `json:"json,omitempty" jsonschema:"Return structured JSON (per-package breakdown) instead of the human-readable text summary."`
+}
+
+type fileCoverageArgs struct {
+	projectDirArg
+	File string   `json:"file" jsonschema:"Source file to report coverage for — a filename (e.g. Foo.kt) or package-qualified path (e.g. com/example/Foo.kt). Matched by suffix; an ambiguous bare filename returns every match."`
+	Task string   `json:"task,omitempty" jsonschema:"Gradle task that generates the JaCoCo XML report. Defaults to jacocoTestReport."`
+	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace)."`
+	JSON bool     `json:"json,omitempty" jsonschema:"Return structured JSON instead of the human-readable text summary."`
+}
+
 type gradleVariantsArgs struct {
 	projectDirArg
 	Task string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list variants for the :app module. Defaults to the root project's tasks."`
@@ -151,6 +166,77 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 		return text("Tests passed (%s).\n\n%s\n\n%s", task, summary.String(), tailLines(out, 20)), nil
 	}
 	return text("Tests passed (%s).\n\n%s", task, tailLines(out, 30)), nil
+}
+
+// runCoverageTask runs the JaCoCo report-generating Gradle task (default
+// jacocoTestReport) and returns the parsed XML report. Shared by
+// getCoverageReport and getFileCoverage so both run-then-find-then-parse
+// identically.
+func runCoverageTask(ctx context.Context, projectDir, task string, extra []string) (report gradle.CoverageReport, reportPath string, err error) {
+	if task == "" {
+		task = "jacocoTestReport"
+	}
+	out, err := gradle.Gradle(ctx, projectDir, append([]string{task}, extra...)...)
+	if err != nil {
+		return report, "", fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+	}
+	reportPath, err = gradle.FindCoverageReport(projectDir)
+	if err != nil {
+		return report, "", fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+	}
+	report, err = gradle.ParseCoverageReport(reportPath)
+	if err != nil {
+		return report, "", err
+	}
+	return report, reportPath, nil
+}
+
+func getCoverageReport(ctx context.Context, in coverageReportArgs) (*mcp.CallToolResult, error) {
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	report, reportPath, err := runCoverageTask(ctx, projectDir, in.Task, in.Args)
+	if err != nil {
+		return nil, err
+	}
+	summary := gradle.SummarizeCoverage(report, reportPath)
+	if in.JSON {
+		return jsonResult(summary)
+	}
+	return text("%s", summary.String()), nil
+}
+
+func getFileCoverage(ctx context.Context, in fileCoverageArgs) (*mcp.CallToolResult, error) {
+	projectDir, err := resolveProjectDir(in.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+	report, _, err := runCoverageTask(ctx, projectDir, in.Task, in.Args)
+	if err != nil {
+		return nil, err
+	}
+	matches, available := gradle.FileCoverageFor(report, in.File)
+	if len(matches) == 0 {
+		sample := available
+		suffix := ""
+		if len(sample) > gradle.MaxAvailableListed {
+			sample = sample[:gradle.MaxAvailableListed]
+			suffix = fmt.Sprintf("\n… and %d more", len(available)-gradle.MaxAvailableListed)
+		}
+		return nil, fmt.Errorf("no coverage data for %q. Available files:\n%s%s", in.File, strings.Join(sample, "\n"), suffix)
+	}
+	if in.JSON {
+		return jsonResult(matches)
+	}
+	var b strings.Builder
+	for i, m := range matches {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(m.String())
+	}
+	return text("%s", b.String()), nil
 }
 
 func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
