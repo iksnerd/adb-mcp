@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/iksnerd/adb-mcp/internal/concurrent"
 )
 
 const repo = "iksnerd/adb-mcp"
@@ -50,13 +52,19 @@ func Run(ctx context.Context, currentVersion string, out io.Writer) error {
 	asset := assetName(tag, runtime.GOOS, runtime.GOARCH)
 	base := "https://github.com/" + repo + "/releases/download/" + tag + "/"
 
-	archive, err := fetch(ctx, client, base+asset)
-	if err != nil {
-		return fmt.Errorf("download %s: %w", asset, err)
+	// The archive and its checksums are two independent GETs — fetch them
+	// concurrently instead of paying for both round-trips back to back.
+	var archive, sums []byte
+	var archiveErr, sumsErr error
+	concurrent.RunAll(
+		func() { archive, archiveErr = fetch(ctx, client, base+asset) },
+		func() { sums, sumsErr = fetch(ctx, client, base+"checksums.txt") },
+	)
+	if archiveErr != nil {
+		return fmt.Errorf("download %s: %w", asset, archiveErr)
 	}
-	sums, err := fetch(ctx, client, base+"checksums.txt")
-	if err != nil {
-		return fmt.Errorf("download checksums.txt: %w", err)
+	if sumsErr != nil {
+		return fmt.Errorf("download checksums.txt: %w", sumsErr)
 	}
 	if err := verifyChecksum(archive, string(sums), asset); err != nil {
 		return err

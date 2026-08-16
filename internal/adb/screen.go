@@ -318,7 +318,11 @@ func (c *Client) hasSecureWindow(ctx context.Context) bool {
 // notification shade) sits on top of the app it thinks it is driving — the
 // UI hierarchy then belongs to that overlay, not the app.
 func (c *Client) TopWindow(ctx context.Context) (string, error) {
-	out, err := c.adb(ctx, "shell", "dumpsys", "window", "windows")
+	// Plain `dumpsys window` (not `window windows`): the latter's per-window
+	// detail dump doesn't carry an mCurrentFocus=/mFocusedWindow= line on some
+	// Android versions (confirmed missing on a recent emulator image), while
+	// the plain form does — and matches what hasSecureWindow already uses.
+	out, err := c.adb(ctx, "shell", "dumpsys", "window")
 	if err != nil {
 		return "", err
 	}

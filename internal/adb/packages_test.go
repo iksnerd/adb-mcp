@@ -1,7 +1,9 @@
 package adb
 
 import (
+	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -94,5 +96,54 @@ func TestParseInstallTimes(t *testing.T) {
 	}
 	if m := lastUpdateRe.FindStringSubmatch(dump); m == nil || m[1] != "2026-07-19 17:20:00" {
 		t.Errorf("lastUpdate = %v", m)
+	}
+}
+
+// TestGetAppStateRunsProbesConcurrently proves that GetAppState's foreground
+// activity / process uptime / logcat probes actually run in parallel rather
+// than sequentially: each is given an artificial delay via a fake Runner, and
+// the whole call must take close to one delay, not three.
+func TestGetAppStateRunsProbesConcurrently(t *testing.T) {
+	const pkg = "com.example"
+	const delay = 60 * time.Millisecond
+
+	run := func(_ context.Context, args ...string) ([]byte, error) {
+		switch {
+		case len(args) >= 3 && args[1] == "dumpsys" && args[2] == "package":
+			return []byte("Package [" + pkg + "]\n  firstInstallTime=2026-01-01\n  lastUpdateTime=2026-01-01\n"), nil
+		case len(args) >= 2 && args[1] == "pidof":
+			return []byte("123"), nil
+		case len(args) >= 3 && args[1] == "dumpsys" && args[2] == "activity":
+			time.Sleep(delay)
+			return []byte("topResumedActivity=ActivityRecord{abc123 u0 " + pkg + "/.MainActivity t1}"), nil
+		case len(args) >= 2 && args[1] == "ps":
+			time.Sleep(delay)
+			return []byte("00:05"), nil
+		case len(args) >= 2 && args[1] == "logcat":
+			time.Sleep(delay)
+			return []byte(""), nil
+		default:
+			return []byte(""), nil
+		}
+	}
+	c := &Client{Serial: "emulator-5554", run: run}
+
+	start := time.Now()
+	state, err := c.GetAppState(context.Background(), pkg)
+	if err != nil {
+		t.Fatalf("GetAppState: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	if elapsed >= delay*3 {
+		t.Fatalf("GetAppState took %s, looks sequential (3*delay = %s)", elapsed, delay*3)
+	}
+
+	// Correctness must survive the fan-out, not just speed.
+	if !state.Foreground || !strings.HasSuffix(state.TopActivity, "/.MainActivity") {
+		t.Errorf("foreground/top activity not parsed correctly: %+v", state)
+	}
+	if state.ProcessUptime != "00:05" {
+		t.Errorf("ProcessUptime = %q, want 00:05", state.ProcessUptime)
 	}
 }

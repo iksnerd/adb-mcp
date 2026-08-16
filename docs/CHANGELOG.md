@@ -4,6 +4,30 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.21.1 — concurrent device probes, and a `describe_ui`/`dumpsys` bug fix
+
+**`doctor`, `app_state`, and `describe_ui` fan out their independent adb
+probes concurrently instead of one after another.** Each already made
+several adb shell-outs that didn't depend on each other's output — `doctor`'s
+adb-version/AVD-list/device-list checks (plus one per-device accessibility
+bridge probe), `app_state`'s foreground-activity/process-uptime/logcat reads,
+`describe_ui`'s hierarchy-settle read and its focused-window probe. These now
+run in parallel via a new shared primitive, `internal/concurrent`
+(`RunAll`/`RunIndexed`), rather than every call site hand-rolling its own
+`sync.WaitGroup`. `adb-mcp update` and `bridge install` got the same
+treatment for their asset+checksum downloads. Verified live against a real
+emulator (before/after timing, output unchanged) and covered by tests that
+prove the fan-out is genuinely concurrent (elapsed time bounded, not
+summed) and preserves result ordering — CI now runs the whole suite with
+`-race` to keep it that way.
+
+**Fixed: `describe_ui`'s reported focused window (`TopWindow`) came back
+empty on some Android versions.** It read `dumpsys window windows`, whose
+per-window detail dump doesn't carry an `mCurrentFocus=`/`mFocusedWindow=`
+line on newer emulator images — found while live-verifying the change above.
+Switched to plain `dumpsys window`, which `hasSecureWindow` was already
+using correctly for the same reason.
+
 ## v0.21.0 — EXPERIMENTAL accessibility-click bridge for native views
 
 **`tap_on_text`/`tap_element` gain `via_accessibility` — a real accessibility

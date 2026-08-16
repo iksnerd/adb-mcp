@@ -22,6 +22,7 @@ flowchart TB
     gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
+    concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
     selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
@@ -44,6 +45,9 @@ flowchart TB
     %% device commands are Client methods; they parse via uiauto and shell out via sdk
     a_cmds -. "c.adb(...)" .-> client_t
     a_cmds --> uiauto
+    a_cmds --> concurrent
     bridgeupdate --> client_t
+    bridgeupdate --> concurrent
+    selfupdate --> concurrent
     client_t --> sdk
     gradle --> sdk

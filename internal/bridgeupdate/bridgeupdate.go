@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/concurrent"
 )
 
 const (
@@ -43,13 +44,19 @@ func Run(ctx context.Context, serial string, out io.Writer) error {
 	}
 	base := "https://github.com/" + repo + "/releases/download/" + tag + "/"
 
-	apk, err := fetch(ctx, client, base+apkAssetName)
-	if err != nil {
-		return fmt.Errorf("download %s: %w", apkAssetName, err)
+	// The APK and its checksums are two independent GETs — fetch them
+	// concurrently instead of paying for both round-trips back to back.
+	var apk, sums []byte
+	var apkErr, sumsErr error
+	concurrent.RunAll(
+		func() { apk, apkErr = fetch(ctx, client, base+apkAssetName) },
+		func() { sums, sumsErr = fetch(ctx, client, base+"checksums.txt") },
+	)
+	if apkErr != nil {
+		return fmt.Errorf("download %s: %w", apkAssetName, apkErr)
 	}
-	sums, err := fetch(ctx, client, base+"checksums.txt")
-	if err != nil {
-		return fmt.Errorf("download checksums.txt: %w", err)
+	if sumsErr != nil {
+		return fmt.Errorf("download checksums.txt: %w", sumsErr)
 	}
 	if err := verifyChecksum(apk, string(sums), apkAssetName); err != nil {
 		return err

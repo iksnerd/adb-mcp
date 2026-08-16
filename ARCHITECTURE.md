@@ -11,15 +11,17 @@ internal/adb/          the device layer: an adb.Client whose methods are the com
 internal/gradle/       host-side Gradle: build, find APKs, parse test reports
 internal/uiauto/       pure uiautomator-hierarchy model + parsing (Element, filters, find)
 internal/sdk/          resolves the Android SDK (adb/emulator paths, PATH env)
+internal/concurrent/   RunAll/RunIndexed — fan out independent I/O calls, join, done
 internal/guides/       the skill guides, embedded and served as MCP resources
 internal/scaffold/     generates a new Android project (scaffold_android_project)
 internal/selfupdate/   the `adb-mcp update` self-updater (cmd/adb-mcp only)
 internal/bridgeupdate/ the `adb-mcp bridge install` installer (cmd/adb-mcp only)
 ```
 
-Dependencies point inward only: `sdk` and `uiauto` are leaves; `gradle → sdk`;
-`adb → sdk, uiauto`; `tools → adb, gradle, uiauto, scaffold`; `bridgeupdate →
-adb`. Nothing imports `tools`, and no execution package imports the MCP SDK.
+Dependencies point inward only: `sdk`, `uiauto`, and `concurrent` are leaves;
+`gradle → sdk`; `adb → sdk, uiauto, concurrent`; `tools → adb, gradle, uiauto,
+scaffold`; `selfupdate → concurrent`; `bridgeupdate → adb, concurrent`.
+Nothing imports `tools`, and no execution package imports the MCP SDK.
 `selfupdate`/`bridgeupdate` are wired only from `cmd/adb-mcp/main.go`, not
 from `tools`.
 
@@ -55,6 +57,7 @@ flowchart TB
     gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · AdbPath · EmulatorPath · CommandEnv</i>"]
+    concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
     guides["internal/guides<br/>android://guide/* resources"]
     scaffold["internal/scaffold<br/><i>generates a new Android project</i>"]
     selfupdate["internal/selfupdate<br/><i>adb-mcp update</i>"]
@@ -75,7 +78,10 @@ flowchart TB
 
     a_cmds -. "c.adb(...)" .-> client_t
     a_cmds --> uiauto
+    a_cmds --> concurrent
     bridgeupdate --> client_t
+    bridgeupdate --> concurrent
+    selfupdate --> concurrent
     client_t --> sdk
     gradle --> sdk
 ```
@@ -90,6 +96,15 @@ re-derives SDK paths.
 the pure functions over them: parse a uiautomator XML dump, filter it, find an
 element by text or resource id. No I/O, no adb — trivially unit-testable, and
 the type vocabulary the device layer returns.
+
+**`internal/concurrent` — the fan-out primitive.** `RunAll(fns ...func())` and
+`RunIndexed(n, fn)` run independent I/O calls (adb shell-outs, HTTP fetches)
+concurrently and join before returning — the shared alternative to hand-rolling
+a `sync.WaitGroup` at every call site that has probes not depending on each
+other's output (`Doctor`'s adb/AVD/device checks, `GetAppStateWithSource`'s
+activity/uptime/logcat reads, `DescribeUI`'s settle+focus reads,
+`selfupdate`/`bridgeupdate`'s asset+checksum fetches). No knowledge of adb or
+HTTP — callers own their own result via closure capture.
 
 **`internal/adb` — the device layer.** An `adb.Client` holds a device serial and
 a `Runner` (the one seam that shells out). Every device command is a **method**

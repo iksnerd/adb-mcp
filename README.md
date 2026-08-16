@@ -177,8 +177,10 @@ internal/adb/              the device layer: an adb.Client whose methods are the
 internal/gradle/           host-side Gradle: build, find APKs, parse test reports
 internal/uiauto/           pure uiautomator-hierarchy model + parsing (unit-tested)
 internal/sdk/              resolves the Android SDK (adb/emulator paths, PATH env)
+internal/concurrent/       RunAll/RunIndexed — fan out independent I/O calls, join, done
 internal/guides/           the skill guides, embedded and served as MCP resources
 internal/selfupdate/       the `adb-mcp update` release fetch/verify/swap
+internal/bridgeupdate/     the `adb-mcp bridge install` release fetch/verify/install
 ```
 
 Dependencies point inward only (`tools → adb, gradle, uiauto → sdk`), and each

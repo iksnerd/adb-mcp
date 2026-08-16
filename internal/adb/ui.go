@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iksnerd/adb-mcp/internal/concurrent"
 	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
 
@@ -72,12 +73,22 @@ type UISnapshot struct {
 // those, use a screenshot to read state and tap by coordinate (see enter_pin's
 // grid/coords options for custom pads).
 func (c *Client) DescribeUI(ctx context.Context, filter uiauto.UIFilter) (UISnapshot, error) {
-	elems, hidden, err := c.describeSettled(ctx, filter)
+	// TopWindow doesn't read the hierarchy dump and describeSettled doesn't read
+	// TopWindow, so run them concurrently — describeSettled's own settle-loop
+	// (one to three dumps, 500ms-1.5s+ apart) dominates either way, so this just
+	// folds TopWindow's round-trip into that wait instead of paying for it after.
+	var elems []uiauto.Element
+	var hidden int
+	var err error
+	var top string
+	concurrent.RunAll(
+		func() { elems, hidden, err = c.describeSettled(ctx, filter) },
+		// Best-effort: an unreadable focus probe should not fail the whole read.
+		func() { top, _ = c.TopWindow(ctx) },
+	)
 	if err != nil {
 		return UISnapshot{}, err
 	}
-	// Best-effort: an unreadable focus probe should not fail the whole read.
-	top, _ := c.TopWindow(ctx)
 	return UISnapshot{TopWindow: top, Elements: elems, Hidden: hidden}, nil
 }
 

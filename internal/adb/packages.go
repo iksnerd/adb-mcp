@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/iksnerd/adb-mcp/internal/concurrent"
 )
 
 // ListPackages lists installed package names, optionally filtered by substring.
@@ -265,24 +267,39 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		s.BundleSource = "n/a"
 		return s, nil
 	}
-	if activity, err := c.ResumedActivity(ctx); err == nil {
+	// Foreground activity, process uptime, and the logcat dump below only depend
+	// on s.PIDs[0], which is already known — run all three adb round-trips
+	// concurrently instead of one after another, then apply the same
+	// post-processing as before in the original order.
+	pid := strconv.Itoa(s.PIDs[0])
+	var activity, psOut, logs string
+	var activityErr, psErr, logsErr error
+	concurrent.RunAll(
+		func() { activity, activityErr = c.ResumedActivity(ctx) },
+		func() { psOut, psErr = c.adb(ctx, "shell", "ps", "-o", "ETIME=", "-p", pid) },
+		func() {
+			logs, logsErr = c.adb(ctx, "shell", "logcat", "-d", "-v", "epoch", "-t", "4000", "--pid", pid)
+		},
+	)
+
+	if activityErr == nil {
 		s.TopActivity = activity
 		s.Foreground = strings.HasPrefix(activity, pkg+"/")
 	} else {
-		s.Notes = append(s.Notes, fmt.Sprintf("foreground activity unavailable: %v", err))
+		s.Notes = append(s.Notes, fmt.Sprintf("foreground activity unavailable: %v", activityErr))
 	}
 	if len(s.PIDs) > 1 {
 		s.Notes = append(s.Notes, fmt.Sprintf("%d live processes for this package — taps and log reads may be hitting different ones; stop_app then launch_app for a clean single process", len(s.PIDs)))
 	}
-	if out, err := c.adb(ctx, "shell", "ps", "-o", "ETIME=", "-p", strconv.Itoa(s.PIDs[0])); err == nil {
-		s.ProcessUptime = strings.TrimSpace(out)
+	if psErr == nil {
+		s.ProcessUptime = strings.TrimSpace(psOut)
 	}
 
 	// Bundle source: scan the app's recent logcat for dev-server / hot-reload
 	// markers. --pid keeps it to this app's own lines. Modern Expo/RN builds can
 	// connect to Metro without emitting the older HMRClient/Fast Refresh markers,
 	// so use the process' live TCP sockets as a second, independent signal.
-	if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-v", "epoch", "-t", "4000", "--pid", strconv.Itoa(s.PIDs[0])); err == nil {
+	if logsErr == nil {
 		s.BundleSource, s.BundleEvidence = classifyBundle(logs)
 		if markerTime, ok := bundleUpdateTime(logs); ok {
 			s.LastHMRUpdate = markerTime.Format(time.RFC3339)
@@ -298,7 +315,6 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		}
 	}
 	if s.BundleSource == "unknown" {
-		pid := strconv.Itoa(s.PIDs[0])
 		if sockets, err := c.adb(ctx, "shell", "cat", "/proc/"+pid+"/net/tcp", "/proc/"+pid+"/net/tcp6"); err == nil {
 			if port, ok := metroSocketPort(sockets); ok {
 				s.BundleSource = "metro"

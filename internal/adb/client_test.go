@@ -7,20 +7,25 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 )
 
 // fakeRun is a Runner that records every adb argv it is handed and replies with
 // a canned stdout/err — the seam that lets us assert what command a builder
-// produces without a device.
+// produces without a device. mu guards calls so a fakeRun can be shared safely
+// by a test that exercises a concurrent code path (e.g. GetAppStateWithSource).
 type fakeRun struct {
+	mu    sync.Mutex
 	calls [][]string
 	reply string
 	err   error
 }
 
 func (f *fakeRun) run(_ context.Context, args ...string) ([]byte, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, args)
+	f.mu.Unlock()
 	return []byte(f.reply), f.err
 }
 
@@ -31,6 +36,8 @@ func newFake(reply string) (*Client, *fakeRun) {
 
 // last returns the argv of the most recent adb call.
 func (f *fakeRun) last() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if len(f.calls) == 0 {
 		return nil
 	}
