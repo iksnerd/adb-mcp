@@ -40,11 +40,17 @@ jobs:
             fail=1
           fi
 
+          server_ver=$(jq -r '.version' server.json)
+          if [ "$server_ver" != "$bare" ]; then
+            echo "::error file=server.json::version is '$server_ver', tag is '$bare' (MCP registry publish would list the wrong version)"
+            fail=1
+          fi
+
           if [ "$fail" -ne 0 ]; then
             echo "Fix the mismatch(es) above, push a follow-up commit, then re-tag." >&2
             exit 1
           fi
-          echo "VERSION, main.go, and CHANGELOG.md all agree with tag $tag"
+          echo "VERSION, main.go, CHANGELOG.md, and server.json all agree with tag $tag"
 
       - name: Set up Go
         uses: actions/setup-go@v6

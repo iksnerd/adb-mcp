@@ -1,0 +1,11 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.iksnerd/adb-mcp",
+  "description": "Drive an Android emulator or device over adb: screenshot, inspect UI, tap, type, build and test.",
+  "version": "0.21.1",
+  "websiteUrl": "https://adb-mcp.com",
+  "repository": {
+    "url": "https://github.com/iksnerd/adb-mcp",
+    "source": "github"
+  }
+}

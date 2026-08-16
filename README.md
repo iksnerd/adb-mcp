@@ -5,7 +5,7 @@
 
 **An [MCP](https://modelcontextprotocol.io) server that drives Android emulators and devices over `adb`**
 
-[![Website](https://img.shields.io/badge/website-adb--mcp--website.vercel.app-3DDC84?logo=vercel&logoColor=white)](https://adb-mcp-website.vercel.app)
+[![Website](https://img.shields.io/badge/website-adb--mcp.com-3DDC84?logo=vercel&logoColor=white)](https://adb-mcp.com)
 [![Release](https://img.shields.io/github/v/release/iksnerd/adb-mcp?logo=github&color=3DDC84)](https://github.com/iksnerd/adb-mcp/releases/latest)
 [![CI](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
@@ -190,7 +190,7 @@ and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
 
-- [adb-mcp-website.vercel.app](https://adb-mcp-website.vercel.app) — landing page
+- [adb-mcp.com](https://adb-mcp.com) — landing page
 - [docs/TOOLS.md](docs/TOOLS.md) — full tool-by-tool reference and the guide resources
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the mirror convention, package layout, and how to add a tool
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — shipped work, newest first
