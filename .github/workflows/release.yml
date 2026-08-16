@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write # needed to create the GitHub Release
+  id-token: write # OIDC token proves iksnerd/adb-mcp owns the io.github.iksnerd/* namespace
 
 jobs:
   release:
@@ -139,3 +140,18 @@ jobs:
           files: dist/*
           body_path: RELEASE_NOTES.md
           generate_release_notes: true # appends the auto compare-link/contributors after our notes
+
+      # Last, so a failed build never leaves the registry advertising a release
+      # that doesn't exist. server.json's version is already checked against the
+      # tag above, so there is nothing to rewrite here — just publish it.
+      # Pinned: the registry is still in preview, and `latest` breaking would
+      # block a release at tag time. Bump deliberately.
+      - name: Publish to the MCP registry
+        env:
+          PUBLISHER_VERSION: v1.8.1
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

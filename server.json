@@ -1,9 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.iksnerd/adb-mcp",
+  "title": "adb-mcp — Android emulator and device control over adb",
   "description": "Drive an Android emulator or device over adb: screenshot, inspect UI, tap, type, build and test.",
   "version": "0.21.1",
   "websiteUrl": "https://adb-mcp.com",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/iksnerd/adb-mcp/main/assets/android-head_flat.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
   "repository": {
     "url": "https://github.com/iksnerd/adb-mcp",
     "source": "github"
