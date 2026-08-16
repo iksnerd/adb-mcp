@@ -4,20 +4,26 @@ The Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBui
 This file is the lean hub — only what's **open**. Shipped work lives in the
 CHANGELOG; details for ideas live in the BACKLOG.
 
-**Current:** v0.21.0 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
+**Current:** v0.21.1 · 73 tools + 4 guide resources · [tool reference in README](README.md#tools)
 Core parity with [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) reached; remaining gaps below.
 
 ## Map
 
 | Doc | What's in it |
 |---|---|
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.21.0) |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Everything shipped, newest first (v0.1.0 → v0.21.1) |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Open ideas + the conventions to follow when adding a tool |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout (sdk/uiauto/adb/gradle/scaffold/selfupdate/tools) + how to add a tool (with diagram) |
 
-## Recently shipped (v0.21.0)
+## Recently shipped (v0.21.1)
 
-See [CHANGELOG](docs/CHANGELOG.md). v0.21.0: **EXPERIMENTAL accessibility-click
+See [CHANGELOG](docs/CHANGELOG.md). v0.21.1: **`doctor`/`app_state`/`describe_ui`
+fan out their independent adb probes concurrently** instead of one after
+another (new shared `internal/concurrent` primitive; `-race`-tested in CI),
+and **`describe_ui`'s reported top window** no longer comes back empty on
+Android versions where `dumpsys window windows` lacks the focus line.
+
+v0.21.0: **EXPERIMENTAL accessibility-click
 bridge** — `tap_on_text`/`tap_element` gain `via_accessibility`, dispatching a
 real `AccessibilityNodeInfo.performAction(ACTION_CLICK)` through a small
 companion app (repo-root `bridge/`, one-time `adb-mcp bridge install` per
