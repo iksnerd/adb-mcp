@@ -95,6 +95,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The version gate above proves VERSION/main.go/CHANGELOG/server.json
+      # agree with the tag. This proves the *prose* agrees with the code: the
+      # tool/guide/area counts quoted in README.md and docs/TOOLS.md, and that
+      # no registered tool is missing from the reference. Both drifted before
+      # anything checked them.
+      - name: Check doc counts
+        run: go run ./scripts/docsync -check
+
       - name: Test
         run: go test -race ./...
 

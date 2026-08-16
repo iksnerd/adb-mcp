@@ -30,6 +30,12 @@ non-Go Android Gradle project — the small companion AccessibilityService APK
 that `internal/bridgeupdate` downloads and `internal/adb/bridge.go` drives.
 EXPERIMENTAL; see `bridge/README.md`.
 
+**`scripts/`** holds repo tooling that is not part of the server.
+`scripts/docsync` derives the tool/guide/area counts from `internal/tools/
+register.go` and `internal/guides/guides.go` and rewrites them wherever the
+docs quote a number (`make docs`); `make docs-check` verifies instead, and the
+release gate runs it so the prose can't ship disagreeing with the code.
+
 ## Diagram
 
 Source: [`docs/architecture.mmd`](docs/architecture.mmd) (rendered below; GitHub

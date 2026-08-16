@@ -8,7 +8,7 @@ INSTALL_DIR ?= $(HOME)/.local/bin
 VERSION := $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//' || cat VERSION 2>/dev/null || echo dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: build install uninstall test vet check run version clean fmt tidy
+.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check
 
 build: ## Compile the server binary into ./bin
 	@mkdir -p bin
@@ -39,7 +39,13 @@ fmt: ## Format the code
 tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
-check: vet test ## vet + test
+docs: ## Sync the tool/guide/version counts in the docs from the code
+	go run ./scripts/docsync
+
+docs-check: ## Fail if any doc count has drifted from the code (run in CI)
+	go run ./scripts/docsync -check
+
+check: vet test docs-check ## vet + test + doc counts
 
 run: build ## Build and run over stdio (for manual JSON-RPC poking)
 	./bin/$(BINARY)

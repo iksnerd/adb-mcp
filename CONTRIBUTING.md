@@ -13,7 +13,7 @@ Requirements are the same as running the server (see the [README](README.md)):
 - At least one AVD, if you want to smoke-test against a live device
 
 ```bash
-make check     # go vet + go test — the unit tests need NO emulator
+make check     # go vet + go test + doc-count check — the unit tests need NO emulator
 make build     # compile ./bin/adb-mcp
 make run       # run over stdio for manual JSON-RPC poking
 ```
