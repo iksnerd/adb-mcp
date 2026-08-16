@@ -16,7 +16,7 @@
 ---
 
 Boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
-lock, read `logcat`, run Gradle builds and tests — [78 tools](docs/TOOLS.md),
+lock, read `logcat`, run Gradle builds and tests. [78 tools](docs/TOOLS.md),
 from Claude Code, Cursor, VS Code, or any MCP client over stdio.
 
 It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP),
@@ -25,7 +25,7 @@ built on the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sd
 <div align="center">
 <img src="assets/demo.gif" width="600" alt="An agent driving a real emulator with adb-mcp: describe_ui finds the Chrome icon, tap_on_text taps it, and a screenshot confirms Chrome launched. The emulator screen is shown side by side with the actual tool call and result.">
 
-`describe_ui` → `tap_on_text` → `screenshot`, driven live against a real emulator (`emulator-5556`) — the actual tool calls and their actual output.
+`describe_ui` → `tap_on_text` → `screenshot`, driven live against a real emulator (`emulator-5556`), showing the actual tool calls and their actual output.
 </div>
 
 > Android is a trademark of Google LLC. `adb-mcp` is an independent, unofficial
@@ -48,8 +48,8 @@ that knowledge into its tools, so the agent doesn't have to relearn it:
   transient "could not get idle state" failure on its own.
 
 The workflow itself ships as readable **resources** the agent can pull up
-mid-task — the observe→act loop, native PIN/lock handling, crash triage (see
-below) — instead of relearning them each session.
+mid-task (the observe→act loop, native PIN/lock handling, crash triage, see
+below) instead of relearning them each session.
 
 ## Getting started
 
@@ -63,7 +63,7 @@ below) — instead of relearning them each session.
   the location it resolved.
 - At least one AVD (create one in Android Studio's Device Manager).
 
-Go is **not** required — releases ship prebuilt binaries; it's only needed to
+Go is **not** required: releases ship prebuilt binaries, and it's only needed to
 [build from source](#from-source-go-126).
 
 ### 2. Install
@@ -79,13 +79,13 @@ OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
 with `VERSION=v0.17.0`).
 
-Prefer to grab the binary yourself? Every platform's archive — macOS, Linux,
-and Windows, amd64 and arm64 — is on the
+Prefer to grab the binary yourself? Every platform's archive (macOS, Linux,
+and Windows, amd64 and arm64) is on the
 [Releases page](https://github.com/iksnerd/adb-mcp/releases/latest), each with a
 checksum in `checksums.txt`. On Windows, download the `windows_amd64` or
 `windows_arm64` zip and put `adb-mcp.exe` somewhere on your `PATH`.
 
-Once installed, stay current with the built-in updater — it fetches the latest
+Once installed, stay current with the built-in updater. It fetches the latest
 release, verifies its checksum, and swaps the binary in place:
 
 ```bash
@@ -93,7 +93,7 @@ adb-mcp update
 ```
 
 The registration below launches the server by the bare name `adb-mcp`, so it
-must be on your `$PATH` (`which adb-mcp` should resolve — the installer warns
+must be on your `$PATH` (`which adb-mcp` should resolve; the installer warns
 if `~/.local/bin` isn't on it). Otherwise point the client at the absolute
 path to the binary instead.
 
@@ -106,9 +106,9 @@ claude mcp add adb -- adb-mcp
 ```
 
 (When working inside this repo itself, the bundled `.mcp.json` is picked up
-automatically — no registration needed.)
+automatically, no registration needed.)
 
-**Cursor / VS Code** — one-click install (assumes `adb-mcp` is on your `PATH`
+**Cursor / VS Code**: one-click install (assumes `adb-mcp` is on your `PATH`
 from step 2):
 
 [<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="20">](https://cursor.com/en/install-mcp?name=adb&config=eyJjb21tYW5kIjoiYWRiLW1jcCJ9)
@@ -140,22 +140,22 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 ## Tools
 
 78 tools across ten areas. Every device-facing tool takes an optional
-`serial` (adb `-s`) — omit it with one device attached, or pass one from
+`serial` (adb `-s`). Omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
-- **Emulator / device** — boot, list, wait-for-boot, shut down, connect over Wi-Fi, `adb_reverse` port forwarding (Metro!)
-- **Observe** — `screenshot` to see (works on multi-display foldables — pick a panel with `display`), `describe_ui` for true-pixel element centers — with the focused **top window** (spot a biometric prompt, or the wrong app entirely, occluding your target via optional `package`), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
-- **Interact** — tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`, `run_sequence` (batch steps + guards in one call — keeps native-timer flows from being perturbed by per-step round-trips); opt-in `verify_change` tells you whether a tap/key actually changed the UI; opt-in `via_accessibility` on `tap_on_text`/`tap_element` (EXPERIMENTAL) dispatches a real accessibility click for native views a coordinate tap can't reach — see [bridge/README.md](bridge/README.md)
-- **Lock / Keystore / Biometrics** — set/clear a secure lock screen, check lock state, `has_biometric_enrolled` + `fingerprint_touch`/`finger_remove` to satisfy a BiometricPrompt on the emulator
-- **Extended Controls (emulator)** — `send_sms` (OTP/2FA), `phone_call`, `set_battery` (also works on real devices via dumpsys), `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot` — drive the emulator's console-only panel that `describe_ui` can't see
-- **App lifecycle** — install/uninstall, launch/stop, `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
-- **Logs & capture** — one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window, opt-in `redact` to mask tokens/passwords/API keys before output), `clear_logcat`, `last_crash`, screen recording
-- **Environment & diagnostics** — dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
-- **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
-- **Session defaults** — pin `project_dir`/`serial` once (`session_set_defaults`) so a multi-module/multi-flavor project or multi-device session doesn't need them repeated on every call
+- **Emulator / device**: boot, list, wait-for-boot, shut down, connect over Wi-Fi, `adb_reverse` port forwarding (Metro!)
+- **Observe**: `screenshot` to see (works on multi-display foldables, pick a panel with `display`), `describe_ui` for true-pixel element centers, with the focused **top window** (spot a biometric prompt, or the wrong app entirely, occluding your target via optional `package`), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
+- **Interact**: tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`, `run_sequence` (batch steps + guards in one call, which keeps native-timer flows from being perturbed by per-step round-trips); opt-in `verify_change` tells you whether a tap/key actually changed the UI; opt-in `via_accessibility` on `tap_on_text`/`tap_element` (EXPERIMENTAL) dispatches a real accessibility click for native views a coordinate tap can't reach, see [bridge/README.md](bridge/README.md)
+- **Lock / Keystore / Biometrics**: set/clear a secure lock screen, check lock state, `has_biometric_enrolled` + `fingerprint_touch`/`finger_remove` to satisfy a BiometricPrompt on the emulator
+- **Extended Controls (emulator)**: `send_sms` (OTP/2FA), `phone_call`, `set_battery` (also works on real devices via dumpsys), `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot`, driving the emulator's console-only panel that `describe_ui` can't see
+- **App lifecycle**: install/uninstall, launch/stop, `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
+- **Logs & capture**: one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window, opt-in `redact` to mask tokens/passwords/API keys before output), `clear_logcat`, `last_crash`, screen recording
+- **Environment & diagnostics**: dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
+- **Gradle build & test**: `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
+- **Session defaults**: pin `project_dir`/`serial` once (`session_set_defaults`) so a multi-module/multi-flavor project or multi-device session doesn't need them repeated on every call
 
 The driving know-how itself ships as five MCP **resources** (`android://guide/*`)
-the client can list and read — see [docs/TOOLS.md](docs/TOOLS.md) for the URIs,
+the client can list and read. See [docs/TOOLS.md](docs/TOOLS.md) for the URIs,
 or jump straight to `android://guide/driving` for the core loop below.
 
 ## The core loop
@@ -181,7 +181,7 @@ internal/adb/              the device layer: an adb.Client whose methods are the
 internal/gradle/           host-side Gradle: build, find APKs, parse test reports
 internal/uiauto/           pure uiautomator-hierarchy model + parsing (unit-tested)
 internal/sdk/              resolves the Android SDK (adb/emulator paths, PATH env)
-internal/concurrent/       RunAll/RunIndexed — fan out independent I/O calls, join, done
+internal/concurrent/       RunAll/RunIndexed: fan out independent I/O calls, join, done
 internal/guides/           the skill guides, embedded and served as MCP resources
 internal/selfupdate/       the `adb-mcp update` release fetch/verify/swap
 internal/bridgeupdate/     the `adb-mcp bridge install` release fetch/verify/install
@@ -194,11 +194,11 @@ and the rules for adding a tool: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
 
-- [adb-mcp.com](https://adb-mcp.com) — landing page
-- [docs/TOOLS.md](docs/TOOLS.md) — full tool-by-tool reference and the guide resources
-- [ARCHITECTURE.md](ARCHITECTURE.md) — the mirror convention, package layout, and how to add a tool
-- [docs/CHANGELOG.md](docs/CHANGELOG.md) — shipped work, newest first
-- [docs/BACKLOG.md](docs/BACKLOG.md) — open ideas and XcodeBuildMCP parity gaps
+- [adb-mcp.com](https://adb-mcp.com): landing page
+- [docs/TOOLS.md](docs/TOOLS.md): full tool-by-tool reference and the guide resources
+- [ARCHITECTURE.md](ARCHITECTURE.md): the mirror convention, package layout, and how to add a tool
+- [docs/CHANGELOG.md](docs/CHANGELOG.md): shipped work, newest first
+- [docs/BACKLOG.md](docs/BACKLOG.md): open ideas and XcodeBuildMCP parity gaps
 
 ## Contributing
 
