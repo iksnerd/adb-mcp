@@ -1,0 +1,42 @@
+# Trims the build context. The image needs the Go module and nothing else:
+# go.mod/go.sum, cmd/, and internal/ (the guides are go:embed'd out of
+# internal/guides, so that tree must stay).
+#
+# Root-level .md files are listed individually rather than as *.md: a pattern is
+# matched against the whole path and * does not cross a /, so *.md would be
+# correct here, but naming them keeps it obvious that internal/guides/*.md is
+# deliberately kept.
+
+.git
+.gitignore
+.DS_Store
+
+# Editor and agent config
+.idea
+.claude
+.mcp.json
+
+# Build output
+bin
+
+# CI, release scripts and the installer play no part in the image
+.github
+scripts
+install.sh
+Makefile
+
+# Docs and images are not embedded
+ARCHITECTURE.md
+CONTRIBUTING.md
+README.md
+SECURITY.md
+docs
+assets
+
+# The accessibility bridge is Android/Java source. Its APK is fetched at runtime
+# by internal/bridgeupdate rather than compiled in, so the build doesn't need it.
+bridge
+
+# No point copying the image definition into the image
+Dockerfile
+.dockerignore
