@@ -2,6 +2,10 @@
 // code: how many tools are registered, how many guide resources are served,
 // how many areas the tool reference is split into, and the current version.
 //
+// VERSION is the single source for the version: this also writes it into
+// cmd/adb-mcp/main.go and server.json (both the "version" field and the tag on
+// the OCI package), so a release only ever needs VERSION edited by hand.
+//
 // These drifted repeatedly because nothing checked them. The release gate can
 // only cover tracked files, and the roadmap banner lives in a gitignored file
 // it can never see, so the same numbers were re-typed by hand every release
@@ -184,6 +188,20 @@ func rewrites(c counts) []rewrite {
 		{path: "docs/TOOLS.md", subs: []sub{
 			{regexp.MustCompile(`(?m)^\d+ tools \+ \d+ guide resources, across the \w+ areas below\.`),
 				tools + " tools + " + guides + " guide resources, across the " + areaWord + " areas below."},
+		}},
+		// The version is written in code and in the registry manifest too. Both
+		// are checked again by the release gate against the git tag, but drift
+		// should be impossible before it ever gets that far.
+		{path: "cmd/adb-mcp/main.go", subs: []sub{
+			{regexp.MustCompile(`(?m)^var version = "[0-9][0-9.]*"$`),
+				`var version = "` + c.version + `"`},
+		}},
+		{path: "server.json", subs: []sub{
+			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`),
+				`"version": "` + c.version + `"`},
+			// The OCI identifier carries the version a second time, in its tag.
+			{regexp.MustCompile(`("identifier": "ghcr\.io/[^:"]+):[0-9][0-9.]*"`),
+				`${1}:` + c.version + `"`},
 		}},
 		// Gitignored roadmap: CI can never see it, which is exactly why it went
 		// stale twice. Updated locally by `make docs`.

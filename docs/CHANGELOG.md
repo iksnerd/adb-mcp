@@ -4,6 +4,20 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.22.2 — Installable as a container
+
+**Added: an OCI image, published to `ghcr.io` on every release.** The MCP
+registry lists it as an install path, so a client can pull
+`ghcr.io/iksnerd/adb-mcp` instead of building from source or fetching a binary.
+The image carries the `io.modelcontextprotocol.server.name` label the registry
+checks to prove ownership, and is built for `linux/amd64` and `linux/arm64` by
+cross-compiling rather than emulating.
+
+**Changed: `VERSION` is now the only place a version is typed by hand.**
+`scripts/docsync` propagates it into `cmd/adb-mcp/main.go` and `server.json`,
+including the tag on the OCI package, alongside the tool and guide counts. The
+release gate still verifies each of them against the git tag independently.
+
 ## v0.22.1 — Gradle actually works out of the box
 
 **Fixed: every Gradle tool failed with "SDK location not found" unless the
