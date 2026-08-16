@@ -12,6 +12,15 @@
       "sizes": ["any"]
     }
   ],
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/iksnerd/adb-mcp:0.22.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
   "repository": {
     "url": "https://github.com/iksnerd/adb-mcp",
     "source": "github"

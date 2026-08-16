@@ -9,7 +9,12 @@
 # markdown guides, and the accessibility bridge APK is fetched at runtime by
 # internal/bridgeupdate rather than compiled in.
 
-FROM golang:1.26-bookworm AS build
+# --platform=$BUILDPLATFORM keeps the toolchain native and cross-compiles via
+# GOARCH, so a multi-arch build doesn't drag in QEMU emulation.
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS build
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /src
 
@@ -18,13 +23,18 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/adb-mcp ./cmd/adb-mcp
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+  go build -trimpath -ldflags="-s -w" -o /out/adb-mcp ./cmd/adb-mcp
 
 FROM debian:bookworm-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends adb ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+
+# The MCP registry proves ownership of an OCI package by matching this label
+# against the "name" in server.json. They must stay identical.
+LABEL io.modelcontextprotocol.server.name="io.github.iksnerd/adb-mcp"
 
 COPY --from=build /out/adb-mcp /usr/local/bin/adb-mcp
 

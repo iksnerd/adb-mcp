@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write # needed to create the GitHub Release
   id-token: write # OIDC token proves iksnerd/adb-mcp owns the io.github.iksnerd/* namespace
+  packages: write # pushes the OCI image the registry lists as an install path
 
 jobs:
   release:
@@ -23,6 +24,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Verify version consistency
+        id: version
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"          # e.g. v0.21.1
@@ -52,11 +54,21 @@ jobs:
             fail=1
           fi
 
+          # server.json's OCI identifier carries the version a second time, in
+          # its tag. Left unchecked it would advertise an image that the release
+          # never pushed.
+          oci_id=$(jq -r '.packages[]? | select(.registryType=="oci") | .identifier' server.json)
+          if [ -n "$oci_id" ] && [ "${oci_id##*:}" != "$bare" ]; then
+            echo "::error file=server.json::OCI identifier is '$oci_id', tag is '$bare'"
+            fail=1
+          fi
+
           if [ "$fail" -ne 0 ]; then
             echo "Fix the mismatch(es) above, push a follow-up commit, then re-tag." >&2
             exit 1
           fi
           echo "VERSION, main.go, CHANGELOG.md, and server.json all agree with tag $tag"
+          echo "bare=$bare" >> "$GITHUB_OUTPUT"
 
       # Part of the gate: a schema error in server.json would otherwise only
       # surface in the publish step at the very end, once the release is already
@@ -156,6 +168,28 @@ jobs:
             echo "See [docs/CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/CHANGELOG.md) for what changed in $GITHUB_REF_NAME." > RELEASE_NOTES.md
           fi
           echo "--- release notes ---"; cat RELEASE_NOTES.md
+
+      # Before any publishing step: a registry entry pointing at an image that
+      # was never pushed is worse than a failed release.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the OCI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.bare }}
+            ghcr.io/${{ github.repository }}:latest
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
