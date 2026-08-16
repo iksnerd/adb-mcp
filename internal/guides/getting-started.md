@@ -64,3 +64,6 @@ whenever edits appear to have no effect or expected logs are absent.
   pixel center for you, so you never miscalculate a coordinate.
 - Read the `android://guide/driving` resource for the full observe→act loop and
   the gotchas that waste turns.
+- Building or testing rather than driving? `android://guide/build-and-test`
+  covers Gradle: mapping a multi-module project before guessing a task name,
+  variants, JVM vs on-device tests, and coverage.

@@ -89,24 +89,34 @@ const maxPackagesListed = 50
 // suggests.
 const MaxAvailableListed = 20
 
-// FindCoverageReports walks projectDir for JaCoCo XML reports (produced by
-// the jacoco Gradle plugin's XML report, typically under
-// build/reports/jacoco/<task>/<task>.xml).
+// coverageReportDirs are the report directories a JaCoCo XML report lands in,
+// depending on which task produced it. Both emit the same JaCoCo DTD 1.1
+// document, so only the location differs:
+//
+//   - /reports/jacoco/  — a hand-written JacocoReport task (conventionally
+//     named jacocoTestReport).
+//   - /reports/coverage/ — AGP's built-in createDebugUnitTestCoverageReport,
+//     generated when a build type sets enableUnitTestCoverage = true. This is
+//     the more common setup, and nothing about it mentions "jacoco" on disk.
+var coverageReportDirs = []string{"/reports/jacoco/", "/reports/coverage/"}
+
+// FindCoverageReports walks projectDir for JaCoCo XML reports.
 //
 // A multi-module build produces one report per module, and `gradlew
 // jacocoTestReport` runs all of them — so every module's report is returned
 // and the caller merges them. Within a single module only the most recently
-// modified report is kept: a module that also emits per-variant reports
-// (jacocoTestDebugUnitTestReport alongside jacocoTestReleaseUnitTestReport)
-// would otherwise double-count the same classes, and a stale report from an
-// earlier run would shadow the one just generated.
+// modified report is kept, keyed on the path before "/reports/", so a module
+// that emits several (per-variant reports, or both an AGP and a hand-written
+// report) contributes its newest one rather than double-counting the same
+// classes; the same rule keeps a stale report from an earlier run from
+// shadowing the one just generated.
 func FindCoverageReports(projectDir string) ([]string, error) {
 	type candidate struct {
 		path string
 		mod  time.Time
 	}
-	// Keyed by the path prefix before "/reports/jacoco/", i.e. one entry per
-	// module (".../app/build", ".../core/build").
+	// Keyed by the path prefix before "/reports/", i.e. one entry per module
+	// (".../app/build", ".../core/build").
 	newestPerModule := map[string]candidate{}
 	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -116,10 +126,17 @@ func FindCoverageReports(projectDir string) ([]string, error) {
 		if !strings.HasSuffix(slash, ".xml") {
 			return nil
 		}
-		module, _, ok := strings.Cut(slash, "/reports/jacoco/")
-		if !ok {
+		found := false
+		for _, dir := range coverageReportDirs {
+			if strings.Contains(slash, dir) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return nil
 		}
+		module, _, _ := strings.Cut(slash, "/reports/")
 		info, ierr := d.Info()
 		if ierr != nil {
 			return nil
@@ -130,7 +147,7 @@ func FindCoverageReports(projectDir string) ([]string, error) {
 		return nil
 	})
 	if len(newestPerModule) == 0 {
-		return nil, fmt.Errorf("no JaCoCo XML report found under %s (expected build/reports/jacoco/**/*.xml) — does this project apply the jacoco Gradle plugin with its XML report enabled (jacocoTestReport { reports { xml.required = true } })?", projectDir)
+		return nil, fmt.Errorf("no JaCoCo XML report found under %s (looked for build/reports/jacoco/**/*.xml and build/reports/coverage/**/*.xml). Either apply the jacoco Gradle plugin with a report task whose XML output is on (jacocoTestReport { reports { xml.required = true } }), or set enableUnitTestCoverage = true on a build type and pass task=\"createDebugUnitTestCoverageReport\"", projectDir)
 	}
 	paths := make([]string, 0, len(newestPerModule))
 	for _, c := range newestPerModule {

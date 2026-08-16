@@ -151,7 +151,7 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 - **Gradle build & test** — `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`
 - **Session defaults** — pin `project_dir`/`serial` once (`session_set_defaults`) so a multi-module/multi-flavor project or multi-device session doesn't need them repeated on every call
 
-The driving know-how itself ships as four MCP **resources** (`android://guide/*`)
+The driving know-how itself ships as five MCP **resources** (`android://guide/*`)
 the client can list and read — see [docs/TOOLS.md](docs/TOOLS.md) for the URIs,
 or jump straight to `android://guide/driving` for the core loop below.
 

@@ -1,7 +1,8 @@
 // Package guides exposes the driving know-how — the "skill" behind this server —
 // as MCP resources. A client can list and read them to learn the observe→act
-// loop, native PIN/lock handling, and native crash triage, the same way it would
-// consult a skill file. The content is embedded so the binary is self-contained.
+// loop, native PIN/lock handling, native crash triage, and the Gradle
+// build/test/coverage workflow, the same way it would consult a skill file. The
+// content is embedded so the binary is self-contained.
 package guides
 
 import (
@@ -23,6 +24,9 @@ var pinAndLock string
 
 //go:embed crash-triage.md
 var crashTriage string
+
+//go:embed build-and-test.md
+var buildAndTest string
 
 type guide struct {
 	uri, name, title, desc, body string
@@ -56,6 +60,13 @@ var all = []guide{
 		title: "Finding why a native call failed",
 		desc:  "Using logcat to surface the real 'Caused by:' root cause hidden behind a generic UI error, plus app lifecycle tools for reproducing failures.",
 		body:  crashTriage,
+	},
+	{
+		uri:   "android://guide/build-and-test",
+		name:  "build-and-test",
+		title: "Gradle builds, tests & coverage",
+		desc:  "Mapping a multi-module project before guessing a task name, building a variant, running JVM vs on-device tests, and turning a JaCoCo coverage report into the specific lines that need a test — including why the default jacocoTestReport task often doesn't exist.",
+		body:  buildAndTest,
 	},
 }
 

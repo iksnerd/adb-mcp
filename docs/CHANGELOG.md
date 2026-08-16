@@ -4,6 +4,31 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.22.1 — find AGP's own coverage report, and a Gradle guide
+
+**Fixed: coverage reporting missed the more common Android setup entirely.**
+`get_coverage_report`/`get_file_coverage` only looked under
+`build/reports/jacoco/`, which is where a hand-written `JacocoReport` task
+writes. AGP's own `createDebugUnitTestCoverageReport` — the task you get from
+`enableUnitTestCoverage = true`, with no `jacoco` plugin block anywhere —
+writes the same JaCoCo XML to `build/reports/coverage/` instead. Pointing the
+tool at that task ran the build successfully and then reported "no JaCoCo XML
+report found… does this project apply the jacoco Gradle plugin", which is both
+wrong and unactionable. Both locations are now read, and a module that has both
+still contributes only its newest report so the same classes aren't counted
+twice.
+
+**`android://guide/build-and-test` — a fifth guide resource, for the Gradle
+half of the server.** The four existing guides are all about driving a device;
+the ten Gradle tools had no guide at all. It covers mapping a multi-module
+build before guessing a task name (the root project usually has no variants of
+its own), variant selection, JVM vs on-device tests, and using coverage as a
+funnel — worst-covered package, then the exact missed lines in a file, then the
+test. Tool descriptions gained the same hard-won details: that
+`jacocoTestReport` is not a task Android gives you and what to reach for when
+it's absent, and that `test` runs *every* variant's unit tests unless you ask
+for one.
+
 ## v0.22.0 — JaCoCo coverage reporting and session defaults
 
 **`get_coverage_report`/`get_file_coverage` surface JVM unit-test coverage.**

@@ -97,6 +97,54 @@ func TestFindCoverageReportsAcrossModules(t *testing.T) {
 	}
 }
 
+// AGP's built-in createDebugUnitTestCoverageReport (enableUnitTestCoverage =
+// true) writes the same JaCoCo DTD document to build/reports/coverage/... —
+// nothing in that path says "jacoco", so matching only /reports/jacoco/ missed
+// the more common setup entirely.
+func TestFindCoverageReportsAgpLayout(t *testing.T) {
+	dir := t.TempDir()
+	reportDir := filepath.Join(dir, "app", "build", "reports", "coverage", "test", "debug")
+	if err := os.MkdirAll(reportDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	report := filepath.Join(reportDir, "report.xml")
+	writeFile(t, report, `<report/>`)
+
+	got, err := FindCoverageReports(dir)
+	if err != nil {
+		t.Fatalf("FindCoverageReports: %v", err)
+	}
+	if len(got) != 1 || got[0] != report {
+		t.Errorf("FindCoverageReports = %q, want [%q]", got, report)
+	}
+}
+
+// A module with both an AGP report and a hand-written jacocoTestReport holds
+// the same coverage twice; merging both would double-count it.
+func TestFindCoverageReportsOneModuleBothLayouts(t *testing.T) {
+	dir := t.TempDir()
+	agp := filepath.Join(dir, "app", "build", "reports", "coverage", "test", "debug", "report.xml")
+	hand := filepath.Join(dir, "app", "build", "reports", "jacoco", "jacocoTestReport", "jacocoTestReport.xml")
+	for _, p := range []string{agp, hand} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, p, `<report/>`)
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(hand, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := FindCoverageReports(dir)
+	if err != nil {
+		t.Fatalf("FindCoverageReports: %v", err)
+	}
+	if len(got) != 1 || got[0] != agp {
+		t.Errorf("FindCoverageReports = %q, want only the newest of the one module (%q)", got, agp)
+	}
+}
+
 func TestFindCoverageReportNone(t *testing.T) {
 	if _, err := FindCoverageReports(t.TempDir()); err == nil {
 		t.Error("expected an error when no report exists")

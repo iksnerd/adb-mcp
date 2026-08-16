@@ -3,7 +3,7 @@
   "name": "io.github.iksnerd/adb-mcp",
   "title": "adb-mcp — Android emulator and device control over adb",
   "description": "Drive an Android emulator or device over adb: screenshot, inspect UI, tap, type, build and test.",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "websiteUrl": "https://adb-mcp.com",
   "icons": [
     {

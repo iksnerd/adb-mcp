@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-78 tools + 4 guide resources, across the ten areas below.
+78 tools + 5 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -131,3 +131,4 @@ The driving know-how ships as MCP resources the client can list and read:
 | `android://guide/driving` | The observe→act loop, the true-pixel coordinate rule, tap-eating gotchas |
 | `android://guide/pin-and-lock` | Native PIN pads and Keystore-required device locks |
 | `android://guide/crash-triage` | Using `logcat` to find why a native call really failed |
+| `android://guide/build-and-test` | Gradle: mapping a multi-module build, variants, JVM vs on-device tests, JaCoCo coverage → the lines needing a test |
