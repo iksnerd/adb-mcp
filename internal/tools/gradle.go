@@ -171,24 +171,30 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 // runCoverageTask runs the JaCoCo report-generating Gradle task (default
 // jacocoTestReport) and returns the parsed XML report. Shared by
 // getCoverageReport and getFileCoverage so both run-then-find-then-parse
-// identically.
-func runCoverageTask(ctx context.Context, projectDir, task string, extra []string) (report gradle.CoverageReport, reportPath string, err error) {
+// identically. A multi-module build emits one report per module; all of them
+// are parsed and merged, so the result covers the whole build rather than
+// whichever module Gradle happened to write last.
+func runCoverageTask(ctx context.Context, projectDir, task string, extra []string) (report gradle.CoverageReport, reportPaths []string, err error) {
 	if task == "" {
 		task = "jacocoTestReport"
 	}
 	out, err := gradle.Gradle(ctx, projectDir, append([]string{task}, extra...)...)
 	if err != nil {
-		return report, "", fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+		return report, nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
-	reportPath, err = gradle.FindCoverageReport(projectDir)
+	reportPaths, err = gradle.FindCoverageReports(projectDir)
 	if err != nil {
-		return report, "", fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+		return report, nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
-	report, err = gradle.ParseCoverageReport(reportPath)
-	if err != nil {
-		return report, "", err
+	reports := make([]gradle.CoverageReport, 0, len(reportPaths))
+	for _, p := range reportPaths {
+		r, perr := gradle.ParseCoverageReport(p)
+		if perr != nil {
+			return report, nil, perr
+		}
+		reports = append(reports, r)
 	}
-	return report, reportPath, nil
+	return gradle.MergeReports(reports), reportPaths, nil
 }
 
 func getCoverageReport(ctx context.Context, in coverageReportArgs) (*mcp.CallToolResult, error) {
@@ -196,11 +202,11 @@ func getCoverageReport(ctx context.Context, in coverageReportArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, err
 	}
-	report, reportPath, err := runCoverageTask(ctx, projectDir, in.Task, in.Args)
+	report, reportPaths, err := runCoverageTask(ctx, projectDir, in.Task, in.Args)
 	if err != nil {
 		return nil, err
 	}
-	summary := gradle.SummarizeCoverage(report, reportPath)
+	summary := gradle.SummarizeCoverage(report, reportPaths)
 	if in.JSON {
 		return jsonResult(summary)
 	}

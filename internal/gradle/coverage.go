@@ -89,34 +89,55 @@ const maxPackagesListed = 50
 // suggests.
 const MaxAvailableListed = 20
 
-// FindCoverageReport walks projectDir for a JaCoCo XML report (produced by
+// FindCoverageReports walks projectDir for JaCoCo XML reports (produced by
 // the jacoco Gradle plugin's XML report, typically under
-// build/reports/jacoco/<task>/<task>.xml). Returns the most recently
-// modified match so a stale report from an earlier run/module doesn't
-// shadow the one just generated.
-func FindCoverageReport(projectDir string) (string, error) {
-	var best string
-	var bestMod time.Time
+// build/reports/jacoco/<task>/<task>.xml).
+//
+// A multi-module build produces one report per module, and `gradlew
+// jacocoTestReport` runs all of them — so every module's report is returned
+// and the caller merges them. Within a single module only the most recently
+// modified report is kept: a module that also emits per-variant reports
+// (jacocoTestDebugUnitTestReport alongside jacocoTestReleaseUnitTestReport)
+// would otherwise double-count the same classes, and a stale report from an
+// earlier run would shadow the one just generated.
+func FindCoverageReports(projectDir string) ([]string, error) {
+	type candidate struct {
+		path string
+		mod  time.Time
+	}
+	// Keyed by the path prefix before "/reports/jacoco/", i.e. one entry per
+	// module (".../app/build", ".../core/build").
+	newestPerModule := map[string]candidate{}
 	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".xml") || !strings.Contains(filepath.ToSlash(path), "/reports/jacoco/") {
+		slash := filepath.ToSlash(path)
+		if !strings.HasSuffix(slash, ".xml") {
+			return nil
+		}
+		module, _, ok := strings.Cut(slash, "/reports/jacoco/")
+		if !ok {
 			return nil
 		}
 		info, ierr := d.Info()
 		if ierr != nil {
 			return nil
 		}
-		if best == "" || info.ModTime().After(bestMod) {
-			best, bestMod = path, info.ModTime()
+		if cur, seen := newestPerModule[module]; !seen || info.ModTime().After(cur.mod) {
+			newestPerModule[module] = candidate{path: path, mod: info.ModTime()}
 		}
 		return nil
 	})
-	if best == "" {
-		return "", fmt.Errorf("no JaCoCo XML report found under %s (expected build/reports/jacoco/**/*.xml) — does this project apply the jacoco Gradle plugin with its XML report enabled (jacocoTestReport { reports { xml.required = true } })?", projectDir)
+	if len(newestPerModule) == 0 {
+		return nil, fmt.Errorf("no JaCoCo XML report found under %s (expected build/reports/jacoco/**/*.xml) — does this project apply the jacoco Gradle plugin with its XML report enabled (jacocoTestReport { reports { xml.required = true } })?", projectDir)
 	}
-	return best, nil
+	paths := make([]string, 0, len(newestPerModule))
+	for _, c := range newestPerModule {
+		paths = append(paths, c.path)
+	}
+	sort.Strings(paths)
+	return paths, nil
 }
 
 // ParseCoverageReport reads and unmarshals one JaCoCo XML report file.
@@ -132,11 +153,59 @@ func ParseCoverageReport(path string) (CoverageReport, error) {
 	return r, nil
 }
 
+// MergeReports combines one report per module into a single report covering
+// the whole build, so the summary and per-file lookup see every module rather
+// than whichever one happened to be written last. Report-wide counters are
+// summed; packages are merged by name (two modules can share a package),
+// summing their counters and pooling their classes and source files.
+func MergeReports(reports []CoverageReport) CoverageReport {
+	if len(reports) == 1 {
+		return reports[0]
+	}
+	var merged CoverageReport
+	byName := map[string]int{} // package name -> index into merged.Packages
+	for _, r := range reports {
+		merged.Counters = addCounters(merged.Counters, r.Counters)
+		for _, p := range r.Packages {
+			i, seen := byName[p.Name]
+			if !seen {
+				byName[p.Name] = len(merged.Packages)
+				merged.Packages = append(merged.Packages, p)
+				continue
+			}
+			dst := &merged.Packages[i]
+			dst.Counters = addCounters(dst.Counters, p.Counters)
+			dst.Classes = append(dst.Classes, p.Classes...)
+			dst.SourceFiles = append(dst.SourceFiles, p.SourceFiles...)
+		}
+	}
+	return merged
+}
+
+// addCounters sums src into dst by counter type, appending types dst lacks.
+func addCounters(dst, src []jacocoCounter) []jacocoCounter {
+	for _, s := range src {
+		found := false
+		for i := range dst {
+			if dst[i].Type == s.Type {
+				dst[i].Missed += s.Missed
+				dst[i].Covered += s.Covered
+				found = true
+				break
+			}
+		}
+		if !found {
+			dst = append(dst, s)
+		}
+	}
+	return dst
+}
+
 // ---- Summary result types ----
 
 // CoverageSummary is the report-wide coverage result of get_coverage_report.
 type CoverageSummary struct {
-	ReportPath    string            `json:"report_path"`
+	ReportPaths   []string          `json:"report_paths"` // one per module, merged into the totals below
 	LinePercent   float64           `json:"line_percent"`
 	LineCovered   int               `json:"line_covered"`
 	LineMissed    int               `json:"line_missed"`
@@ -165,8 +234,8 @@ type PackageCoverage struct {
 
 // SummarizeCoverage reduces a parsed JaCoCo report to its report-wide and
 // per-package coverage, worst-covered package first.
-func SummarizeCoverage(r CoverageReport, reportPath string) CoverageSummary {
-	sum := CoverageSummary{ReportPath: reportPath}
+func SummarizeCoverage(r CoverageReport, reportPaths []string) CoverageSummary {
+	sum := CoverageSummary{ReportPaths: reportPaths}
 	if m, c, ok := counterOf(r.Counters, "LINE"); ok {
 		sum.LineMissed, sum.LineCovered = m, c
 	}
@@ -215,10 +284,17 @@ func (sum CoverageSummary) String() string {
 	if sum.BranchCovered+sum.BranchMissed > 0 {
 		fmt.Fprintf(&b, " · Branch: %.1f%% (%d/%d)", sum.BranchPercent, sum.BranchCovered, sum.BranchCovered+sum.BranchMissed)
 	}
-	fmt.Fprintf(&b, " · Method: %.1f%% (%d/%d) · Class: %.1f%% (%d/%d)\nReport: %s",
+	fmt.Fprintf(&b, " · Method: %.1f%% (%d/%d) · Class: %.1f%% (%d/%d)",
 		sum.MethodPercent, sum.MethodCovered, sum.MethodCovered+sum.MethodMissed,
-		sum.ClassPercent, sum.ClassCovered, sum.ClassCovered+sum.ClassMissed,
-		sum.ReportPath)
+		sum.ClassPercent, sum.ClassCovered, sum.ClassCovered+sum.ClassMissed)
+	if len(sum.ReportPaths) == 1 {
+		fmt.Fprintf(&b, "\nReport: %s", sum.ReportPaths[0])
+	} else if len(sum.ReportPaths) > 1 {
+		fmt.Fprintf(&b, "\nMerged from %d module reports:", len(sum.ReportPaths))
+		for _, p := range sum.ReportPaths {
+			fmt.Fprintf(&b, "\n  %s", p)
+		}
+	}
 	if len(sum.Packages) > 0 {
 		b.WriteString("\n\nPackages, worst-covered first:")
 		for _, p := range sum.Packages {

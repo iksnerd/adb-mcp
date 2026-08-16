@@ -23,16 +23,18 @@ func TestFindCoverageReport(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(manifestDir, "AndroidManifest.xml"), `<manifest/>`)
 
-	got, err := FindCoverageReport(dir)
+	got, err := FindCoverageReports(dir)
 	if err != nil {
-		t.Fatalf("FindCoverageReport: %v", err)
+		t.Fatalf("FindCoverageReports: %v", err)
 	}
-	if got != report {
-		t.Errorf("FindCoverageReport = %q, want %q", got, report)
+	if len(got) != 1 || got[0] != report {
+		t.Errorf("FindCoverageReports = %q, want [%q]", got, report)
 	}
 }
 
-func TestFindCoverageReportNewestWins(t *testing.T) {
+// Within one module (same path prefix before /reports/jacoco/) only the
+// newest report is kept, so per-variant or stale reports can't double-count.
+func TestFindCoverageReportsNewestWinsWithinAModule(t *testing.T) {
 	dir := t.TempDir()
 	oldDir := filepath.Join(dir, "build", "reports", "jacoco", "old")
 	newDir := filepath.Join(dir, "build", "reports", "jacoco", "new")
@@ -51,18 +53,110 @@ func TestFindCoverageReportNewestWins(t *testing.T) {
 	}
 	writeFile(t, newReport, `<report/>`)
 
-	got, err := FindCoverageReport(dir)
+	got, err := FindCoverageReports(dir)
 	if err != nil {
-		t.Fatalf("FindCoverageReport: %v", err)
+		t.Fatalf("FindCoverageReports: %v", err)
 	}
-	if got != newReport {
-		t.Errorf("FindCoverageReport = %q, want newest %q", got, newReport)
+	if len(got) != 1 || got[0] != newReport {
+		t.Errorf("FindCoverageReports = %q, want just the newest %q", got, newReport)
+	}
+}
+
+// A multi-module build writes one report per module and `gradlew
+// jacocoTestReport` runs all of them — every module must come back, or the
+// summary silently reports whichever module Gradle wrote last.
+func TestFindCoverageReportsAcrossModules(t *testing.T) {
+	dir := t.TempDir()
+	var want []string
+	for _, module := range []string{"app", "core"} {
+		reportDir := filepath.Join(dir, module, "build", "reports", "jacoco", "test")
+		if err := os.MkdirAll(reportDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		report := filepath.Join(reportDir, "jacocoTestReport.xml")
+		writeFile(t, report, `<report/>`)
+		want = append(want, report)
+	}
+	// Make one module's report clearly older; it must still be returned.
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(want[0], old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := FindCoverageReports(dir)
+	if err != nil {
+		t.Fatalf("FindCoverageReports: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("FindCoverageReports = %q, want both module reports %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("FindCoverageReports[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 
 func TestFindCoverageReportNone(t *testing.T) {
-	if _, err := FindCoverageReport(t.TempDir()); err == nil {
+	if _, err := FindCoverageReports(t.TempDir()); err == nil {
 		t.Error("expected an error when no report exists")
+	}
+}
+
+// The whole point of merging: totals span every module, and a package that
+// exists in two modules is combined rather than duplicated.
+func TestMergeReports(t *testing.T) {
+	first, err := ParseCoverageReport(writeTempReport(t, syntheticReport))
+	if err != nil {
+		t.Fatalf("ParseCoverageReport: %v", err)
+	}
+	second, err := ParseCoverageReport(writeTempReport(t, `<report name="other">
+  <package name="com/example/other">
+    <sourcefile name="Other.kt"><counter type="LINE" missed="3" covered="7"/></sourcefile>
+    <counter type="LINE" missed="3" covered="7"/>
+    <counter type="CLASS" missed="0" covered="2"/>
+  </package>
+  <package name="com/example/bad">
+    <counter type="LINE" missed="5" covered="0"/>
+  </package>
+  <counter type="LINE" missed="8" covered="7"/>
+  <counter type="CLASS" missed="0" covered="2"/>
+</report>`))
+	if err != nil {
+		t.Fatalf("ParseCoverageReport: %v", err)
+	}
+
+	sum := SummarizeCoverage(MergeReports([]CoverageReport{first, second}), []string{"a.xml", "b.xml"})
+
+	// Report-wide LINE: 8 covered/12 missed + 7 covered/8 missed.
+	if sum.LineCovered != 15 || sum.LineMissed != 20 {
+		t.Errorf("Line = %d/%d, want 15/20 (summed across modules)", sum.LineCovered, sum.LineMissed)
+	}
+	if sum.ClassCovered != 3 || sum.ClassMissed != 1 {
+		t.Errorf("Class = %d/%d, want 3/1", sum.ClassCovered, sum.ClassMissed)
+	}
+	// com/example/bad appears in both reports: merged, not duplicated.
+	if sum.TotalPackages != 3 {
+		t.Fatalf("TotalPackages = %d, want 3 (good, bad, other)", sum.TotalPackages)
+	}
+	var bad *PackageCoverage
+	for i := range sum.Packages {
+		if sum.Packages[i].Name == "com.example.bad" {
+			bad = &sum.Packages[i]
+		}
+	}
+	if bad == nil {
+		t.Fatalf("com.example.bad missing from %+v", sum.Packages)
+	}
+	if bad.LineMissed != 15 || bad.LineCovered != 0 {
+		t.Errorf("com.example.bad = %d/%d covered/missed, want 0/15 (10+5 merged)", bad.LineCovered, bad.LineMissed)
+	}
+	// A file from the second module must be reachable through the merged report.
+	if matches, _ := FileCoverageFor(MergeReports([]CoverageReport{first, second}), "Other.kt"); len(matches) != 1 {
+		t.Errorf("FileCoverageFor(Other.kt) = %d matches, want 1 from the merged report", len(matches))
+	}
+	if !strings.Contains(sum.String(), "Merged from 2 module reports") {
+		t.Errorf("String() should say it merged multiple reports, got:\n%s", sum.String())
 	}
 }
 
@@ -131,10 +225,10 @@ func TestSummarizeCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCoverageReport: %v", err)
 	}
-	sum := SummarizeCoverage(report, "path/to/report.xml")
+	sum := SummarizeCoverage(report, []string{"path/to/report.xml"})
 
-	if sum.ReportPath != "path/to/report.xml" {
-		t.Errorf("ReportPath = %q", sum.ReportPath)
+	if len(sum.ReportPaths) != 1 || sum.ReportPaths[0] != "path/to/report.xml" {
+		t.Errorf("ReportPaths = %q", sum.ReportPaths)
 	}
 	if sum.LineCovered != 8 || sum.LineMissed != 12 {
 		t.Errorf("Line = %d/%d, want 8/12", sum.LineCovered, sum.LineMissed)
@@ -185,7 +279,7 @@ func TestSummarizeCoveragePackageCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCoverageReport: %v", err)
 	}
-	sum := SummarizeCoverage(report, "r.xml")
+	sum := SummarizeCoverage(report, []string{"r.xml"})
 	if sum.TotalPackages != maxPackagesListed+5 {
 		t.Errorf("TotalPackages = %d, want %d", sum.TotalPackages, maxPackagesListed+5)
 	}
