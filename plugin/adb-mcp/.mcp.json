@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "adb": {
+      "command": "adb-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}
