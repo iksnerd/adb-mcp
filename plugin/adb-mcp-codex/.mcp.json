@@ -1,0 +1,6 @@
+{
+  "adb": {
+    "command": "adb-mcp",
+    "args": []
+  }
+}

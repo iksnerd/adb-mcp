@@ -1,0 +1,20 @@
+{
+  "name": "adb-mcp-plugins",
+  "interface": {
+    "displayName": "adb-mcp"
+  },
+  "plugins": [
+    {
+      "name": "adb-mcp",
+      "source": {
+        "source": "local",
+        "path": "./plugin/adb-mcp-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
