@@ -249,6 +249,12 @@ func rewrites(c counts) []rewrite {
 		{path: "plugin/adb-mcp-codex/.codex-plugin/plugin.json", subs: []sub{
 			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
 		}},
+		// The repo-root marketplace manifest states the version and the tool
+		// count in the blurb a would-be installer reads before installing.
+		{path: ".claude-plugin/marketplace.json", subs: []sub{
+			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
+			{regexp.MustCompile(`\(\d+ tools:`), "(" + tools + " tools:"},
+		}},
 		// Gitignored roadmap: CI can never see it, which is exactly why it went
 		// stale twice. Updated locally by `make docs`.
 		{path: "docs/personal/TODO.md", optional: true, subs: []sub{

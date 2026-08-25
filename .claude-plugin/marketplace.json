@@ -1,0 +1,20 @@
+{
+  "name": "adb-mcp",
+  "owner": {
+    "name": "iksnerd",
+    "url": "https://github.com/iksnerd"
+  },
+  "metadata": {
+    "description": "Drive an Android emulator or device from Claude Code over adb.",
+    "version": "0.23.0"
+  },
+  "plugins": [
+    {
+      "name": "adb-mcp",
+      "source": "./plugin/adb-mcp",
+      "description": "Registers the adb-mcp MCP server (79 tools: screenshot, UI hierarchy, tap/type, app lifecycle, logcat, Gradle builds and tests) plus a skill per driving guide. Requires the adb-mcp binary on PATH.",
+      "category": "development",
+      "keywords": ["android", "adb", "emulator", "mobile", "testing", "ui-automation"]
+    }
+  ]
+}

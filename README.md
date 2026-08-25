@@ -108,6 +108,24 @@ claude mcp add adb -- adb-mcp
 (When working inside this repo itself, the bundled `.mcp.json` is picked up
 automatically, no registration needed.)
 
+Or install as a **plugin**, which registers the server and adds a skill per
+driving guide:
+
+```bash
+claude plugin marketplace add iksnerd/adb-mcp
+claude plugin install adb-mcp@adb-mcp
+```
+
+For Codex, the same plugin ships in Codex's manifest shape:
+
+```bash
+codex plugin marketplace add iksnerd/adb-mcp
+codex plugin add adb-mcp@adb-mcp-plugins
+```
+
+Either way `adb-mcp` still has to be on your `PATH` from step 2 - the plugin
+registers the server, it does not install the binary.
+
 **Cursor / VS Code**: one-click install (assumes `adb-mcp` is on your `PATH`
 from step 2):
 
