@@ -58,6 +58,9 @@ func main() {
 	if problems := undocumented(*root); len(problems) > 0 {
 		fail(fmt.Errorf("registered but absent from docs/TOOLS.md: %s", strings.Join(problems, ", ")))
 	}
+	if problems := unwrappedGuides(*root); len(problems) > 0 {
+		fail(fmt.Errorf("guide resources with no plugin skill wrapping them: %s", strings.Join(problems, ", ")))
+	}
 
 	var stale []string
 	for _, f := range rewrites(c) {
@@ -151,6 +154,40 @@ func undocumented(root string) []string {
 	return missing
 }
 
+// pluginSkillDirs are the plugin skill trees that mirror the guide resources
+// one-for-one: each guide gets a thin skill whose only job is to tell the agent
+// to read that resource. A new guide with no skill is invisible to plugin
+// users, which is how the sixth guide nearly shipped with five skills.
+var pluginSkillDirs = []string{
+	"plugin/adb-mcp/skills",
+	"plugin/adb-mcp-codex/skills",
+}
+
+var reGuideName = regexp.MustCompile(`(?m)^\t\tname:\s+"([a-z-]+)"`)
+
+// unwrappedGuides reports "<plugin>/<guide>" for every guide resource missing
+// its skill directory in either plugin.
+func unwrappedGuides(root string) []string {
+	guides, err := os.ReadFile(filepath.Join(root, "internal/guides/guides.go"))
+	if err != nil {
+		fail(err)
+	}
+	var missing []string
+	for _, dir := range pluginSkillDirs {
+		if _, err := os.Stat(filepath.Join(root, dir)); err != nil {
+			continue // a checkout without the plugin trees is not a drift report
+		}
+		for _, m := range reGuideName.FindAllSubmatch(guides, -1) {
+			name := string(m[1])
+			if _, err := os.Stat(filepath.Join(root, dir, name, "SKILL.md")); err != nil {
+				missing = append(missing, dir+"/"+name)
+			}
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
 type rewrite struct {
 	path     string
 	optional bool
@@ -202,6 +239,15 @@ func rewrites(c counts) []rewrite {
 			// The OCI identifier carries the version a second time, in its tag.
 			{regexp.MustCompile(`("identifier": "ghcr\.io/[^:"]+):[0-9][0-9.]*"`),
 				`${1}:` + c.version + `"`},
+		}},
+		// The two plugin manifests carry the version a third and fourth time.
+		// Nothing in the release gate looks at them, so left by hand they would
+		// simply stay on whatever release first wrote them.
+		{path: "plugin/adb-mcp/.claude-plugin/plugin.json", subs: []sub{
+			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
+		}},
+		{path: "plugin/adb-mcp-codex/.codex-plugin/plugin.json", subs: []sub{
+			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
 		}},
 		// Gitignored roadmap: CI can never see it, which is exactly why it went
 		// stale twice. Updated locally by `make docs`.

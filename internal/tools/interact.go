@@ -148,6 +148,30 @@ func hitTest(ctx context.Context, c *adb.Client, x, y int) string {
 	return fmt.Sprintf(" Coordinate falls in %q (%s, clickable=%t)%s.", label, e.Class, e.Clickable, clickNote)
 }
 
+// missError explains a failed lookup with everything the caller needs to fix it
+// in one read: whose window was actually being searched, what IS on screen
+// (closest candidates first), and the two reasons a genuinely-present element
+// can be missing from the search. "No element matching X" on its own reads as
+// "the element is absent" and sends people debugging the app instead of the
+// selector — the miss is the moment they are paying attention, so it is the
+// cheapest place to teach the rule.
+func missError(snap adb.UISnapshot, query, noun string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "no element %smatching %q found on screen", noun, query)
+	if snap.TopWindow != "" {
+		fmt.Fprintf(&b, " (focused window: %s — if that is a system overlay, the app's UI is occluded)", snap.TopWindow)
+	}
+	if labels := uiauto.SuggestLabels(snap.Elements, query, noun != "", 5); len(labels) > 0 {
+		quoted := make([]string, len(labels))
+		for i, l := range labels {
+			quoted[i] = fmt.Sprintf("%q", l)
+		}
+		fmt.Fprintf(&b, ". On screen now, closest first: %s", strings.Join(quoted, ", "))
+	}
+	b.WriteString(". This search covers only the CURRENT VIEWPORT — Android omits off-screen ScrollView children from the accessibility tree, and canvas-drawn (RN/Flutter/Skia) content never appears at all; scroll (or wait_for_text with scroll=true) before concluding the element does not exist")
+	return fmt.Errorf("%s", b.String())
+}
+
 // findAndTap is the shared engine of tap_on_text and tap_element: snapshot the
 // UI with filter, locate the target via find, tap its center (optionally with
 // the change check), and return the matched element plus the check's verdict.
@@ -160,10 +184,7 @@ func findAndTap(ctx context.Context, c *adb.Client, query, noun string, filter u
 	}
 	e, ok := find(snap.Elements)
 	if !ok {
-		if snap.TopWindow != "" {
-			return uiauto.Element{}, "", fmt.Errorf("no element %smatching %q found on screen (focused window: %s — if that is a system overlay, the app's UI is occluded)", noun, query, snap.TopWindow)
-		}
-		return uiauto.Element{}, "", fmt.Errorf("no element %smatching %q found on screen", noun, query)
+		return uiauto.Element{}, "", missError(snap, query, noun)
 	}
 	verdict, err := withChangeCheck(ctx, c, verify, func() error {
 		return c.Tap(ctx, e.Center.X, e.Center.Y)

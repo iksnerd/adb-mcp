@@ -31,7 +31,7 @@ type packageArg struct {
 type appStateArgs struct {
 	serialArg
 	Package    string `json:"package" jsonschema:"Application package name."`
-	SourcePath string `json:"source_path,omitempty" jsonschema:"Optional host file or directory containing the app's source. When supplied, app_state compares its newest mtime with the latest Metro/HMR marker to flag stale JavaScript."`
+	SourcePath string `json:"source_path,omitempty" jsonschema:"Optional host file or directory containing the app's source. When supplied, app_state ALWAYS returns a stale_verdict (stale | current | undetermined) with the reason — it compares the newest source mtime against the latest Metro/HMR marker, and checks that the dev server the app is connected to is rooted in this same checkout."`
 }
 
 type permissionArgs struct {

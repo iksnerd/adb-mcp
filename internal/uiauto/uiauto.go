@@ -169,19 +169,20 @@ func parseBounds(s string) (Bounds, bool) {
 }
 
 // FilterByQuery keeps elements whose text, content-description, or resource id
-// contains query (case-insensitive). It answers "is X on this screen?" without
-// returning the whole tree.
+// contains query (case-insensitive, typographic punctuation folded — see
+// Normalize). It answers "is X on this screen?" without returning the whole
+// tree.
 func FilterByQuery(elems []Element, query string) []Element {
-	q := strings.ToLower(strings.TrimSpace(query))
+	q := Normalize(query)
 	if q == "" {
 		return elems
 	}
 	var out []Element
 	for i := range elems {
 		e := &elems[i]
-		if strings.Contains(strings.ToLower(e.Text), q) ||
-			strings.Contains(strings.ToLower(e.Desc), q) ||
-			strings.Contains(strings.ToLower(e.ResourceID), q) {
+		if strings.Contains(Normalize(e.Text), q) ||
+			strings.Contains(Normalize(e.Desc), q) ||
+			strings.Contains(Normalize(e.ResourceID), q) {
 			out = append(out, *e)
 		}
 	}
@@ -217,10 +218,12 @@ func ElementAt(elems []Element, x, y int) (Element, bool) {
 
 // FindByText returns the first element whose text or content-description matches
 // query. When partial is true it does a case-insensitive substring match;
-// otherwise it requires a case-insensitive exact match. Clickable elements are
-// preferred over non-clickable ones when several match.
+// otherwise it requires a case-insensitive exact match. Both sides are folded
+// by Normalize first, so a typed ASCII apostrophe matches the curly one Android
+// renders in system dialogs ("Don't allow" finds "Don’t allow"). Clickable
+// elements are preferred over non-clickable ones when several match.
 func FindByText(elems []Element, query string, partial bool) (Element, bool) {
-	q := strings.ToLower(strings.TrimSpace(query))
+	q := Normalize(query)
 	if q == "" {
 		return Element{}, false // an empty query would substring-match everything
 	}
@@ -235,7 +238,7 @@ func FindByText(elems []Element, query string, partial bool) (Element, bool) {
 // requires a case-insensitive exact match. Clickable elements are preferred
 // over non-clickable ones when several match.
 func FindByResourceID(elems []Element, query string, partial bool) (Element, bool) {
-	q := strings.ToLower(strings.TrimSpace(query))
+	q := Normalize(query)
 	if q == "" {
 		return Element{}, false // an empty query would substring-match everything
 	}
@@ -266,8 +269,11 @@ func findFirst(elems []Element, pred func(*Element) bool) (Element, bool) {
 	return Element{}, false
 }
 
+// matches compares one element field against an already-normalized query.
+// The field is normalized the same way, so a curly apostrophe in the rendered
+// label and a typed ASCII one compare equal (see normalize.go).
 func matches(field, q string, partial bool) bool {
-	f := strings.ToLower(strings.TrimSpace(field))
+	f := Normalize(field)
 	if f == "" {
 		return false
 	}

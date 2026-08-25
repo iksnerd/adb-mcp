@@ -19,6 +19,9 @@ var gettingStarted string
 //go:embed driving.md
 var driving string
 
+//go:embed rn-expo.md
+var rnExpo string
+
 //go:embed pin-and-lock.md
 var pinAndLock string
 
@@ -46,6 +49,13 @@ var all = []guide{
 		title: "Driving a UI (observe→act loop)",
 		desc:  "The core observe→locate→act→re-observe loop, the true-pixel coordinate rule, and the gotchas (overlays eating taps, keyboard covering buttons, settle delays) that waste turns.",
 		body:  driving,
+	},
+	{
+		uri:   "android://guide/rn-expo",
+		name:  "rn-expo",
+		title: "React Native / Expo dev builds",
+		desc:  "The ordered recipe for driving a dev build (adb_reverse before launch, app_state before believing anything), why \"metro\" does not mean the RIGHT metro, staleness after a git checkout, and the Expo traps that produce success-shaped failures.",
+		body:  rnExpo,
 	},
 	{
 		uri:   "android://guide/pin-and-lock",

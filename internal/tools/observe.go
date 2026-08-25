@@ -23,10 +23,16 @@ type screenshotArgs struct {
 
 type describeUIArgs struct {
 	serialArg
-	Filter  string `json:"filter,omitempty" jsonschema:"What to include: 'auto' (default — elements with text, content_desc, resource_id, or clickable; identical-bounds label-less wrappers dropped), 'clickable' (tap targets only, the smallest view), or 'all' (every bounded node, unfiltered — use to PROVE an element is absent from the hierarchy)."`
+	Filter  string `json:"filter,omitempty" jsonschema:"What to include: 'auto' (default — elements with text, content_desc, resource_id, or clickable; identical-bounds label-less wrappers dropped), 'clickable' (tap targets only, the smallest view), or 'all' (every bounded node, unfiltered — use to PROVE an element is absent from the CURRENT VIEWPORT). 'all' is still viewport-scoped: Android omits off-screen ScrollView children from the accessibility tree, so scroll before concluding absence, and use render_stats (not this) to count a long list."`
 	Query   string `json:"query,omitempty" jsonschema:"Case-insensitive substring to match against text, content_desc, and resource_id — return only matching elements. The cheap way to ask 'is X on this screen?'. Combine with filter='all' to prove absence definitively."`
 	Compact *bool  `json:"compact,omitempty" jsonschema:"Return one line per element (center, bounds, flags, labels) instead of JSON — ~10x fewer tokens, same aiming information. Use for repeated look-drive loops and geometry work."`
 	Package string `json:"package,omitempty" jsonschema:"Optional package expected to own the focused window. If another app or SystemUI owns focus, the response calls that out explicitly."`
+}
+
+type renderStatsArgs struct {
+	serialArg
+	Package string `json:"package" jsonschema:"Application package name."`
+	Reset   *bool  `json:"reset,omitempty" jsonschema:"Zero gfxinfo's frame counters after reading, so the NEXT call measures only what happens in between. Use it to attribute jank to one interaction instead of to the whole session."`
 }
 
 type waitForTextArgs struct {
@@ -168,7 +174,7 @@ func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter, expectedPackage strin
 	if snap.Hidden > 0 {
 		fmt.Fprintf(&b, "%d node(s) hidden by filter=%q — absence below does NOT prove an element is missing; re-run with filter=\"all\" to see the raw hierarchy\n", snap.Hidden, string(filter))
 	} else {
-		fmt.Fprintf(&b, "0 nodes hidden (filter=%q) — this is the complete bounded hierarchy for the current viewport; scrollable content may still be off-screen\n", string(filter))
+		fmt.Fprintf(&b, "0 nodes hidden (filter=%q) — this is the complete bounded hierarchy for the CURRENT VIEWPORT; Android omits off-screen ScrollView children entirely, so scroll before concluding something is absent, and use render_stats to count a long list\n", string(filter))
 	}
 	fmt.Fprintf(&b, "%d element(s):", len(snap.Elements))
 	return b.String()
@@ -185,4 +191,16 @@ func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, 
 		return nil, err
 	}
 	return jsonResult(e)
+}
+
+func renderStats(ctx context.Context, in renderStatsArgs) (*mcp.CallToolResult, error) {
+	c, err := resolve(ctx, in.Serial)
+	if err != nil {
+		return nil, err
+	}
+	s, err := c.GetRenderStats(ctx, in.Package, boolOr(in.Reset, false))
+	if err != nil {
+		return nil, err
+	}
+	return jsonResult(s)
 }

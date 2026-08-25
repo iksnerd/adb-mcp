@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-78 tools + 5 guide resources, across the ten areas below.
+79 tools + 6 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -22,13 +22,14 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `screenshot` | Capture the screen as a PNG (auto-downscaled) — to *see* state; retries an all-black frame and flags why (FLAG_SECURE / screen off); works on multi-display foldables (`display: "cover"`/`"inner"`/index picks a panel) |
-| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay or wrong-app occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all`), `query` ("is X on screen?"), `compact` (~10x smaller), and optional `package` ownership check |
+| `describe_ui` | UI hierarchy as elements with text/desc/id + true-pixel `center` — to *aim*. Header reports the focused `top window` (spot system-overlay or wrong-app occlusion) + hidden-node count; `filter` (`auto`/`clickable`/`all`), `query` ("is X on screen?"), `compact` (~10x smaller), and optional `package` ownership check. Viewport-scoped at every filter — Android drops off-screen `ScrollView` children |
+| `render_stats` | Whole view tree and frame health from `dumpsys gfxinfo`: total views, render-node kB, per-window breakdown, jank % and frame-time percentiles, plus Choreographer's skipped-frame tally — to *measure* (`describe_ui` undercounts a long list); `reset` zeroes the counters so the next call scopes to one interaction |
 
 ### Interact
 | Tool | Purpose |
 |---|---|
 | `tap` | Tap true-pixel `(x,y)` (use a `describe_ui` center); `verify_change` reports `ui_changed`, `identify` reports which element the coordinate hit (or that it hit a non-clickable wrapper / no reported element) |
-| `tap_on_text` | Find an element by label/desc and tap its center; `verify_change` reports `ui_changed`; `via_accessibility` (EXPERIMENTAL) dispatches a real accessibility click through the bridge instead — see [bridge/README.md](../bridge/README.md) |
+| `tap_on_text` | Find an element by label/desc and tap its center (typographic punctuation folded, so a typed `Don't` matches a rendered `Don’t`); `verify_change` reports `ui_changed`; `via_accessibility` (EXPERIMENTAL) dispatches a real accessibility click through the bridge instead — see [bridge/README.md](../bridge/README.md) |
 | `tap_element` | Find an element by resource_id (filter=all, so unlabeled wrappers count) and tap its center, re-resolving right before tapping; `verify_change` reports `ui_changed`; `via_accessibility` (EXPERIMENTAL) dispatches a real accessibility click through the bridge instead — see [bridge/README.md](../bridge/README.md) |
 | `long_press` | Press and hold `(x,y)` for a duration |
 | `wait_for_text` | Poll until a label appears, then return its tappable center; `scroll:true` opt-in swipes through off-screen ScrollView content while polling |

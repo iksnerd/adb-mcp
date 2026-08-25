@@ -4,6 +4,108 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.23.0 — Guidance that reaches the agent, and the right Metro
+
+Field round 11 (see [BACKLOG.md](BACKLOG.md)) opened with a finding that was not
+about a tool at all: a reporter drove a device for an hour, worked several things
+out the hard way, and read **zero** `android://guide/*` resources until a human
+told them to. Resources are a pull channel and agents do not pull. So this
+release moves the guidance that is expensive to miss into channels that land on
+their own, and fixes the three tool gaps that were still producing confident
+wrong answers.
+
+**Added: the server now returns MCP `instructions`.** They arrive on
+`initialize` and land in the model's system prompt before any tool is called —
+the only channel here that does not depend on the agent choosing to read
+something. Deliberately about fifteen lines, because they sit in every session's
+context forever: `adb_reverse` before launching a dev client, `app_state` before
+believing anything, absence-is-not-evidence, viewport-scoped reads,
+`run_sequence` for timing, and the guide URIs. Everything else stays in tool
+descriptions (read at the moment of use) and error messages (read at the moment
+of being wrong).
+
+**Fixed: `app_state` could not tell the RIGHT Metro from a WRONG one.** A dev
+server left running from another checkout still holds port 8081, so a dev client
+connects to it and every signal reads healthy — `bundle_source: metro`, an
+established socket, no warning anywhere — while the JavaScript executing belongs
+to a different branch. That is worse than the embedded-bundle case, which at
+least looks wrong the moment you check it. `app_state` now identifies *which*
+dev server, resolved host-side: port, URL, the listening pid and command, and
+the **project root** that process is running in. The live-socket probe also runs
+whenever the process could still be on a dev server rather than only when logcat
+came back inconclusive, since it is the only thing that reports which port.
+Where the host process cannot be identified (no `lsof`, or a server on another
+machine) the response says so instead of implying certainty.
+
+**Fixed: `source_path` staleness detection could silently produce nothing.**
+Passed in exactly its documented scenario, it returned `source_mtime` and then
+no marker, no comparison and no verdict, while the running JavaScript was
+several commits behind. There is now a `stale_verdict` (`stale` / `current` /
+`undetermined`) with a `stale_reason` on **every** path that takes a
+`source_path` — not installed, not running, embedded bundle, wrong-checkout
+Metro, no HMR marker logged yet, or a real timestamp comparison. `undetermined`
+names why and what to do about it. Silently skipping a check a caller asked for
+is the failure mode the whole field-feedback room exists to catch.
+
+**Fixed: text matching missed on typographic punctuation.**
+`tap_on_text("Don't allow")` found nothing on the runtime permission dialog,
+whose label is `Don’t allow` with U+2019, and the error read as "the element is
+absent". Curly quotes, en/em dashes, the ellipsis, the non-breaking-space family
+and zero-width characters are now folded to ASCII on **both** sides of every
+text match (`tap_on_text`, `tap_element`, `wait_for_text`, `enter_pin`,
+`describe_ui {query}`), so the fold can never make a match narrower than a
+literal comparison would.
+
+**Added: `render_stats`** (tool 79). `describe_ui` is viewport-scoped at every
+filter, including `all` — Android omits a `ScrollView`'s off-screen children
+from the accessibility tree — which makes it the right instrument for "is X on
+screen?" and the wrong one for "how many views did this list actually mount?".
+`render_stats` reads `dumpsys gfxinfo`: total views, render-node kB, a
+per-`ViewRootImpl` breakdown, jank percentage and frame-time percentiles, plus
+the `Choreographer` skipped-frame tally scoped to the app's own pid. Those
+numbers together are what argues an unvirtualised list, and they were three
+separate shell-outs before. `reset: true` zeroes the frame counters after
+reading so the next call measures one interaction. `describe_ui` now says out
+loud that it stays viewport-scoped, and points here for counting.
+
+**Added: `android://guide/rn-expo`** (guide 6). RN/Expo has produced the most
+expensive papercuts in this project's history and that knowledge was spread
+across two bullets in the driving guide and several tool descriptions. The new
+guide leads with the ordered recipe, because the ordering is the part people get
+wrong, and collects the traps that had no home: a stray Metro from another
+checkout holding the port; `expo run:android` skipping prebuild when `android/`
+already exists, so config-plugin manifest changes never apply and a runtime
+permission request fails for no visible reason; `force-stop` plus `monkey`
+landing on the Dev Launcher list; a non-default port having to move in two
+places at once. Both plugins gained the matching thin skill.
+
+**Changed: a failed `tap_on_text`/`tap_element` now teaches.** An agent reads an
+error at the exact moment it is wrong, with full attention and a concrete goal —
+no other channel has that property. The miss now names the focused window, lists
+what IS on screen closest-first, and states the viewport rule, instead of "no
+element matching X", which reads as "the element is absent" and sends people
+debugging the app rather than their selector. `doctor` closes with an rn-expo
+pointer and `list_devices` carries one, since both are near-universal session
+openers; `wait` and `press_key` now name `run_sequence`, which the reporter only
+discovered after the session despite it fitting their exact problem.
+
+**Changed: two more versions stopped being typed by hand.** `scripts/docsync`
+now writes `VERSION` into both plugin manifests, which nothing in the release
+gate looks at and which would otherwise have stayed on whatever release first
+wrote them. It also fails when a guide resource has no plugin skill wrapping it
+— the drift that nearly shipped six guides with five skills.
+
+Verified live on `emulator-5556` (API 37) over real stdio JSON-RPC:
+`instructions` returned from `initialize`; `render_stats` against two packages,
+including the `reset` path; `app_state` returning a `stale_verdict` where it
+previously returned silence; an ASCII-hyphen `"Mobile, Wi-Fi, hotspot"`
+exact-matching and tapping Settings' U+2011 `Wi‑Fi` label; the new miss error;
+`resources/read` on the new guide; and the host-side dev-server resolution
+against a real listener on 8081. **Not** verified: the full device-side Metro
+identification, which needs an installed Expo dev build — no third-party package
+was available on the test emulator. Its parsers are unit-tested and the host
+half was exercised live; flagged in BACKLOG.md as unverified rather than done.
+
 ## v0.22.2 — Installable as a container
 
 **Added: an OCI image, published to `ghcr.io` on every release.** The MCP

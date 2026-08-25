@@ -119,5 +119,8 @@ func doctor(ctx context.Context, _ doctorArgs) (*mcp.CallToolResult, error) {
 		func() { device = adb.Doctor(ctx) },
 		func() { toolchain = gradle.ToolchainReport(ctx) },
 	)
-	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb-mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s\n%s", ServerVersion, device, toolchain), nil
+	// doctor and list_devices are the near-universal session openers, which makes
+	// them the cheapest place to catch an agent BEFORE the expensive RN/Expo
+	// mistakes are available to make. One line, at step one.
+	return text("adb-mcp server version: %s (latest: https://github.com/iksnerd/adb-mcp/releases — update with `adb-mcp update`; a restarted MCP client picks up the new binary)\n\n%s\n%s\n\nDriving a React Native/Expo dev build? Read android://guide/rn-expo first — adb_reverse BEFORE launching, app_state before believing anything on screen.", ServerVersion, device, toolchain), nil
 }

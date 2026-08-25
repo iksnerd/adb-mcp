@@ -27,7 +27,7 @@ import (
 
 // version is overridable at build time via -ldflags "-X main.version=...".
 // The Makefile injects the value from the VERSION file / git.
-var version = "0.22.2"
+var version = "0.23.0"
 
 func main() {
 	log.SetFlags(0)
@@ -87,10 +87,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Instructions ride along on initialize and land in the model's system
+	// prompt before any tool is called — the one channel that doesn't depend on
+	// the agent deciding to read something. See internal/tools/instructions.go.
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "adb-mcp",
 		Version: version,
-	}, nil)
+	}, &mcp.ServerOptions{Instructions: tools.Instructions})
 
 	tools.ServerVersion = version
 	tools.Register(srv)

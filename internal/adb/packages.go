@@ -196,22 +196,63 @@ func isPackageInstalled(dump string) bool {
 // (a lingering old build + a fresh install) is the same class of trap — presses
 // and log reads can hit different pids.
 type AppState struct {
-	Package        string   `json:"package"`
-	Installed      bool     `json:"installed"`
-	Running        bool     `json:"running"`
-	Foreground     bool     `json:"foreground"`
-	TopActivity    string   `json:"top_activity,omitempty"`
-	PIDs           []int    `json:"pids,omitempty"`
-	ProcessUptime  string   `json:"process_uptime,omitempty"` // wall-clock of the main process (ps ETIME)
-	FirstInstall   string   `json:"first_install_time,omitempty"`
-	LastUpdate     string   `json:"last_update_time,omitempty"`
-	BundleSource   string   `json:"bundle_source"`             // metro | embedded | unknown | not-react-native
-	BundleEvidence string   `json:"bundle_evidence,omitempty"` // the log line(s) the guess is based on
-	BundleSignals  []string `json:"bundle_signals,omitempty"`  // independent signals used by the verdict
-	SourceMTime    string   `json:"source_mtime,omitempty"`
-	LastHMRUpdate  string   `json:"last_hmr_update,omitempty"`
-	BundleStale    bool     `json:"bundle_stale,omitempty"`
-	Notes          []string `json:"notes,omitempty"`
+	Package        string       `json:"package"`
+	Installed      bool         `json:"installed"`
+	Running        bool         `json:"running"`
+	Foreground     bool         `json:"foreground"`
+	TopActivity    string       `json:"top_activity,omitempty"`
+	PIDs           []int        `json:"pids,omitempty"`
+	ProcessUptime  string       `json:"process_uptime,omitempty"` // wall-clock of the main process (ps ETIME)
+	FirstInstall   string       `json:"first_install_time,omitempty"`
+	LastUpdate     string       `json:"last_update_time,omitempty"`
+	BundleSource   string       `json:"bundle_source"`             // metro | embedded | unknown | not-react-native
+	BundleEvidence string       `json:"bundle_evidence,omitempty"` // the log line(s) the guess is based on
+	BundleSignals  []string     `json:"bundle_signals,omitempty"`  // independent signals used by the verdict
+	Metro          *MetroServer `json:"metro,omitempty"`           // WHICH dev server, not just "a" dev server
+	SourceMTime    string       `json:"source_mtime,omitempty"`
+	LastHMRUpdate  string       `json:"last_hmr_update,omitempty"`
+	BundleStale    bool         `json:"bundle_stale,omitempty"`
+	StaleVerdict   string       `json:"stale_verdict,omitempty"` // stale | current | undetermined (only when source_path was given)
+	StaleReason    string       `json:"stale_reason,omitempty"`
+	Notes          []string     `json:"notes,omitempty"`
+}
+
+// setStaleness records the staleness verdict on s. It is always called when the
+// caller passed a source_path — including when the answer is "undetermined",
+// which is the whole point: the field's previous behaviour was to compute
+// nothing and say nothing when no HMR marker existed, so a caller reading a
+// clean response concluded the JavaScript was current when it was several
+// commits behind. Absence of a warning is not absence of a problem.
+func (s *AppState) setStaleness(verdict, reason string) {
+	s.StaleVerdict = verdict
+	s.StaleReason = reason
+	s.BundleStale = verdict == "stale"
+}
+
+// stalenessVerdict decides whether the JavaScript a process is executing still
+// matches the host sources under sourcePath. Pure, so every branch — including
+// the two that produce "stale" without any timestamp comparison — is unit
+// tested. Order matters: a wrong-checkout Metro and an embedded bundle are
+// decisive on their own, and neither leaves a timestamp to compare.
+func stalenessVerdict(bundleSource, metroRoot, sourcePath string, sourceTime, markerTime time.Time, haveMarker bool) (verdict, reason string) {
+	switch {
+	case bundleSource == "embedded":
+		return "stale", fmt.Sprintf("this process is running its EMBEDDED bundle, so nothing under %s is in it — adb_reverse tcp:8081, then relaunch", sourcePath)
+	case metroRoot != "" && !SameTree(metroRoot, sourcePath):
+		return "stale", fmt.Sprintf("the Metro dev server this process is connected to is rooted at %s, which is NOT %s — a dev server left running from another checkout still holds the port, so the running JavaScript is that checkout's code; kill it and start Metro from %s", metroRoot, sourcePath, sourcePath)
+	case sourceTime.IsZero():
+		return "undetermined", fmt.Sprintf("could not read a newest source mtime under %s", sourcePath)
+	case bundleSource != "metro":
+		return "undetermined", fmt.Sprintf("bundle_source is %q, so there is no confirmed Metro connection to compare source_mtime against", bundleSource)
+	case !haveMarker:
+		return "undetermined", "no epoch-timed Metro/HMR marker in this process's recent logcat, so source_mtime has nothing to compare against. A live Metro socket proves the process is CONNECTED, not that the bundle it is running came from this checkout — clear_logcat, reload_app, then call app_state again"
+	case sourceTime.After(markerTime.Add(2 * time.Second)):
+		return "stale", fmt.Sprintf("source files under %s are newer (%s) than the latest observed Metro/HMR update (%s) — Metro's watcher misses git-driven file replacement (checkout/stash), so reload_app before trusting anything on screen",
+			sourcePath, sourceTime.Format(time.RFC3339), markerTime.Format(time.RFC3339))
+	default:
+		return "current", fmt.Sprintf("the latest Metro/HMR update (%s) is at or after the newest source file under %s (%s)",
+			markerTime.Format(time.RFC3339), sourcePath, sourceTime.Format(time.RFC3339))
+	}
 }
 
 var (
@@ -255,6 +296,9 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 	}
 	if !s.Installed {
 		s.Notes = append(s.Notes, "package not installed (or dumpsys package couldn't read it)")
+		if sourcePath != "" {
+			s.setStaleness("undetermined", "the package is not installed, so there is no running bundle to compare against")
+		}
 		return s, nil
 	}
 
@@ -265,6 +309,9 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 	if !s.Running {
 		s.Notes = append(s.Notes, "not running — launch_app first; bundle source can't be determined for a stopped app")
 		s.BundleSource = "n/a"
+		if sourcePath != "" {
+			s.setStaleness("undetermined", "the app is not running, so there is no bundle to compare against — launch_app, then call app_state again")
+		}
 		return s, nil
 	}
 	// Foreground activity, process uptime, and the logcat dump below only depend
@@ -299,39 +346,61 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 	// markers. --pid keeps it to this app's own lines. Modern Expo/RN builds can
 	// connect to Metro without emitting the older HMRClient/Fast Refresh markers,
 	// so use the process' live TCP sockets as a second, independent signal.
+	var markerTime time.Time
+	var haveMarker bool
 	if logsErr == nil {
 		s.BundleSource, s.BundleEvidence = classifyBundle(logs)
-		if markerTime, ok := bundleUpdateTime(logs); ok {
+		if markerTime, haveMarker = bundleUpdateTime(logs); haveMarker {
 			s.LastHMRUpdate = markerTime.Format(time.RFC3339)
-			if !sourceTime.IsZero() && sourceTime.After(markerTime.Add(2*time.Second)) {
-				s.BundleStale = true
-				s.Notes = append(s.Notes, "source files are newer than the latest observed Metro/HMR update — Metro may be serving stale JavaScript; reload or restart Metro")
-			}
 		}
-		if s.BundleSource == "metro" {
-			s.BundleSignals = append(s.BundleSignals, "logcat")
-		} else if s.BundleSource == "embedded" {
+		if s.BundleSource == "metro" || s.BundleSource == "embedded" {
 			s.BundleSignals = append(s.BundleSignals, "logcat")
 		}
+	} else {
+		s.Notes = append(s.Notes, fmt.Sprintf("recent logcat unavailable (%v) — the bundle verdict rests on socket evidence alone", logsErr))
 	}
-	if s.BundleSource == "unknown" {
+	// The socket probe runs whenever the process could still be talking to a dev
+	// server — not just when logcat came back inconclusive. It is the only thing
+	// that reports WHICH port, and the port is what identifies the dev server;
+	// "on Metro" without "which Metro" is the reassuring-but-wrong answer a stray
+	// dev server from another checkout produces.
+	if s.BundleSource == "metro" || s.BundleSource == "unknown" {
 		if sockets, err := c.adb(ctx, "shell", "cat", "/proc/"+pid+"/net/tcp", "/proc/"+pid+"/net/tcp6"); err == nil {
 			if port, ok := metroSocketPort(sockets); ok {
-				s.BundleSource = "metro"
-				s.BundleEvidence = fmt.Sprintf("process has an established TCP connection to Metro port %d", port)
+				if s.BundleSource != "metro" {
+					s.BundleSource = "metro"
+					s.BundleEvidence = fmt.Sprintf("process has an established TCP connection to Metro port %d", port)
+				}
 				s.BundleSignals = append(s.BundleSignals, "live_socket")
+				srv, resolved := HostMetroServer(ctx, port)
+				s.Metro = &srv
+				if !resolved {
+					s.Notes = append(s.Notes, fmt.Sprintf("couldn't identify the host process listening on %d (no lsof, or the server is on another machine) — 'metro' here means A dev server, not necessarily the one serving your checkout", port))
+				}
 			}
 		}
 	}
 	switch s.BundleSource {
 	case "metro":
-		s.Notes = append(s.Notes, "serving a live Metro bundle — code edits apply after a reload_app / dev-menu Reload")
+		note := "serving a live Metro bundle — code edits apply after a reload_app / dev-menu Reload"
+		if s.Metro != nil && s.Metro.ProjectRoot != "" {
+			note += fmt.Sprintf("; that dev server (pid %d, %s) is rooted at %s — confirm this is the checkout you are reasoning about, because a stray Metro from another branch holding the same port looks identical here", s.Metro.PID, s.Metro.Command, s.Metro.ProjectRoot)
+		}
+		s.Notes = append(s.Notes, note)
 	case "embedded":
 		s.Notes = append(s.Notes, "running the EMBEDDED bundle — your JS edits are NOT in this process; if you expected Metro, run adb_reverse tcp:8081 and relaunch")
 	case "not-react-native":
 		s.BundleSource = "n/a"
 	case "unknown":
 		s.Notes = append(s.Notes, "couldn't tell Metro from embedded — no React-Native markers in recent logcat; clear_logcat, reload, and re-check, or it may be a native (non-RN) app")
+	}
+	if sourcePath != "" {
+		metroRoot := ""
+		if s.Metro != nil {
+			metroRoot = s.Metro.ProjectRoot
+		}
+		verdict, reason := stalenessVerdict(s.BundleSource, metroRoot, sourcePath, sourceTime, markerTime, haveMarker)
+		s.setStaleness(verdict, reason)
 	}
 	return s, nil
 }
