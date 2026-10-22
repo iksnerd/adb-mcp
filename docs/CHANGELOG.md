@@ -4,6 +4,66 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.0 — Builds an agent can wait on, and docs that match the code
+
+A field report from a bare React Native test run (`adb-mcp-feedback`) said the
+agent called two adb-mcp tools and did everything else through the shell. Checked
+against the code, each reason was real: `gradle_build` held the call open for the
+whole 4-5 minute build and answered with a bare tail, nothing could read the
+`applicationId` out of a built APK, and only one tool redacted credentials from
+Gradle's output. This release fixes those, then fixes the drift a review of every
+tool description and guide found afterwards.
+
+**Added: `gradle_build` returns a summary and a log path, and can run in the
+background.** The result is now the build's status, duration, error count, the
+first five errors and the APKs under `build/outputs` (newest first, so an APK
+from an earlier build can be in the list), plus the path of the **full log**.
+The error count includes Gradle's own failures, the line under `* What went
+wrong:` ("Task not found", dependency resolution), which have no compiler line.
+Pass `background: true` and the call returns a job id and log path at once; the
+log fills as Gradle runs. The new **`build_status`** tool (tool 80) reports
+`running` with elapsed time, or the final summary. Jobs live only as long as the
+server process, and a background build is stopped after 60 minutes.
+`build_and_run` shares the same build path, so a failed build there returns the
+same summary and log path. It still blocks for the whole build. The test and
+coverage tools remain foreground-only; for a long run, start the same task with
+`gradle_build` and `background: true`.
+
+**Added: `get_app_details` reads an APK.** Pass `apk_path` instead of `package`
+to get the package id, version and launcher activity from a local APK with the
+SDK's `aapt2`, with no device attached: the `applicationId` right after a build
+without grepping `build.gradle`. `aapt2` is found under the SDK's `build-tools/`
+(newest first) rather than on `PATH`.
+
+**Fixed: only one tool redacted credentials from Gradle output.** A `--info`
+build echoes properties from `~/.gradle/gradle.properties`, which is where
+private Maven repository credentials live. The output of every Gradle run, and
+the build log on disk, now masks credential-shaped assignments
+(`*password*`, `*token*`, `*key*`, `*secret*`), bearer tokens and `user:pass@`
+URLs. Not covered: the wrapper-generation output and the test-failure traces read
+from JUnit XML.
+
+**Fixed: text that told agents to make a call that does not exist.** Eleven
+places said `adb_reverse tcp:8081`, but the tool takes an integer `device_port`.
+Two tool descriptions, three runtime messages and a guide now say
+`adb_reverse {device_port: 8081}`, and tests over the listed tool descriptions
+and the guides fail if the shorthand returns.
+
+**Fixed: descriptions and guides that no longer matched the code.** The
+`build-and-test` guide describes the summary, background builds and `apk_path`.
+`is_device_secure` and its guide sentence now match the implementation
+(`locksettings verify` first, `get-disabled` as the fallback).
+`list_gradle_tasks` no longer advertises the test runners' `json` flag. The two
+coverage descriptions and `fingerprint_touch` are about a third of their old size,
+with the detail left in the guides.
+
+**Added: the plugin is installable from the repo.** A repo-root marketplace
+manifest means `/plugin marketplace add iksnerd/adb-mcp` works today, alongside
+the Codex plugin; the README documents both install paths and says the plugin
+registers the server but does not install the binary.
+
+80 tools, 6 guides.
+
 ## v0.23.0 — Guidance that reaches the agent, and the right Metro
 
 Field round 11 (see [BACKLOG.md](BACKLOG.md)) opened with a finding that was not

@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Drive an Android emulator or device from Claude Code over adb.",
-    "version": "0.23.0"
+    "version": "0.24.0"
   },
   "plugins": [
     {
