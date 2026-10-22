@@ -122,7 +122,7 @@ From `android-mcp-papercuts` #019fdd06 (2026-08-07, a client's multi-module Grad
 - [x] **`gradle_project_properties` dumped injected secrets in plaintext, no redaction.** It runs Gradle's stock `properties` task, which returns a module's *entire* effective property set — including credentials injected via `~/.gradle/gradle.properties`/env for private Maven repo auth (this repo's case: Nexus creds for a private SDK, `*_USER`/`*_PASS` pairs), indistinguishable in the output from harmless entries like `compileSdkVersion`. **Shipped:** `redactSecretProperties` masks any property value whose key matches a secret-shaped pattern (password/token/key/credential, case-insensitive) before the tool returns it; the tool description now says so.
 - [x] **`list_gradle_variants`/`list_gradle_tasks` couldn't be scoped to a submodule.** Unlike `gradle_project_properties` (takes `module`), these two always ran against the Gradle root — and for `list_gradle_tasks` the `task` param was silently ignored entirely (hardcoded `gradlew tasks`), confirmed by the report's repro (`task: ":app:tasks"` produced byte-identical output to omitting it). On a multi-module build where only a submodule applies the Android plugin, `list_gradle_variants` returned "No build variants found" even though `:app` (found seconds earlier via `list_gradle_projects`) plainly had them. **Shipped:** both tools now honor `task` — a bare `"tasks"` (default) or a module-qualified `":app:tasks"` reaches `gradlew` unchanged, matching the convention `gradle_build`'s `task=` already uses.
 - [x] **`wait_for_text`'s viewport caveat didn't reach the timeout message.** Round 9's `scroll:true` shipped, and `describe_ui`'s "trustworthy absence" wording was qualified to the current viewport (v0.19.0) — but `wait_for_text`'s own timeout error (`"text %q did not appear within %s"`) still read as unconditional absence, which is exactly where the report said it cost 45s. **Shipped:** the timeout error now says so and points at `scroll=true` when the call didn't already use it.
-- Minor, not actioned: `list_gradle_projects`/`list_gradle_variants` schema descriptions still carry copy-pasted `json=`/`run_unit_tests` references that don't apply to them — noise when reading the schema, not a functional bug. Low priority.
+- [x] **Gradle list tools carried schema noise from the test runners.** `list_gradle_projects` and `list_gradle_variants` already had their own argument types; `list_gradle_tasks` still shared the test runners' (`json=`, "ignored by…" copy). Now it shares the variants tool's scope-only args, and the `json` description no longer names tools it does not apply to.
 
 ## Field feedback, round 11 (delivery channels + wrong-Metro, 2026-08-25)
 
@@ -151,6 +151,15 @@ work above was verified on `emulator-5556` (API 37) except the **end-to-end**
 Metro path, which needs an installed Expo dev build: its parsers are unit-tested
 and the host-side `lsof` resolution was verified live against a real listener on
 8081, but no RN app was available to produce the device-side socket.
+
+## Field feedback, round 12 (bare React Native run that mostly used the shell, 2026-10-22)
+
+From `adb-mcp-feedback` #01a16302 — an agent testing a bare RN 0.86 Release build on an emulator called only `list_avds` and `list_devices` and did the rest through `adb`, `./gradlew` and Maestro. Its reasons were each checked against the code and were real.
+
+- [x] **`gradle_build` blocked for the whole build and returned a bare tail.** A 4-5 minute build held the call open, with no log file and no error count. **Shipped:** a compact summary (status, duration, error count, first five errors, APK paths) with the full output in a log file whose path is returned; `background=true` returns a job id and log path at once and the new `build_status` tool reports running or the final summary. Jobs live as long as the server process and are cut off after 60 minutes.
+- [x] **`get_app_details` could not read an APK.** The reporter grepped `build.gradle` for the `applicationId` after `aapt2` printed nothing. **Shipped:** `apk_path` reads package id, version and launcher activity with the SDK's `aapt2`, found under `build-tools/` rather than on `PATH`, no device needed.
+- [x] **Gradle output was redacted in only one tool.** Only `gradle_project_properties` masked secrets; a `--info` build echoes `~/.gradle/gradle.properties`. **Shipped:** every Gradle tool's output, and the log file on disk, masks credential-shaped assignments, bearer tokens and `user:pass@` URLs.
+- Not changed: tools are deferred in some clients, so each needs a tool-search load first. That is client behavior; the summary result and background mode are meant to make the load worth it for long builds.
 
 ## Conventions (read before adding a tool)
 

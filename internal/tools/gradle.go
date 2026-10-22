@@ -17,7 +17,7 @@ type gradleArgs struct {
 	projectDirArg
 	Task string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to the tool's standard task."`
 	Args []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
-	JSON bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
+	JSON bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary."`
 }
 
 type gradleBuildArgs struct {
@@ -55,9 +55,9 @@ type fileCoverageArgs struct {
 	File string `json:"file" jsonschema:"Source file to report coverage for — a filename (e.g. Foo.kt) or package-qualified path (e.g. com/example/Foo.kt). Matched by suffix; an ambiguous bare filename returns every match."`
 }
 
-type gradleVariantsArgs struct {
+type gradleScopeArgs struct {
 	projectDirArg
-	Task string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list variants for the :app module. Defaults to the root project's tasks."`
+	Task string `json:"task,omitempty" jsonschema:"Gradle task to scope to, e.g. \":app:tasks\" to list the :app module's tasks or variants. Defaults to the root project's tasks."`
 }
 
 type gradlePropertiesArgs struct {
@@ -272,7 +272,7 @@ func getFileCoverage(ctx context.Context, in fileCoverageArgs) (*mcp.CallToolRes
 	return text("%s", b.String()), nil
 }
 
-func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+func listGradleTasks(ctx context.Context, in gradleScopeArgs) (*mcp.CallToolResult, error) {
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
 		return nil, err
@@ -288,7 +288,7 @@ func listGradleTasks(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, e
 	return text("%s", tailLines(out, 120)), nil
 }
 
-func listGradleVariants(ctx context.Context, in gradleVariantsArgs) (*mcp.CallToolResult, error) {
+func listGradleVariants(ctx context.Context, in gradleScopeArgs) (*mcp.CallToolResult, error) {
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
 		return nil, err
