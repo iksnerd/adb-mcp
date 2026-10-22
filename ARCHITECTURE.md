@@ -60,7 +60,7 @@ flowchart TB
         a_cmds["input · packages · screen · ui · lock · logcat · capture<br/>permissions · files · environment · devices · emulator · crash · statusbar"]
     end
 
-    gradle["internal/gradle<br/><i>Gradle · FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage<br/>GenerateWrapper · ToolchainReport</i>"]
+    gradle["internal/gradle<br/><i>Gradle · RunBuild · StartBuild · BuildStatus · RedactSecrets<br/>FindAPKs · PickAPK · ParseTestResults<br/>FindCoverageReports · MergeReports · SummarizeCoverage<br/>GenerateWrapper · ToolchainReport</i>"]
     uiauto["internal/uiauto<br/><i>Element · UIFilter · ParseHierarchy · FindByText/ResourceID</i>"]
     sdk["internal/sdk<br/><i>Root · IsSDKRoot · AdbPath · EmulatorPath · CommandEnv</i>"]
     concurrent["internal/concurrent<br/><i>RunAll · RunIndexed</i>"]
@@ -125,7 +125,18 @@ fake `Runner` and asserts the exact argv — so command builders are unit-tested
 with **no device** (see `client_test.go`). Hostless helpers that have no serial
 (`ListDevices`, `BootEmulator`, `ConnectWireless`, `Doctor`) stay package funcs.
 
-**`internal/gradle` — host-side builds.** `Gradle` runs the wrapper; `FindAPKs`
+**`internal/gradle` — host-side builds.** `Gradle` runs the wrapper and returns its
+output; `RunBuild` runs a task to completion and `StartBuild`/`BuildStatus` run
+one detached (an in-process job table, lost when the server exits, with a 60
+minute cap). Both write the full output to a log file and return a small
+`BuildSummary` (status, duration, error count, first errors, APKs, log path);
+the error scan counts compiler lines and the line under Gradle's `* What went
+wrong:`. What `Gradle` returns and what `RunBuild` writes to its log both go through
+`RedactSecrets` (the log line by line), so a `--info` build cannot put a
+credential from `~/.gradle/gradle.properties` in a transcript or on disk. Two
+paths are not covered: `GenerateWrapper`'s output and the failure traces
+`ParseTestResults` reads from the JUnit XML.
+`FindAPKs`
 locates outputs (newest-first, `node_modules`/dot-dirs pruned); `PickAPK` skips
 androidTest APKs; `ParseTestResults` reads the JUnit XML. `FindCoverageReports`
 locates the JaCoCo XML — newest *per module*, since a multi-module build emits
@@ -176,11 +187,11 @@ one for the behavior.
 | input / gestures / PIN | `adb/input.go`, `adb/keyevent.go` | `interact.go` |
 | device lock | `adb/lock.go` | `lock.go` |
 | logs & recording | `adb/logcat.go`, `adb/capture.go` | `logs.go` |
-| app lifecycle | `adb/packages.go` | `apps.go` |
+| app lifecycle | `adb/packages.go`, `adb/apk.go` (read an APK's package id and version with aapt2, no device) | `apps.go` |
 | permissions | `adb/permissions.go` | `apps.go` |
 | file transfer | `adb/files.go` | `apps.go` |
 | environment (dark / geo / doctor) | `adb/environment.go`, `adb/doctor.go` (device side) + `gradle/toolchain.go` (host JDK/Gradle) | `environment.go` (composes both) |
-| gradle build & test | `gradle/gradle.go`, `gradle/testreport.go` | `gradle.go` |
+| gradle build & test | `gradle/gradle.go`, `gradle/build.go` (summary, log, background jobs), `gradle/redact.go`, `gradle/testreport.go` | `gradle.go` |
 | JaCoCo coverage reports | `gradle/coverage.go` | `gradle.go` |
 | project scaffolding | `scaffold/scaffold.go` | `gradle.go` |
 | session defaults (`project_dir`/`serial`) | — (no execution layer; process-local state) | `session.go` (`resolveProjectDir`, `resolve`) |

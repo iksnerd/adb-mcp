@@ -112,9 +112,9 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 |---|---|
 | `gradle_build` | `./gradlew assembleDebug` (or a given task) → compact summary (status, duration, error count, first errors, APK paths) plus the full redacted log's path. `background=true` returns a job id and log path at once |
 | `build_status` | Result of a background `gradle_build`: running with elapsed time, or the final summary |
-| `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced) |
-| `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
-| `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
+| `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced). Blocks for the whole build; a failed build returns the same summary and log path as `gradle_build` |
+| `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output. Foreground only: for a long run use `gradle_build` with this task and `background=true` |
+| `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary. Foreground only, like `run_unit_tests` |
 | `get_coverage_report` | `./gradlew jacocoTestReport` (or a given task) → JVM unit-test coverage summary: overall line/branch/method/class %, per-package breakdown worst-covered first. A multi-module build merges every module's report into one set of totals (the merged files are listed). Requires the jacoco plugin already applied; instrumented (on-device) coverage isn't covered |
 | `get_file_coverage` | Same JaCoCo run, scoped to one source file — per-line missed/partial ranges and per-method coverage. `file` matches by suffix (`Foo.kt` or `com/example/Foo.kt`) across every module; an ambiguous name returns every match |
 | `list_gradle_tasks` | Discover available Gradle tasks — root project by default, or pass `task=":module:tasks"` to scope to a submodule |
