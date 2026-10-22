@@ -152,6 +152,23 @@ Expect 6 platform archives + `adb-mcp-bridge.apk` + `checksums.txt`. The
 registry search returns every published version, so check that the new one is
 present — not merely that the query returned something.
 
+## Before the tag: actions that only a tag exercises
+
+`ci.yml` runs on every push, so its actions are tested constantly. `release.yml`
+runs on tags only, so `setup-java`, `setup-android`, the Docker actions and
+`action-gh-release` are not exercised between releases and rot silently. v0.24.0
+failed in "Set up Android SDK" (`Failed to find package 'tools'`: Google stopped
+serving it, and `setup-android@v3` installed it) with the code untouched since
+a release that had passed. Before tagging, run `gh api repos/<owner>/<action>/releases/latest --jq .tag_name`
+for each release-only action and read the notes of any that is a major behind;
+bump it in its own commit on `main` and push before the tag, not after.
+
+If a release run fails **before** the publish steps, nothing is published but the
+tag is. Do not move the tag: the Go module proxy caches a version permanently the
+first time anyone requests it, and a moved tag then fails checksum verification
+for them. Bump to the next patch, rename the CHANGELOG section, and say in it that
+the earlier tag has no release.
+
 ## Failure modes
 
 | Symptom | Cause |
@@ -160,4 +177,5 @@ present — not merely that the query returned something.
 | Release notes are a bare compare link | The `## <tag> ` heading didn't match, so the `awk` slice came out empty |
 | Registry lists the old version after a successful release | Publish step was skipped or failed after the Release — check the run's last step |
 | `mcp-publisher validate` fails on a fresh field | Schema is versioned by the `$schema` date in `server.json`; validate against the pinned publisher, not a newer one |
+| Run fails in "Set up Android SDK" with `Failed to find package 'tools'` | `android-actions/setup-android@v3` installs the retired `tools` package; v4+ installs `platform-tools` |
 | Tool count wrong in docs | Hand-edited instead of running `make docs` — never type these numbers |
