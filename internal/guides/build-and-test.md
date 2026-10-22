@@ -44,17 +44,43 @@ by default. Anywhere you can name a task you can qualify it with a module path:
 ## Build
 
 ```
-gradle_build                             → assembleDebug, reports the APK path(s)
+gradle_build                             → assembleDebug
 gradle_build {task: "assembleRelease"}   → a specific variant
+gradle_build {background: true}          → returns a job id at once; poll build_status
 build_and_run {package: "com.example"}   → build → install → launch, one call
 ```
+
+`gradle_build` returns a **summary**, not Gradle's output: status, duration,
+error count, the first few errors, the APKs under `build/outputs` (newest first,
+so a stale one from an earlier build can be in the list), and the path of the
+**full log**. Read the log file only if the summary does not explain the failure.
+Credential-shaped values (passwords, tokens, `user:pass@` URLs) are redacted
+from both the summary and the log, so a `--info` run is safe to read.
+
+A build of several minutes should not hold the call open. Start it in the
+background and keep working:
+
+```
+gradle_build {task: "assembleRelease", background: true}   → Job: 3f9a…, Log: /tmp/…/build-….log
+build_status {job_id: "3f9a…"}                             → running, 1m12s   (later: passed/failed + summary)
+```
+
+The log is written as Gradle runs, so tailing it shows progress. Jobs live only
+as long as the server process, and a background build is stopped after 60
+minutes.
+
+To get the `applicationId` after a build, read it from the APK instead of
+grepping `build.gradle`: `get_app_details {apk_path: "…/app-debug.apk"}` returns
+the package id, version and launcher activity with no device attached.
 
 A variant name `V` from `list_gradle_variants` maps to the task `assembleV`.
 `build_and_run` installs the **newest non-test** APK the build produced, so
 leftover `androidTest` APKs and multi-flavor outputs don't confuse it.
 
 Gradle is slow and the first run in a project downloads the distribution. Expect
-build calls to take minutes, not seconds.
+build calls to take minutes, not seconds; use `background: true` for those.
+`build_and_run` blocks for the whole build, so for a slow project run
+`gradle_build {background: true}`, then `install_app` and `launch_app`.
 
 ## Test
 
@@ -74,6 +100,11 @@ failures. Read the failure trace before re-running anything: the summary already
 contains the assertion message and the frame, so a second run rarely adds
 information. `json: true` gives the same data structured, which is easier to
 filter when a suite is large.
+
+The test and coverage tools run in the foreground and return only when Gradle
+finishes. For a long run, start the same task with `gradle_build {task: "…",
+background: true}` and read the log; you lose the parsed per-suite summary but
+not the wait.
 
 `run_instrumented_tests` needs a device in state `device` — check `list_devices`
 first if it errors, and see `android://guide/getting-started` for booting one.
@@ -144,8 +175,9 @@ here drives `./gradlew`, so a project without a wrapper is inert.
 
 ## When a build fails
 
-The error returns the tail of Gradle's output, which is where the real message
-is. Before changing anything:
+`gradle_build` and `build_and_run` report the error count and the first few
+errors, plus the log path. The other Gradle tools return the tail of Gradle's
+output, which is where the real message is. Before changing anything:
 
 - Confirm the task exists (`list_gradle_tasks`) and that you scoped it to the
   right module. "Task 'x' not found in root project" almost always means it

@@ -198,16 +198,28 @@ func execute(cmd *exec.Cmd, logFile *os.File, projectDir string, s BuildSummary)
 	return s
 }
 
-// scanErrors counts compiler-style error lines (Kotlin "e: …", javac
-// "…: error: …") and returns the first few.
+// scanErrors counts the failures in a build log and returns the first few:
+// compiler-style error lines (Kotlin "e: …", javac "…: error: …") and Gradle's
+// own reason for a failure, the line under "* What went wrong:" (task not
+// found, dependency resolution, and so on, which have no compiler line).
 func scanErrors(out string) (count int, first []string) {
+	record := func(line string) {
+		count++
+		if len(first) < maxFirstErrors {
+			first = append(first, line)
+		}
+	}
+	afterWhatWentWrong := false
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "e: ") || strings.Contains(line, ": error:") {
-			count++
-			if len(first) < maxFirstErrors {
-				first = append(first, line)
-			}
+		switch {
+		case line == "* What went wrong:":
+			afterWhatWentWrong = true
+		case afterWhatWentWrong && line != "":
+			record(line)
+			afterWhatWentWrong = false
+		case strings.HasPrefix(line, "e: ") || strings.Contains(line, ": error:"):
+			record(line)
 		}
 	}
 	return count, first

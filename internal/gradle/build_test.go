@@ -105,3 +105,36 @@ func TestBuildStatusUnknownJob(t *testing.T) {
 		t.Error("expected an error for an unknown job id")
 	}
 }
+
+func TestFailedSummaryNamesErrorsAndLogPath(t *testing.T) {
+	s := BuildSummary{
+		Task: "assembleDebug", Status: StatusFailed, Duration: 3 * time.Second,
+		ErrorCount: 2, FirstErrors: []string{"e: A.kt:3 Unresolved reference: foo", "e: B.kt:9 Type mismatch"},
+		LogPath: "/tmp/adb-mcp-gradle/build-1.log", Err: "gradle assembleDebug failed: exit status 1",
+	}
+	got := s.String()
+	for _, want := range []string{"Build failed (assembleDebug)", "Errors: 2", "Unresolved reference: foo", "Full log: /tmp/adb-mcp-gradle/build-1.log", "exit status 1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("summary missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunBuildSurfacesGradlesOwnFailureReason(t *testing.T) {
+	dir := fakeProject(t, `echo "FAILURE: Build failed with an exception."
+echo
+echo "* What went wrong:"
+echo "Task 'nosuchTask' not found in root project 'bridge'."
+echo
+echo "* Try:"
+echo "> Run gradlew tasks to get a list of available tasks."
+echo "BUILD FAILED in 1s"
+exit 1`)
+	s := RunBuild(context.Background(), dir, "nosuchTask", nil)
+	if s.Status != StatusFailed {
+		t.Fatalf("Status = %q, want failed", s.Status)
+	}
+	if s.ErrorCount != 1 || len(s.FirstErrors) != 1 || !strings.Contains(s.FirstErrors[0], "Task 'nosuchTask' not found") {
+		t.Errorf("ErrorCount = %d, FirstErrors = %v; want Gradle's own reason as the one error", s.ErrorCount, s.FirstErrors)
+	}
+}

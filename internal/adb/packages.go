@@ -134,7 +134,7 @@ func (c *Client) ClearAppData(ctx context.Context, pkg string) (string, error) {
 // straight at a Metro dev server, skipping the Dev Launcher's server-picker
 // screen: "<scheme>://expo-development-client/?url=<url-encoded http URL>".
 // scheme is the app's own URL scheme (from app.json "scheme"); host/port
-// default to localhost:8081 (localhost works once adb_reverse tcp:8081 is set).
+// default to localhost:8081 (localhost works once adb_reverse {device_port: 8081} is set).
 // Pure string building — no device — so it is unit-tested directly.
 func ExpoDevClientURL(scheme, host string, port int) (string, error) {
 	scheme = strings.TrimSpace(scheme)
@@ -237,7 +237,7 @@ func (s *AppState) setStaleness(verdict, reason string) {
 func stalenessVerdict(bundleSource, metroRoot, sourcePath string, sourceTime, markerTime time.Time, haveMarker bool) (verdict, reason string) {
 	switch {
 	case bundleSource == "embedded":
-		return "stale", fmt.Sprintf("this process is running its EMBEDDED bundle, so nothing under %s is in it — adb_reverse tcp:8081, then relaunch", sourcePath)
+		return "stale", fmt.Sprintf("this process is running its EMBEDDED bundle, so nothing under %s is in it — adb_reverse {device_port: 8081}, then relaunch", sourcePath)
 	case metroRoot != "" && !SameTree(metroRoot, sourcePath):
 		return "stale", fmt.Sprintf("the Metro dev server this process is connected to is rooted at %s, which is NOT %s — a dev server left running from another checkout still holds the port, so the running JavaScript is that checkout's code; kill it and start Metro from %s", metroRoot, sourcePath, sourcePath)
 	case sourceTime.IsZero():
@@ -388,7 +388,7 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		}
 		s.Notes = append(s.Notes, note)
 	case "embedded":
-		s.Notes = append(s.Notes, "running the EMBEDDED bundle — your JS edits are NOT in this process; if you expected Metro, run adb_reverse tcp:8081 and relaunch")
+		s.Notes = append(s.Notes, "running the EMBEDDED bundle — your JS edits are NOT in this process; if you expected Metro, run adb_reverse {device_port: 8081} and relaunch")
 	case "not-react-native":
 		s.BundleSource = "n/a"
 	case "unknown":

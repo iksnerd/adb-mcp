@@ -62,8 +62,10 @@ Fix it before running the flow:
 3. Run your flow.
 4. `clear_device_lock` with `old_value: "1234"` to remove it afterwards.
 
-`is_device_secure` maps to `locksettings get-disabled` — `false` there means the
-lock is **not** disabled, i.e. the device **is** secure.
+`is_device_secure` first tries to verify an empty credential with `locksettings
+verify`: success proves **no** lock is set. Only if that does not settle it does
+it fall back to `locksettings get-disabled`, where `false` means the lock is
+**not** disabled, i.e. the device **is** secure.
 
 ### Apps that check the lock at startup — restart after setting it
 

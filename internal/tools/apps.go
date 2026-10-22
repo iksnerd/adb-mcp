@@ -55,7 +55,7 @@ type openURLArgs struct {
 type launchDevClientArgs struct {
 	serialArg
 	Scheme  string `json:"scheme" jsonschema:"The app's URL scheme from app.json (e.g. \"myapp\") — used to build the expo-development-client deep link."`
-	Host    string `json:"host,omitempty" jsonschema:"Metro dev-server host as the DEVICE sees it. Default localhost (works once adb_reverse tcp:8081 is set)."`
+	Host    string `json:"host,omitempty" jsonschema:"Metro dev-server host as the DEVICE sees it. Default localhost (works once adb_reverse {device_port: 8081} is set)."`
 	Port    int    `json:"port,omitempty" jsonschema:"Metro dev-server port. Default 8081."`
 	Package string `json:"package,omitempty" jsonschema:"Optional package to target the intent at (disambiguates if multiple apps claim the scheme)."`
 }
@@ -244,9 +244,9 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 		if detail == "" {
 			detail = "on-screen error text unavailable"
 		}
-		return nil, devClientLaunchError(ctx, c, in.Package, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse tcp:8081 and relaunch", top, detail))
+		return nil, devClientLaunchError(ctx, c, in.Package, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse {device_port: 8081} and relaunch", top, detail))
 	}
-	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse tcp:8081).", deepLink, c.Serial), nil
+	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse {device_port: 8081}).", deepLink, c.Serial), nil
 }
 
 func devClientLaunchError(ctx context.Context, c *adb.Client, pkg string, err error) error {

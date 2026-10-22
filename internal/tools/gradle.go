@@ -81,20 +81,6 @@ type buildAndRunArgs struct {
 
 // ---- Handlers ----
 
-// buildAPKs is the shared build phase of gradle_build and build_and_run: run
-// the task (defaulting to assembleDebug) and locate the produced APKs, newest
-// first. Keeping it in one place means the two tools cannot drift.
-func buildAPKs(ctx context.Context, projectDir, task string, extra []string) (resolvedTask string, apks []string, out string, err error) {
-	if task == "" {
-		task = "assembleDebug"
-	}
-	out, err = gradle.Gradle(ctx, projectDir, append([]string{task}, extra...)...)
-	if err != nil {
-		return task, nil, out, err
-	}
-	return task, gradle.FindAPKs(projectDir), out, nil
-}
-
 func gradleBuild(ctx context.Context, in gradleBuildArgs) (*mcp.CallToolResult, error) {
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
@@ -131,12 +117,13 @@ func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, 
 	if err != nil {
 		return nil, err
 	}
-	task, apks, out, err := buildAPKs(ctx, projectDir, in.Task, in.Args)
-	if err != nil {
-		return nil, fmt.Errorf("build failed: %v\n%s", err, tailLines(out, 40))
+	build := gradle.RunBuild(ctx, projectDir, in.Task, in.Args)
+	if build.Status == gradle.StatusFailed {
+		return nil, fmt.Errorf("build failed: %s", build.String())
 	}
+	task, apks := build.Task, build.APKs
 	if len(apks) == 0 {
-		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one", task, projectDir)
+		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one (log: %s)", task, projectDir, build.LogPath)
 	}
 	apk := gradle.PickAPK(apks)
 	if _, err := c.InstallApp(ctx, apk); err != nil {
@@ -151,6 +138,9 @@ func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, 
 		msg += fmt.Sprintf(" (%s)", component)
 	}
 	msg += "."
+	if build.LogPath != "" {
+		msg += "\nFull build log: " + build.LogPath
+	}
 	if len(apks) > 1 {
 		msg += fmt.Sprintf("\nNote: %d APKs were found; installed the newest non-test one: %s\nAll (newest first): %s", len(apks), apk, strings.Join(apks, ", "))
 	}

@@ -115,7 +115,7 @@ hierarchy.
   ignores every JS change. Before debugging the code, call `app_state`: it
   reports the running pid(s), process uptime, and whether the process is serving
   a **metro** or **embedded** bundle. Embedded when you expected Metro → run
-  `adb_reverse tcp:8081` and relaunch. It also flags **two live processes** for
+  `adb_reverse {device_port: 8081}` and relaunch. It also flags **two live processes** for
   one package (a lingering old build + a fresh install), the trap where your
   taps and your log reads hit different pids.
 
