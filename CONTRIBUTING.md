@@ -16,6 +16,8 @@ Requirements are the same as running the server (see the [README](README.md)):
 make check     # go vet + go test + doc-count check — the unit tests need NO emulator
 make build     # compile ./bin/adb-mcp
 make run       # run over stdio for manual JSON-RPC poking
+# To check a tool as a client sees it (schema, error text, several calls in one session):
+#   python3 .claude/skills/release/mcp_drive.py ./adb-mcp 'tool|{"arg":1}' '!tool|{}'   ("!" asserts a failure)
 ```
 
 `make check` is the bar every change must clear before it's ready for review.

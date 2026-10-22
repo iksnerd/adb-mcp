@@ -133,8 +133,14 @@ before anything publishes rather than after. Use the pinned version
 ```bash
 git tag -a v0.22.0 -m "v0.22.0 — <same summary as the CHANGELOG heading>"
 git push origin main && git push origin v0.22.0
-gh run watch "$(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+sleep 15   # the new run takes a few seconds to appear; --limit 1 straight after the push returns the PREVIOUS tag's run
+id=$(gh run list --workflow=release.yml --limit 3 --json databaseId,headBranch --jq '.[] | select(.headBranch=="v0.22.0") | .databaseId' | head -1)
+gh run watch "$id" --exit-status
 ```
+
+`headBranch` is the tag name for a tag-triggered run, so the filter cannot pick up
+an older run. `gh run watch` also redraws the whole job list on every refresh; to
+see the outcome without the noise, poll `gh run view "$id" --json status,conclusion`.
 
 Pushing the tag publishes to GitHub **and** the MCP registry. Confirm with the
 user before pushing unless they have already said to ship it.
