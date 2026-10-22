@@ -16,7 +16,7 @@
 ---
 
 Boot an AVD, screenshot, read the UI hierarchy, tap/swipe/type, set a device
-lock, read `logcat`, run Gradle builds and tests. [79 tools](docs/TOOLS.md),
+lock, read `logcat`, run Gradle builds and tests. [80 tools](docs/TOOLS.md),
 from Claude Code, Cursor, VS Code, or any MCP client over stdio.
 
 It is the Android counterpart to [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP),
@@ -157,7 +157,7 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 
 ## Tools
 
-79 tools across ten areas. Every device-facing tool takes an optional
+80 tools across ten areas. Every device-facing tool takes an optional
 `serial` (adb `-s`). Omit it with one device attached, or pass one from
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 

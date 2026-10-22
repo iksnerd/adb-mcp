@@ -12,7 +12,7 @@
     {
       "name": "adb-mcp",
       "source": "./plugin/adb-mcp",
-      "description": "Registers the adb-mcp MCP server (79 tools: screenshot, UI hierarchy, tap/type, app lifecycle, logcat, Gradle builds and tests) plus a skill per driving guide. Requires the adb-mcp binary on PATH.",
+      "description": "Registers the adb-mcp MCP server (80 tools: screenshot, UI hierarchy, tap/type, app lifecycle, logcat, Gradle builds and tests) plus a skill per driving guide. Requires the adb-mcp binary on PATH.",
       "category": "development",
       "keywords": ["android", "adb", "emulator", "mobile", "testing", "ui-automation"]
     }

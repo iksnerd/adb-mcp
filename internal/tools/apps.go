@@ -28,6 +28,12 @@ type packageArg struct {
 	Package string `json:"package" jsonschema:"Application package name (e.g. com.example.app)."`
 }
 
+type appDetailsArgs struct {
+	serialArg
+	Package string `json:"package,omitempty" jsonschema:"Installed application package name (e.g. com.example.app). Required unless apk_path is given."`
+	APKPath string `json:"apk_path,omitempty" jsonschema:"Local path to an .apk to read instead of querying a device: returns its package id, version and launcher activity via aapt2. Needs no device; use it right after a build to get the applicationId."`
+}
+
 type appStateArgs struct {
 	serialArg
 	Package    string `json:"package" jsonschema:"Application package name."`
@@ -271,7 +277,17 @@ func lastCrash(ctx context.Context, in lastCrashArgs) (*mcp.CallToolResult, erro
 	return text("%s", crash), nil
 }
 
-func getAppDetails(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+func getAppDetails(ctx context.Context, in appDetailsArgs) (*mcp.CallToolResult, error) {
+	if in.APKPath != "" {
+		info, err := adb.ReadAPK(ctx, in.APKPath)
+		if err != nil {
+			return nil, err
+		}
+		return jsonResult(info)
+	}
+	if in.Package == "" {
+		return nil, fmt.Errorf("package is required unless apk_path is given")
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err

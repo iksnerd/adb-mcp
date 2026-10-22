@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -152,4 +153,19 @@ func DirExists(p string) bool {
 // must agree about what counts as an SDK.
 func IsSDKRoot(root string) bool {
 	return root != "" && DirExists(filepath.Join(root, "platform-tools"))
+}
+
+// Aapt2Path returns the newest build-tools aapt2 under the SDK root, or the
+// bare name so a PATH lookup can still work.
+func Aapt2Path() string {
+	if root := Root(); root != "" {
+		versions, _ := filepath.Glob(filepath.Join(root, "build-tools", "*"))
+		sort.Sort(sort.Reverse(sort.StringSlice(versions)))
+		for _, dir := range versions {
+			if p := filepath.Join(dir, Exe("aapt2")); FileExists(p) {
+				return p
+			}
+		}
+	}
+	return Exe("aapt2")
 }

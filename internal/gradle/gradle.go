@@ -18,21 +18,15 @@ import (
 // (./gradlew) and returns combined stdout+stderr. Gradle runs on the host, not
 // on a device, so no serial is involved.
 func Gradle(ctx context.Context, projectDir string, args ...string) (string, error) {
-	if strings.TrimSpace(projectDir) == "" {
-		return "", fmt.Errorf("project_dir is required (path to the Android project root containing gradlew)")
+	cmd, err := gradleCmd(ctx, projectDir, args...)
+	if err != nil {
+		return "", err
 	}
-	gradlew := filepath.Join(projectDir, wrapperName())
-	if !sdk.FileExists(gradlew) {
-		return "", fmt.Errorf("%s not found in %s — point project_dir at the module/root that has the Gradle wrapper", wrapperName(), projectDir)
-	}
-	cmd := exec.CommandContext(ctx, gradlew, args...)
-	cmd.Dir = projectDir
-	cmd.Env = sdk.CommandEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("gradle %s failed: %w", strings.Join(args, " "), err)
+		return RedactSecrets(string(out)), fmt.Errorf("gradle %s failed: %w", strings.Join(args, " "), err)
 	}
-	return string(out), nil
+	return RedactSecrets(string(out)), nil
 }
 
 // GenerateWrapper runs the *system* `gradle wrapper` in projectDir to create

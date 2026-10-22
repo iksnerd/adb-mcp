@@ -20,6 +20,17 @@ type gradleArgs struct {
 	JSON bool     `json:"json,omitempty" jsonschema:"For run_unit_tests/run_instrumented_tests: return the test summary as structured JSON (per-suite timing, full failure stack traces) instead of the human-readable text summary. Ignored by gradle_build and list_gradle_tasks."`
 }
 
+type gradleBuildArgs struct {
+	projectDirArg
+	Task       string   `json:"task,omitempty" jsonschema:"Gradle task to run. Defaults to assembleDebug."`
+	Args       []string `json:"args,omitempty" jsonschema:"Extra arguments passed to Gradle (e.g. --stacktrace, -Pflavor=free)."`
+	Background bool     `json:"background,omitempty" jsonschema:"Start the build detached and return at once with a job id and log path; poll with build_status. Use for builds that take minutes."`
+}
+
+type buildStatusArgs struct {
+	JobID string `json:"job_id" jsonschema:"Job id returned by gradle_build with background=true."`
+}
+
 type gradleProjectsArgs struct {
 	projectDirArg
 }
@@ -84,20 +95,31 @@ func buildAPKs(ctx context.Context, projectDir, task string, extra []string) (re
 	return task, gradle.FindAPKs(projectDir), out, nil
 }
 
-func gradleBuild(ctx context.Context, in gradleArgs) (*mcp.CallToolResult, error) {
+func gradleBuild(ctx context.Context, in gradleBuildArgs) (*mcp.CallToolResult, error) {
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
-	task, apks, out, err := buildAPKs(ctx, projectDir, in.Task, in.Args)
+	if in.Background {
+		job, err := gradle.StartBuild(projectDir, in.Task, in.Args)
+		if err != nil {
+			return nil, err
+		}
+		return text("Build started in the background.\nJob: %s\nLog (tail it for progress): %s\nPoll with build_status job_id=%s.", job.ID, job.LogPath, job.ID), nil
+	}
+	s := gradle.RunBuild(ctx, projectDir, in.Task, in.Args)
+	if s.Status == gradle.StatusFailed {
+		return nil, fmt.Errorf("%s", s.String())
+	}
+	return text("%s", s.String()), nil
+}
+
+func buildStatus(_ context.Context, in buildStatusArgs) (*mcp.CallToolResult, error) {
+	s, err := gradle.BuildStatus(in.JobID)
 	if err != nil {
-		return nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
+		return nil, err
 	}
-	msg := "Build succeeded (" + task + ")."
-	if len(apks) > 0 {
-		msg += "\nAPK(s):\n" + strings.Join(apks, "\n")
-	}
-	return text("%s\n\n%s", msg, tailLines(out, 20)), nil
+	return text("%s", s.String()), nil
 }
 
 func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, error) {

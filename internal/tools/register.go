@@ -199,7 +199,7 @@ func Register(s *mcp.Server) {
 		"Launch an Expo dev build straight at a Metro dev server, skipping the Dev Launcher's server-picker screen. Builds the \"<scheme>://expo-development-client/?url=http://host:port\" deep link and opens it. Pass scheme (your app.json \"scheme\"); host/port default to localhost:8081. PREREQUISITE: run adb_reverse tcp:8081 first so the device can reach Metro, otherwise the dev client falls back to its embedded bundle. For plain Expo Go (not a dev build) use open_url with the exp:// URL instead.",
 		launchDevClient)
 	add(s, "get_app_details",
-		"Report an installed app's version name/code and its launchable activity (dumpsys package + resolve-activity) — to confirm what build is installed and find the activity to launch.",
+		"Report an installed app's version name/code and its launchable activity (dumpsys package + resolve-activity) — to confirm what build is installed and find the activity to launch. Pass apk_path instead of package to read a local .apk (package id, version, launcher activity) with no device attached — handy right after gradle_build.",
 		getAppDetails)
 	add(s, "app_state",
 		"Report an app's RUNTIME state: installed?, running?, foreground?, top activity, pid(s), main-process uptime, install/update times, and — for React Native/Expo — whether it is serving a live METRO bundle or its baked-in EMBEDDED one. When it is on Metro it also identifies WHICH dev server: port, pid, and the project root that server is running in. That matters because \"metro\" does not mean the RIGHT metro — a dev server left running from another checkout still holds port 8081, so the app connects happily and runs that branch's code while this call looks healthy. Pass source_path to get an explicit stale_verdict (stale | current | undetermined) with its reason, never silence. Run this FIRST when JS edits seem to have no effect.",
@@ -252,8 +252,11 @@ func Register(s *mcp.Server) {
 
 	// --- Build & test (Gradle) ---
 	add(s, "gradle_build",
-		"Build the app with Gradle (default task assembleDebug) in project_dir, and report the produced APK path(s). project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device.",
+		"Build the app with Gradle (default task assembleDebug) in project_dir, and report the produced APK path(s). project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device. Returns a compact summary (status, duration, error count, first errors, APK paths) and the path of the full log, with credential-shaped values redacted. For builds that take minutes pass background=true: it returns a job id and log path at once, and build_status reports the result.",
 		gradleBuild)
+	add(s, "build_status",
+		"Report a background gradle_build (started with background=true): running with elapsed time, or the final summary (passed/failed, error count, first errors, APK paths, full-log path). Jobs live only as long as this server process.",
+		buildStatus)
 	add(s, "build_and_run",
 		"One-shot build → install → launch: runs Gradle (default task assembleDebug) in project_dir, installs the resulting APK on the device, and launches package. Equivalent to gradle_build + install_app + launch_app but in a single call. If several APKs exist under build/outputs (multi-flavor projects, leftover androidTest APKs), the newest non-test one is installed — the artifact the build just produced.",
 		buildAndRun)

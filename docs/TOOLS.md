@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-79 tools + 6 guide resources, across the ten areas below.
+80 tools + 6 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -69,7 +69,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 | Tool | Purpose |
 |---|---|
 | `list_packages` | List installed packages (filterable) |
-| `get_app_details` | Version name/code + launchable activity of an app |
+| `get_app_details` | Version name/code + launchable activity of an installed app, or of a local `.apk` via `apk_path` (no device needed) |
 | `app_state` | Runtime state: installed?/running?/foreground? + pid(s), `top_activity`, process uptime, install/update times, and Metro-vs-embedded bundle (RN/Expo), with `bundle_signals` showing logcat or live-socket evidence |
 | `install_app` / `uninstall_app` | Install/reinstall or remove an app |
 | `launch_app` / `stop_app` | Launch the LAUNCHER activity (echoes the component; clear error if none) / force-stop |
@@ -110,7 +110,8 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 ### Build & test (Gradle)
 | Tool | Purpose |
 |---|---|
-| `gradle_build` | `./gradlew assembleDebug` (or a given task) → APK path |
+| `gradle_build` | `./gradlew assembleDebug` (or a given task) → compact summary (status, duration, error count, first errors, APK paths) plus the full redacted log's path. `background=true` returns a job id and log path at once |
+| `build_status` | Result of a background `gradle_build`: running with elapsed time, or the final summary |
 | `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced) |
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary |
