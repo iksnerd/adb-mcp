@@ -1,6 +1,6 @@
 # adb-mcp plugin
 
-Registers the [adb-mcp](https://github.com/iksnerd/adb-mcp) MCP server with Claude Code.
+Registers the [adb-mcp](https://github.com/iksnerd/adb-mcp) MCP server with Claude Code and adds a skill for each driving guide (`getting-started`, `driving`, `rn-expo`, `pin-and-lock`, `crash-triage`, `build-and-test`). Each skill tells the agent to read the matching `android://guide/*` resource before it starts that kind of task.
 
 ## Prerequisite
 

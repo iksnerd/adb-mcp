@@ -24,7 +24,8 @@ that are especially in scope:
 - command-injection or argument-injection through tool inputs into the `adb`,
   `emulator`, or Gradle command lines,
 - path-traversal or unintended file access via `push_file`/`pull_file`/`install_app`,
-- leaking of local files or environment beyond what a tool is documented to expose.
+- leaking of local files or environment beyond what a tool is documented to expose,
+- credentials reaching tool output despite redaction. Gradle output and the build log are redacted, and `logcat` is redacted when asked. Known gaps, tracked in `docs/BACKLOG.md`: the Gradle wrapper-generation output and test-failure traces read from JUnit XML are not.
 
 The server trusts the MCP client it is wired to and the local Android SDK
 toolchain; issues that require an already-compromised local machine are generally

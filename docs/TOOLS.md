@@ -125,7 +125,7 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 
 ## Resources (the bundled "skill")
 
-The driving know-how ships as MCP resources the client can list and read:
+The driving know-how ships as MCP resources the client can list and read. The server also returns a short `instructions` block on `initialize` (the RN/Expo ordering, absence-is-not-evidence, viewport-scoped reads), which clients put in the model's system prompt before any tool is called:
 
 | URI | What it covers |
 |---|---|
@@ -133,4 +133,5 @@ The driving know-how ships as MCP resources the client can list and read:
 | `android://guide/driving` | The observe→act loop, the true-pixel coordinate rule, tap-eating gotchas |
 | `android://guide/pin-and-lock` | Native PIN pads and Keystore-required device locks |
 | `android://guide/crash-triage` | Using `logcat` to find why a native call really failed |
-| `android://guide/build-and-test` | Gradle: mapping a multi-module build, variants, JVM vs on-device tests, JaCoCo coverage → the lines needing a test |
+| `android://guide/rn-expo` | React Native / Expo dev builds: the `adb_reverse` → `launch_dev_client` → `app_state` → `reload_app` order, why `metro` does not mean the right Metro, staleness after a git checkout |
+| `android://guide/build-and-test` | Gradle: mapping a multi-module build, the build summary and background builds, variants, JVM vs on-device tests, JaCoCo coverage → the lines needing a test |

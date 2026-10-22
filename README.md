@@ -77,7 +77,7 @@ curl -fsSL https://raw.githubusercontent.com/iksnerd/adb-mcp/main/install.sh | s
 The script ([install.sh](install.sh)) picks the right archive for your
 OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
-with `VERSION=v0.17.0`).
+with `VERSION=v0.24.1`).
 
 Prefer to grab the binary yourself? Every platform's archive (macOS, Linux,
 and Windows, amd64 and arm64) is on the
@@ -147,6 +147,9 @@ To confirm it's wired up, ask your agent to "boot an emulator and take a screens
 
 ### From source (Go 1.26+)
 
+The module pins `toolchain go1.26.10`; a Go 1.26 install downloads that patch
+itself the first time you build.
+
 ```bash
 make install                 # builds ./bin/adb-mcp and copies it to ~/.local/bin
 # or:
@@ -162,14 +165,14 @@ go install github.com/iksnerd/adb-mcp/cmd/adb-mcp@latest
 `list_devices` with several. Full reference: [docs/TOOLS.md](docs/TOOLS.md).
 
 - **Emulator / device**: boot, list, wait-for-boot, shut down, connect over Wi-Fi, `adb_reverse` port forwarding (Metro!)
-- **Observe**: `screenshot` to see (works on multi-display foldables, pick a panel with `display`), `describe_ui` for true-pixel element centers, with the focused **top window** (spot a biometric prompt, or the wrong app entirely, occluding your target via optional `package`), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy
+- **Observe**: `screenshot` to see (works on multi-display foldables, pick a panel with `display`), `describe_ui` for true-pixel element centers, with the focused **top window** (spot a biometric prompt, or the wrong app entirely, occluding your target via optional `package`), `filter`/`query`/`compact` modes, and a hidden-node count so absence is trustworthy; `render_stats` counts the real view tree and frame health, which the viewport-scoped `describe_ui` cannot
 - **Interact**: tap, `tap_on_text`/`tap_element` (id-addressed), swipe, drag, long-press, type, key combos, PIN pads, `wait`, `run_sequence` (batch steps + guards in one call, which keeps native-timer flows from being perturbed by per-step round-trips); opt-in `verify_change` tells you whether a tap/key actually changed the UI; opt-in `via_accessibility` on `tap_on_text`/`tap_element` (EXPERIMENTAL) dispatches a real accessibility click for native views a coordinate tap can't reach, see [bridge/README.md](bridge/README.md)
 - **Lock / Keystore / Biometrics**: set/clear a secure lock screen, check lock state, `has_biometric_enrolled` + `fingerprint_touch`/`finger_remove` to satisfy a BiometricPrompt on the emulator
 - **Extended Controls (emulator)**: `send_sms` (OTP/2FA), `phone_call`, `set_battery` (also works on real devices via dumpsys), `cellular` (roaming/weak-signal/throttled), `set_sensor` (accelerometer/light/…), `rotate_screen`, `avd_snapshot`, driving the emulator's console-only panel that `describe_ui` can't see
-- **App lifecycle**: install/uninstall, launch/stop, `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files, `last_crash`
+- **App lifecycle**: install/uninstall, launch/stop, `get_app_details` (version and launcher activity of an installed app, or of a local APK via `apk_path` with no device), `app_state` (running pid(s) + Metro-vs-embedded bundle), `launch_dev_client` (Expo dev build → Metro, skipping the Dev Launcher), `reload_app`/`open_dev_menu`, clear data, permissions, deep links, push/pull files
 - **Logs & capture**: one-shot or streaming `logcat` (substring/priority/tag filters, `since` time window, opt-in `redact` to mask tokens/passwords/API keys before output), `clear_logcat`, `last_crash`, screen recording
 - **Environment & diagnostics**: dark mode, mock location, clean status bar, `stay_awake` (stop a doze-happy screen blanking your screenshots), `doctor`
-- **Gradle build & test**: `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), one-shot `build_and_run`. Builds return a compact summary (status, error count, first errors, APKs) with the full redacted log on disk, and `gradle_build background=true` plus `build_status` keep a multi-minute build from holding the call open
+- **Gradle build & test**: `assembleDebug`, unit tests, instrumented tests, JVM unit-test coverage via JaCoCo (`get_coverage_report`/`get_file_coverage`), task + variant + module discovery (`list_gradle_variants`/`list_gradle_projects`), `scaffold_android_project`, one-shot `build_and_run`. Builds return a compact summary (status, error count, first errors, APKs) with the full redacted log on disk, and `gradle_build background=true` plus `build_status` keep a multi-minute build from holding the call open
 - **Session defaults**: pin `project_dir`/`serial` once (`session_set_defaults`) so a multi-module/multi-flavor project or multi-device session doesn't need them repeated on every call
 
 The driving know-how itself ships as six MCP **resources** (`android://guide/*`)
@@ -186,7 +189,7 @@ and the gotchas that waste turns.
 ## Development
 
 ```bash
-make check     # go vet + go test (unit tests need no emulator)
+make check     # go vet + go test + doc-count check (unit tests need no emulator)
 make run       # run over stdio for manual JSON-RPC poking
 ```
 
@@ -196,7 +199,7 @@ Layout:
 cmd/adb-mcp/main.go        entry: subcommands (update/version) or serve MCP over stdio
 internal/tools/            thin MCP tool bindings
 internal/adb/              the device layer: an adb.Client whose methods are the commands
-internal/gradle/           host-side Gradle: build, find APKs, parse test reports
+internal/gradle/           host-side Gradle: builds (summary, log, background jobs), secret redaction, test and coverage reports
 internal/uiauto/           pure uiautomator-hierarchy model + parsing (unit-tested)
 internal/sdk/              resolves the Android SDK (adb/emulator paths, PATH env)
 internal/concurrent/       RunAll/RunIndexed: fan out independent I/O calls, join, done
