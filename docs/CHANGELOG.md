@@ -4,7 +4,7 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
-## v0.24.0 — Builds an agent can wait on, and docs that match the code
+## v0.24.1 — Builds an agent can wait on, and docs that match the code
 
 A field report from a bare React Native test run (`adb-mcp-feedback`) said the
 agent called two adb-mcp tools and did everything else through the shell. Checked
@@ -61,6 +61,22 @@ with the detail left in the guides.
 manifest means `/plugin marketplace add iksnerd/adb-mcp` works today, alongside
 the Codex plugin; the README documents both install paths and says the plugin
 registers the server but does not install the binary.
+
+**Changed: build and release tooling.** `go.mod` now names `toolchain go1.26.10`
+(the `go 1.26` minimum is unchanged): `govulncheck` against go1.26.4 reported 16
+standard library vulnerabilities, all fixed in 1.26.10, and the repo previously
+named no patch, so a plain build used whatever Go it found. The release workflow
+already built with the newest 1.26 patch, so earlier binaries were not affected.
+`golang.org/x/sys` moves to v0.44.0 for a Windows-only integer overflow the code
+does not call. `actions/checkout` and `actions/setup-go` move to v7,
+`actions/setup-java` to v5 and `android-actions/setup-android` to v4.
+
+**There is no v0.24.0 release.** That tag was pushed and its release run failed in
+"Set up Android SDK" before building or publishing anything, because Google no
+longer serves the `tools` package that `setup-android@v3` installs. The tag is
+left in place rather than moved, so v0.24.1 is the first release with this
+content. Nothing was published under v0.24.0: no GitHub Release, image or
+registry entry.
 
 80 tools, 6 guides.
 
