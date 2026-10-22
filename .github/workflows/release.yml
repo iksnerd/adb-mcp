@@ -21,7 +21,7 @@ jobs:
       # deliberately. Fetched once below and reused by the publish step.
       PUBLISHER_VERSION: v1.8.1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Verify version consistency
         id: version
@@ -81,7 +81,7 @@ jobs:
           ./mcp-publisher validate
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26.x'
           check-latest: true # picks up 1.26.5+ (crypto/tls advisory fix)
