@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "adb": {
-      "command": "adb-mcp",
-      "args": [],
-      "env": {}
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/launch.js"]
     }
   }
 }

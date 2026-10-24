@@ -4,6 +4,35 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.2 — A plugin that carries its own server
+
+The Claude directory held v0.24.1 under its policy: "MCP server command wasn't
+read". The plugin's `.mcp.json` ran a bare `adb-mcp` from the user's `PATH`, and
+the policy wants the server bundled in the plugin and started from a path under
+`CLAUDE_PLUGIN_ROOT`. v0.23.0 stays live until a version passes.
+
+**Changed: the Claude plugin bundles the server.** `plugin/adb-mcp/bin/` holds a
+build for each of macOS, Linux and Windows on amd64 and arm64, and `.mcp.json`
+now runs `node ${CLAUDE_PLUGIN_ROOT}/bin/launch.js`. The launcher picks the build
+for the machine, checks it against `bin/checksums.txt`, and starts it with stdio
+passed straight through, so the MCP stream never goes through Node. A binary that
+does not match its checksum, or is not listed, is not run. Signals are forwarded
+and the exit code is kept. Installing the plugin no longer needs `install.sh`; it
+does need `node` on `PATH`. The Codex plugin is unchanged and still uses `adb-mcp`
+from `PATH`.
+
+**Added: a square PNG icon** at `plugin/adb-mcp/.claude-plugin/icon.png` (1024 px,
+rendered from `assets/plugin-icon.svg`), which the directory requires and
+does not accept as SVG.
+
+**Added: release checks for the bundle.** `make plugin-bins` builds the six
+binaries and `checksums.txt` with the release flags, and is run in the release
+commit only, so the binaries enter history once per release. The release gate
+(`scripts/check-plugin-bins.sh`) fails if any of the six is missing, not
+executable, differs from `checksums.txt`, or if the one runnable on the CI machine
+reports a version other than the tag. `make plugin-test` covers the launcher and
+that check; CI runs it on every push.
+
 ## v0.24.1 — Builds an agent can wait on, and docs that match the code
 
 A field report from a bare React Native test run (`adb-mcp-feedback`) said the

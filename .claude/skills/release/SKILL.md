@@ -20,8 +20,9 @@ Re-tagging is the only fix, and the registry has already seen the old version.
 3. Fix what the review found. Do not tag around a known bug in unreleased code.
 4. Bump the four version files + write the CHANGELOG section.
 5. `make docs` to sync every derived count.
-6. Run the gate locally.
-7. Tag, push, watch, confirm.
+6. `make plugin-bins` to rebuild the Claude plugin's bundled binaries.
+7. Run the gate locally.
+8. Tag, push, watch, confirm.
 
 ## 1. Review
 
@@ -103,6 +104,18 @@ shipped (vX.Y.Z)" heading *and its body*, and any parity checkboxes the release
 closes. Write the body at the end, once you know what the release actually
 became — it grows during the work, and a summary written early goes stale.
 
+## 4b. Rebuild the plugin's bundled binaries (`make plugin-bins`)
+
+The Claude plugin runs the six binaries committed under `plugin/adb-mcp/bin/`
+(through `launch.js`), not the release archives, because the directory's policy
+wants the server inside the plugin. They carry the version, so rebuild them
+after the bump and commit them in the same release commit as the bump, never
+between releases. `scripts/check-plugin-bins.sh` is in the release gate and fails
+on a missing, altered or wrong-version binary; `make plugin-test` covers the
+launcher. Then drive it as a user's Claude Code does:
+`python3 .claude/skills/release/mcp_drive.py plugin/adb-mcp/bin/launch.js 'list_devices|{}'`.
+The Codex plugin is unchanged: it still runs `adb-mcp` from `PATH`.
+
 ## 5. Run the gate locally
 
 Same checks as `release.yml`, before the tag exists:
@@ -120,6 +133,7 @@ gofmt -l .            # must print nothing
 go vet ./...
 go test -race ./...   # CI uses -race; a clean `go test` is not the same run
 make docs-check       # tool/guide/area counts still agree with the code
+make plugin-test plugin-bins-check   # launcher tests + bundled binaries match the version
 mcp-publisher validate
 ```
 

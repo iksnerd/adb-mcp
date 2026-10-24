@@ -36,3 +36,6 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+      - name: Test the plugin launcher
+        run: make plugin-test

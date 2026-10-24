@@ -118,6 +118,15 @@ jobs:
       - name: Test
         run: go test -race ./...
 
+      # The Claude plugin runs the binaries committed under plugin/adb-mcp/bin,
+      # not the archives built below, so they must be present, unaltered and
+      # built for this tag before anything is published.
+      - name: Test the plugin launcher
+        run: make plugin-test
+
+      - name: Check the bundled plugin binaries
+        run: scripts/check-plugin-bins.sh plugin/adb-mcp/bin "${{ steps.version.outputs.bare }}"
+
       - name: Build release binaries
         env:
           VERSION: ${{ github.ref_name }}

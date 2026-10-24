@@ -1,7 +1,7 @@
 {
   "name": "adb-mcp",
   "description": "Drive an Android emulator or device over adb: screenshot, inspect UI, tap, type, build and test.",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "author": {
     "name": "iksnerd",
     "url": "https://github.com/iksnerd"

@@ -5,7 +5,7 @@
 #
 # Options (env vars):
 #   BIN_DIR   install destination (default: ~/.local/bin)
-#   VERSION   release tag to install, e.g. v0.24.1 (default: latest)
+#   VERSION   release tag to install, e.g. v0.24.2 (default: latest)
 set -eu
 
 REPO="iksnerd/adb-mcp"
