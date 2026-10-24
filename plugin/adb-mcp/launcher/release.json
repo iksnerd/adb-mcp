@@ -1,0 +1,11 @@
+{
+  "version": "0.24.3",
+  "assets": {
+    "linux-amd64": "1d88ee4c2fa75643d4ca713465ee4cf161988461ffec9a87481a83f308804a8c",
+    "linux-arm64": "2dde90762eda75e894ae04d07bfff4bda4d494849145904afd27457033caa023",
+    "darwin-amd64": "d3334d3d3aaebe02f856159f30d1fda1d5e6017bf16146d431b24fc0ad26cdfa",
+    "darwin-arm64": "3d573273cf53b0cd0acbe1fa40498f6f2e98c34e92a7d2b58a09345153a46636",
+    "windows-amd64": "4fd7f6b36d575b368e86f3e963694e18262bd1dbc66695dabb16029027c22dd0",
+    "windows-arm64": "a9eade860924a7b4b8d7490abd584a9e88e2fd9b9c3fbd8734bf3832316497c5"
+  }
+}

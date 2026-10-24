@@ -180,7 +180,7 @@ git add plugin/adb-mcp/launcher/release.json && git commit -m "Pin the plugin to
 commit lands the launcher has no pin and says so; push it right after the run
 finishes. The last command downloads the real build into `CLAUDE_PLUGIN_DATA`
 (set it to a scratch dir to test a cold start). The directory tracks `main` and
-scans the pin commit; see the `claude-plugin-directory` skill for what happens
+scans the pin commit; see the `open-source-workflow:plugin-directory-submission` skill for what happens
 next. The Codex plugin is unchanged: it runs `adb-mcp` from `PATH`.
 
 ## Before the tag: actions that only a tag exercises
