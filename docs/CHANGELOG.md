@@ -4,6 +4,34 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.3 — A plugin the directory can accept
+
+v0.24.2 bundled six server binaries into the Claude plugin. The directory's
+rules rule that out: a plugin file over 5 MiB stops validation (ours were 9 to
+10 MB), a compiled executable is held for a reviewer, and a top-level `bin/`
+folder stops claude.ai and Cowork from installing the plugin at all. v0.24.2's
+code is unaffected; its plugin folder is what this release replaces.
+
+**Changed: the plugin launcher downloads the server instead of carrying it.**
+`.mcp.json` still runs `node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js`, a small
+readable file. On first run it fetches the one build for the machine from the
+GitHub release, checks its SHA-256 against `launcher/release.json`, keeps it under
+`${CLAUDE_PLUGIN_DATA}`, and re-checks it on every start. A download that does not
+match the pin is discarded and never run. The binaries are removed from the tree
+(they stay in v0.24.2's history).
+
+**Added: the release publishes the builds the launcher downloads.** Each release
+now carries `adb-mcp_<tag>_<os>_<arch>[.exe].gz` for the six targets and
+`plugin-checksums.txt`, the SHA-256 of each uncompressed build. After the release,
+`make plugin-pin TAG=<tag>` writes those into `release.json`; the pin is its own
+commit. `make plugin-pin-check` compares it to the
+release. Until that commit lands the launcher has no pin and says so.
+
+**Added: the listing details the directory reads**, all in `plugin.json`: a short
+`description`, `icon`, `documentationUrl`, `supportUrl` and `privacyPolicyUrl`
+(new [docs/PRIVACY.md](PRIVACY.md)), and a plugin README that says what the plugin
+runs, downloads and sends.
+
 ## v0.24.2 — A plugin that carries its own server
 
 The Claude directory held v0.24.1 under its policy: "MCP server command wasn't

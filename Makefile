@@ -8,7 +8,7 @@ INSTALL_DIR ?= $(HOME)/.local/bin
 VERSION := $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//' || cat VERSION 2>/dev/null || echo dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-bins plugin-bins-check plugin-test
+.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check
 
 build: ## Compile the server binary into ./bin
 	@mkdir -p bin
@@ -45,17 +45,19 @@ docs: ## Sync the tool/guide/version counts in the docs from the code
 docs-check: ## Fail if any doc count has drifted from the code (run in CI)
 	go run ./scripts/docsync -check
 
-plugin-bins: ## Build the six binaries the Claude plugin bundles (run in the release commit only)
-	scripts/build-plugin-bins.sh
+plugin-test: ## Test the plugin launcher and the pin check
+	node --test plugin/adb-mcp/launcher/launch.test.js
+	scripts/check-plugin-pin.test.sh
 
-plugin-bins-check: ## Fail if the bundled plugin binaries are missing, altered or built for another version
-	scripts/check-plugin-bins.sh
+plugin-pin: ## Pin the plugin to a published release: make plugin-pin TAG=v0.24.3
+	scripts/pin-plugin.sh $(TAG)
 
-plugin-test: ## Test the plugin launcher and the bundle check
-	node --test plugin/adb-mcp/bin/launch.test.js
-	scripts/check-plugin-bins.test.sh
+plugin-pin-check: ## Fail if the plugin's pin disagrees with plugin.json or the latest release's recorded checksums
+	@tag=$$(jq -r '"v" + .version' plugin/adb-mcp/launcher/release.json) && \
+	  curl -fsSL "https://github.com/iksnerd/adb-mcp/releases/download/$$tag/plugin-checksums.txt" -o bin/plugin-checksums.txt && \
+	  scripts/check-plugin-pin.sh plugin/adb-mcp/launcher plugin/adb-mcp/.claude-plugin/plugin.json bin/plugin-checksums.txt
 
-check: vet test docs-check plugin-test plugin-bins-check ## vet + test + doc counts + plugin launcher and bundle
+check: vet test docs-check plugin-test ## vet + test + doc counts + plugin launcher
 
 run: build ## Build and run over stdio (for manual JSON-RPC poking)
 	./bin/$(BINARY)

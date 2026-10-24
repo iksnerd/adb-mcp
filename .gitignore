@@ -2,7 +2,6 @@
 /bin/
 /dist/
 *.exe
-!/plugin/adb-mcp/bin/**/*.exe
 
 # Go
 *.test

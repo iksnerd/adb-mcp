@@ -118,14 +118,8 @@ jobs:
       - name: Test
         run: go test -race ./...
 
-      # The Claude plugin runs the binaries committed under plugin/adb-mcp/bin,
-      # not the archives built below, so they must be present, unaltered and
-      # built for this tag before anything is published.
       - name: Test the plugin launcher
         run: make plugin-test
-
-      - name: Check the bundled plugin binaries
-        run: scripts/check-plugin-bins.sh plugin/adb-mcp/bin "${{ steps.version.outputs.bare }}"
 
       - name: Build release binaries
         env:
@@ -133,6 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          : > dist/plugin-checksums.txt
           for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             os=${p%/*}; arch=${p#*/}
             out=adb-mcp
@@ -141,6 +136,12 @@ jobs:
             GOOS=$os GOARCH=$arch CGO_ENABLED=0 \
               go build -trimpath -ldflags "-s -w -X main.version=${VERSION#v}" -o "$out" ./cmd/adb-mcp
             base="adb-mcp_${VERSION}_${os}_${arch}"
+            # The Claude plugin's launcher downloads this bare, gzipped build and
+            # checks it against the checksum pinned in plugin/adb-mcp/launcher/
+            # release.json (scripts/pin-plugin.sh writes that after the release).
+            # gzip -n keeps the name and time out of the file.
+            gzip -9 -n -c "$out" > "dist/${base}${out#adb-mcp}.gz"
+            printf '%s  %s-%s\n' "$(sha256sum "$out" | cut -d' ' -f1)" "$os" "$arch" >> dist/plugin-checksums.txt
             if [ "$os" = windows ]; then
               zip -q "dist/${base}.zip" "$out"
             else

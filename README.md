@@ -77,7 +77,7 @@ curl -fsSL https://raw.githubusercontent.com/iksnerd/adb-mcp/main/install.sh | s
 The script ([install.sh](install.sh)) picks the right archive for your
 OS/architecture, verifies its SHA-256 against the release's `checksums.txt`,
 and installs to `~/.local/bin` (override with `BIN_DIR=...`; pin a version
-with `VERSION=v0.24.2`).
+with `VERSION=v0.24.3`).
 
 Prefer to grab the binary yourself? Every platform's archive (macOS, Linux,
 and Windows, amd64 and arm64) is on the
@@ -123,9 +123,11 @@ codex plugin marketplace add iksnerd/adb-mcp
 codex plugin add adb-mcp@adb-mcp-plugins
 ```
 
-The Claude plugin bundles the server for macOS, Linux and Windows (amd64 and
-arm64) and starts it with `node`, so it needs Node on your `PATH` but not
-step 2. The Codex plugin still expects `adb-mcp` on your `PATH` from step 2.
+The Claude plugin starts the server with `node`, which downloads the build for
+your machine from the GitHub release on first run and checks it against a pinned
+SHA-256, so it needs Node on your `PATH` but not step 2. The Codex plugin still
+expects `adb-mcp` on your `PATH` from step 2. What the plugin runs and sends is
+in [docs/PRIVACY.md](docs/PRIVACY.md).
 
 **Cursor / VS Code**: one-click install (assumes `adb-mcp` is on your `PATH`
 from step 2):
