@@ -23,7 +23,7 @@ not in claude.ai chat.
 ## What the plugin runs, downloads and sends
 
 The plugin starts one local MCP server named `adb` with
-`node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js`. The server itself is a Go binary
+`node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js ${CLAUDE_PLUGIN_DATA}`. The server itself is a Go binary
 that is too large to ship inside a plugin, so the launcher fetches it:
 
 1. On first start, `launcher/launch.js` downloads the build for your OS and CPU

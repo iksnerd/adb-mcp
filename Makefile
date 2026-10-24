@@ -46,7 +46,7 @@ docs-check: ## Fail if any doc count has drifted from the code (run in CI)
 	go run ./scripts/docsync -check
 
 plugin-test: ## Test the plugin launcher and the pin check
-	node --test plugin/adb-mcp/launcher/launch.test.js
+	node --test plugin/tests/launch.test.js
 	scripts/check-plugin-pin.test.sh
 
 plugin-pin: ## Pin the plugin to a published release: make plugin-pin TAG=v0.24.3

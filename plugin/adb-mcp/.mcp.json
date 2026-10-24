@@ -2,7 +2,7 @@
   "mcpServers": {
     "adb": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/launcher/launch.js"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/launcher/launch.js", "${CLAUDE_PLUGIN_DATA}"]
     }
   }
 }

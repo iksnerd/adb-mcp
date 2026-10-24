@@ -1,6 +1,7 @@
 'use strict';
 
-// Run with: node --test plugin/adb-mcp/launcher/launch.test.js
+// Run with: node --test plugin/tests/launch.test.js. Kept outside the plugin folder
+// so what the plugin ships is only what it runs.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
@@ -10,7 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
-const { resolveTarget, ensureBinary, TARGETS } = require('./launch.js');
+const { resolveTarget, ensureBinary, TARGETS } = require('../adb-mcp/launcher/launch.js');
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'launch-'));
@@ -131,7 +132,7 @@ test('ensureBinary refuses a download that is not gzip', async () => {
 function sandbox(script) {
   const root = tmp();
   const dataDir = tmp();
-  fs.copyFileSync(path.join(__dirname, 'launch.js'), path.join(root, 'launch.js'));
+  fs.copyFileSync(path.join(__dirname, '../adb-mcp/launcher/launch.js'), path.join(root, 'launch.js'));
   const binary = Buffer.from(script);
   const t = resolveTarget(process.platform, process.arch, '9.9.9');
   fs.writeFileSync(path.join(root, 'release.json'), JSON.stringify({ version: '9.9.9', assets: { [t.target]: sha256(binary) } }));
@@ -141,11 +142,11 @@ function sandbox(script) {
   return { launcher: path.join(root, 'launch.js'), dataDir, cleanup: () => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(dataDir, { recursive: true, force: true }); } };
 }
 
-function run(sb, args, { input = '', signal, env = {} } = {}) {
+// .mcp.json passes the data directory as the first argument, as the plugin runs it.
+function run(sb, args, { input = '', signal, dataDir = sb.dataDir } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [sb.launcher, ...args], {
+    const child = spawn(process.execPath, [sb.launcher, ...(dataDir ? [dataDir] : []), ...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, CLAUDE_PLUGIN_DATA: sb.dataDir, ...env },
     });
     let stdout = '';
     let stderr = '';
@@ -187,13 +188,13 @@ test('launcher forwards SIGTERM and exits 128+15', { skip: !posix }, async () =>
   }
 });
 
-test('launcher says what is missing when CLAUDE_PLUGIN_DATA is not set', { skip: !posix }, async () => {
+test('launcher says what is missing when it is given no data directory', { skip: !posix }, async () => {
   const sb = sandbox('#!/bin/sh\necho RAN\n');
   try {
-    const r = await run(sb, [], { env: { CLAUDE_PLUGIN_DATA: '' } });
+    const r = await run(sb, [], { dataDir: '' });
     assert.notEqual(r.code, 0);
     assert.doesNotMatch(r.stdout, /RAN/);
-    assert.match(r.stderr, /CLAUDE_PLUGIN_DATA/);
+    assert.match(r.stderr, /data directory/);
   } finally {
     sb.cleanup();
   }

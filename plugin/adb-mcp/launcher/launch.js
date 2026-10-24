@@ -2,12 +2,14 @@
 'use strict';
 
 // Starts the adb-mcp server for this plugin. Claude Code runs it as
-// `node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js`.
+// `node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js ${CLAUDE_PLUGIN_DATA}`: the
+// first argument is the directory to keep the server in, and the rest are passed
+// to the server. The launcher reads nothing from the environment.
 //
 // The server is a Go binary, too large to ship inside a plugin, so the first run
 // downloads the one build for this machine from this project's GitHub release,
-// checks it against the SHA-256 pinned in release.json, and keeps it under
-// CLAUDE_PLUGIN_DATA. Every start re-checks the cached file before running it.
+// checks it against the SHA-256 pinned in release.json, and keeps it under that
+// directory. Every start re-checks the cached file before running it.
 // The server then gets stdin and stdout unchanged, so the MCP stream never
 // passes through Node.
 
@@ -104,17 +106,17 @@ function fail(message) {
 }
 
 async function main() {
+  const [dataDir, ...serverArgs] = process.argv.slice(2);
   let bin;
   try {
-    const dataDir = process.env.CLAUDE_PLUGIN_DATA;
-    if (!dataDir) throw new Error('CLAUDE_PLUGIN_DATA is not set; run this through Claude Code as a plugin');
+    if (!dataDir) throw new Error('no data directory given; the plugin passes ${CLAUDE_PLUGIN_DATA} as the first argument');
     const pin = JSON.parse(fs.readFileSync(path.join(__dirname, 'release.json'), 'utf8'));
     bin = await ensureBinary({ pin, target: resolveTarget(process.platform, process.arch, pin.version), dataDir });
   } catch (err) {
     fail(err.message);
   }
 
-  const child = spawn(bin, process.argv.slice(2), { stdio: 'inherit' });
+  const child = spawn(bin, serverArgs, { stdio: 'inherit' });
   for (const signal of Object.keys(SIGNAL_NUMBERS)) {
     process.on(signal, () => child.kill(signal));
   }

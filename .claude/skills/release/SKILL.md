@@ -172,14 +172,16 @@ be written once they exist.
 ```bash
 make plugin-pin TAG=v0.22.0     # writes launcher/release.json from the release
 make plugin-pin-check           # compares it to the release's plugin-checksums.txt
-python3 .claude/skills/release/mcp_drive.py plugin/adb-mcp/launcher/launch.js 'list_devices|{}'
+claude -p "Call the adb MCP tool list_devices once and print its result." \
+  --plugin-dir plugin/adb-mcp --allowedTools mcp__plugin_adb-mcp_adb__list_devices
 git add plugin/adb-mcp/launcher/release.json && git commit -m "Pin the plugin to v0.22.0" && git push origin main
 ```
 
 `make docs` keeps `plugin.json`'s version equal to `VERSION`, so until the pin
 commit lands the launcher has no pin and says so; push it right after the run
-finishes. The last command downloads the real build into `CLAUDE_PLUGIN_DATA`
-(set it to a scratch dir to test a cold start). The directory tracks `main` and
+finishes. The last command is the real check: Claude Code starts the launcher,
+which downloads the build into the plugin's data directory
+(`~/.claude/plugins/data/adb-mcp-inline/`; delete it first to test a cold start). The directory tracks `main` and
 scans the pin commit; see the `open-source-workflow:plugin-directory-submission` skill for what happens
 next. The Codex plugin is unchanged: it runs `adb-mcp` from `PATH`.
 
