@@ -27,6 +27,8 @@ Re-tagging is the only fix, and the registry has already seen the old version.
 ## 1. Review
 
 ```bash
+git fetch && git status -sb  # local main can be behind: features land from other sessions and machines
+git merge --ff-only origin/main  # alone, never piped; then review what you will tag
 git log --oneline "$(git describe --tags --abbrev=0)"..HEAD
 git status --short          # uncommitted feature work is common here
 git diff
@@ -48,6 +50,20 @@ python3 .claude/skills/release/mcp_drive.py "$SCRATCH/adb-mcp" \
   'session_set_defaults|{"project_dir":"/path/to/project"}' \
   'get_coverage_report|{}'
 ```
+
+`mcp_drive.py` has no per-step timeout, and it prints nothing until it ends, so a
+step that waits (an emulator call with no emulator, a build) looks like a hang
+with no clue which step. Run it as
+`perl -e 'alarm 90; exec @ARGV' -- python3 -u .claude/skills/release/mcp_drive.py ...`
+(macOS has no `timeout`), and put a step you doubt in a run of its own. With an
+emulator already up, `boot_emulator {"avd": "<name>"}` alone must return its
+serial; that default call is the one that broke in v0.24.4.
+
+To check what `tools/list` advertises (titles, hints), use a client that reads
+the reply to the request before it closes stdin; closing stdin first prints
+nothing. A tool that is not read-only omits `readOnlyHint` (false is the
+default) and always carries `destructiveHint`, so count destructive as
+"not read-only and `destructiveHint` true", and compare with `docs/stats.json`.
 
 Exercise the **error paths too** (missing arg, not-found, ambiguous input), and
 hand-check the numbers against the source rather than accepting a plausible
