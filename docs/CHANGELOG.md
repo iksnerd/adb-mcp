@@ -4,6 +4,36 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.4 — Every tool says what it can do, and the guides travel with the skills
+
+No new tools. A batch of changes to what a model is told about the existing 80,
+plus three fixes.
+
+**Added: a title and safety hints on every tool.** All 80 tools carry an MCP
+title and the read-only, destructive, idempotent and open-world hints, so a
+client can ask before running one that destroys data. 22 tools only observe, 46
+add state, 12 can destroy, and 12 reach outside the device.
+
+**Added: `docs/stats.json`.** The version and the tool, guide and safety counts,
+written by `make docs` from the code and compared by `make docs-check`, so the
+project website can read them instead of matching a sentence in `TOOLS.md`.
+
+**Changed: each plugin skill now contains its full guide.** They were one-line
+pointers to an MCP resource, which Claude Desktop does not read. Tool
+descriptions and the server instructions no longer send the model only to
+resources.
+
+**Fixed: credentials in more output.** `gradle wrapper` output and the failure
+traces read from JUnit XML are now redacted like the rest of the Gradle output.
+
+**Fixed: `boot_emulator` on an AVD that is already running.** It returned a
+failure after its whole timeout for an emulator that worked. It now returns the
+running emulator's serial at once. `no_snapshot` was true by default, which
+also refused that call, so it is now unset unless given: unset means a cold boot
+when launching and is ignored for a running emulator. An explicit
+`no_snapshot: true` or `wipe_data: true` on a running AVD still errors and says
+to stop it first.
+
 ## v0.24.3 — A plugin the directory can accept
 
 v0.24.2 bundled six server binaries into the Claude plugin. The directory's
