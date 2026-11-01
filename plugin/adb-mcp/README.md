@@ -5,8 +5,9 @@ Lets Claude drive an Android emulator or a USB or wireless device through
 hierarchy, tap, swipe and type, install and launch apps, read logcat, and run
 Gradle builds and tests. It adds a skill for each driving guide (`getting-started`,
 `driving`, `rn-expo`, `pin-and-lock`, `crash-triage`, `build-and-test`); each skill
-tells Claude to read the matching `android://guide/*` resource before it starts that
-kind of task.
+contains the full guide, the same text the server serves as the matching
+`android://guide/*` resource. The skills exist because some clients, Claude Desktop
+among them, do not read MCP resources.
 
 ## Install
 

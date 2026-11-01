@@ -86,12 +86,14 @@ func main() {
 		fmt.Println("updated", f.path)
 	}
 
+	stale = append(stale, syncSkillBodies(*root, *check)...)
+
 	if len(stale) > 0 {
-		fmt.Fprintf(os.Stderr, "\nstale counts in: %s\nrun `make docs` and commit the result\n", strings.Join(stale, ", "))
+		fmt.Fprintf(os.Stderr, "\nstale counts or skill bodies in: %s\nrun `make docs` and commit the result\n", strings.Join(stale, ", "))
 		os.Exit(1)
 	}
 	if *check {
-		fmt.Println("all doc counts agree with the code")
+		fmt.Println("all doc counts agree with the code; every skill body is its guide")
 	}
 }
 
@@ -155,9 +157,11 @@ func undocumented(root string) []string {
 }
 
 // pluginSkillDirs are the plugin skill trees that mirror the guide resources
-// one-for-one: each guide gets a thin skill whose only job is to tell the agent
-// to read that resource. A new guide with no skill is invisible to plugin
-// users, which is how the sixth guide nearly shipped with five skills.
+// one-for-one: each guide gets a skill whose body IS that guide (syncSkillBodies
+// keeps them equal), because Claude Desktop does not read MCP resources and a
+// skill that only points at one delivers nothing there. A new guide with no
+// skill is invisible to plugin users, which is how the sixth guide nearly
+// shipped with five skills.
 var pluginSkillDirs = []string{
 	"plugin/adb-mcp/skills",
 	"plugin/adb-mcp-codex/skills",
@@ -186,6 +190,51 @@ func unwrappedGuides(root string) []string {
 	}
 	sort.Strings(missing)
 	return missing
+}
+
+// syncSkillBodies makes every plugin SKILL.md body equal its guide. In check
+// mode it returns the stale paths; otherwise it rewrites them. Skills missing
+// entirely are reported by unwrappedGuides, so they are skipped here.
+func syncSkillBodies(root string, check bool) []string {
+	guides, err := os.ReadFile(filepath.Join(root, "internal/guides/guides.go"))
+	if err != nil {
+		fail(err)
+	}
+	var stale []string
+	for _, dir := range pluginSkillDirs {
+		if _, err := os.Stat(filepath.Join(root, dir)); err != nil {
+			continue
+		}
+		for _, m := range reGuideName.FindAllSubmatch(guides, -1) {
+			name := string(m[1])
+			skillRel := filepath.Join(dir, name, "SKILL.md")
+			skill, err := os.ReadFile(filepath.Join(root, skillRel))
+			if err != nil {
+				continue
+			}
+			guide, err := os.ReadFile(filepath.Join(root, "internal/guides", name+".md"))
+			if err != nil {
+				fail(err)
+			}
+			want, err := syncSkill(string(skill), string(guide))
+			if err != nil {
+				fail(fmt.Errorf("%s: %w", skillRel, err))
+			}
+			if want == string(skill) {
+				continue
+			}
+			if check {
+				stale = append(stale, skillRel)
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(root, skillRel), []byte(want), 0o644); err != nil {
+				fail(err)
+			}
+			fmt.Println("updated", skillRel)
+		}
+	}
+	sort.Strings(stale)
+	return stale
 }
 
 type rewrite struct {

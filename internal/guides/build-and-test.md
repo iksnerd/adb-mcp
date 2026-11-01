@@ -107,7 +107,8 @@ background: true}` and read the log; you lose the parsed per-suite summary but
 not the wait.
 
 `run_instrumented_tests` needs a device in state `device` — check `list_devices`
-first if it errors, and see `android://guide/getting-started` for booting one.
+first if it errors, and see the `getting-started` guide (a skill, or the
+`android://guide/getting-started` resource) for booting one.
 
 ## Coverage
 
