@@ -5,7 +5,8 @@ package tools
 // without the agent choosing to read it. Guide resources are a *pull* channel
 // and agents do not pull: a field session drove a device for an hour, worked
 // several things out the hard way, and read zero android://guide/* resources
-// until a human intervened.
+// until a human intervened. Claude Desktop does not read resources at all, which
+// is why the same guides also ship as plugin skills.
 //
 // So this carries ONLY what is catastrophic to miss, and stays short: it is
 // permanently in every session's context, competing with everything else there.
@@ -30,4 +31,4 @@ concluding an element is absent.
 Batch timing-sensitive flows with run_sequence: a per-step round trip perturbs
 native timers.
 
-Recipes: android://guide/rn-expo, android://guide/driving, android://guide/getting-started.`
+Recipes, as plugin skills or as resources: rn-expo (android://guide/rn-expo), driving (android://guide/driving), getting-started (android://guide/getting-started).`

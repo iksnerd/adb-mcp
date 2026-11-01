@@ -20,8 +20,10 @@ import (
 //
 // Tool descriptions are written for the model that will call them: each says
 // what the tool does, when to reach for it, and the one gotcha that most often
-// wastes a turn. The overarching workflow lives in the android://guide/*
-// resources — read android://guide/driving for the observe→act loop.
+// wastes a turn. The overarching workflow lives in the guides, shipped as
+// android://guide/* resources and as plugin skills of the same names; Claude
+// Desktop does not read resources, so a description must carry the rule itself
+// and may only point at a guide as a second source (and say "skill").
 func Register(s *mcp.Server) {
 	// --- Emulator / device management ---
 	add(s, "list_avds",
@@ -31,7 +33,7 @@ func Register(s *mcp.Server) {
 		"Boot an AVD by name and return its device serial (e.g. emulator-5554). Launches the emulator detached so it outlives this call, and waits for full boot (sys.boot_completed) by default. Use the returned serial for later tools if you boot more than one device. Booting can take 30-120s on a cold start.",
 		bootEmulator)
 	add(s, "list_devices",
-		"List attached emulators/devices and their adb state (device = ready, offline, unauthorized). Use it to confirm a device is up before driving it, or to get the serial when several are attached. Driving a React Native/Expo dev build? Read android://guide/rn-expo before you start — the ordering (adb_reverse BEFORE launch, app_state before believing anything) is the part that costs sessions.",
+		"List attached emulators/devices and their adb state (device = ready, offline, unauthorized). Use it to confirm a device is up before driving it, or to get the serial when several are attached. Driving a React Native/Expo dev build? Follow the rn-expo guide before you start (a skill, or the android://guide/rn-expo resource) — the ordering (adb_reverse BEFORE launch, app_state before believing anything) is the part that costs sessions.",
 		listDevices)
 	add(s, "wait_for_boot",
 		"Block until a device finishes booting (sys.boot_completed=1). Only needed if you started an emulator elsewhere; boot_emulator already waits by default.",
@@ -103,7 +105,7 @@ func Register(s *mcp.Server) {
 		"Report whether a secure lock screen is set (probed with locksettings; this is what KeyguardManager.isDeviceSecure, which Keystore checks, reflects). Use it to verify set_device_lock worked before running a Keystore-gated flow.",
 		isDeviceSecure)
 	add(s, "fingerprint_touch",
-		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled it satisfies a BiometricPrompt, so you can drive the real biometric path instead of cancelling into the PIN fallback. finger_id must match an enrolled finger (default 1). Check has_biometric_enrolled FIRST: with nothing enrolled the prompt sits on \"Touch the sensor\" forever. GOTCHA: it reports OK even when the id matches nothing, and wrong ids trip a HAL lockout, so enroll deterministically rather than sweeping ids (android://guide/pin-and-lock). Emulator-only.",
+		"Simulate a fingerprint-sensor touch on an EMULATOR (adb emu finger touch). With a fingerprint enrolled it satisfies a BiometricPrompt, so you can drive the real biometric path instead of cancelling into the PIN fallback. finger_id must match an enrolled finger (default 1). Check has_biometric_enrolled FIRST: with nothing enrolled the prompt sits on \"Touch the sensor\" forever. GOTCHA: it reports OK even when the id matches nothing, and wrong ids trip a HAL lockout, so enroll deterministically rather than sweeping ids (the pin-and-lock guide: a skill, or the android://guide/pin-and-lock resource). Emulator-only.",
 		fingerTouch)
 	add(s, "finger_remove",
 		"Lift the simulated finger off the sensor (adb emu finger remove) — the complement to fingerprint_touch, for flows that watch for the finger-up event. Emulator-only.",
@@ -267,7 +269,7 @@ func Register(s *mcp.Server) {
 		"Run Gradle instrumented (on-device) tests (default task 'connectedAndroidTest') in project_dir — requires a booted device/emulator. Returns per-suite timing and failing-test stack traces; pass json=true for a structured JSON summary. Runs in the foreground and can take minutes; for a long run use gradle_build with task=connectedAndroidTest and background=true, then read the log.",
 		runInstrumentedTests)
 	add(s, "get_coverage_report",
-		"Run a JaCoCo coverage-report Gradle task in project_dir (default 'jacocoTestReport') and summarize coverage: overall line/branch/method/class percentages plus a per-package breakdown, worst-covered first; multi-module reports are merged. 'jacocoTestReport' is NOT an Android Gradle plugin task: if it is missing, pass AGP's 'createDebugUnitTestCoverageReport' as task= (find it with list_gradle_tasks; see android://guide/build-and-test). JVM unit tests only. Pass json=true for structured JSON.",
+		"Run a JaCoCo coverage-report Gradle task in project_dir (default 'jacocoTestReport') and summarize coverage: overall line/branch/method/class percentages plus a per-package breakdown, worst-covered first; multi-module reports are merged. 'jacocoTestReport' is NOT an Android Gradle plugin task: if it is missing, pass AGP's 'createDebugUnitTestCoverageReport' as task= (find it with list_gradle_tasks; see the build-and-test guide: a skill, or the android://guide/build-and-test resource). JVM unit tests only. Pass json=true for structured JSON.",
 		getCoverageReport)
 	add(s, "get_file_coverage",
 		"Same JaCoCo run and task fallback as get_coverage_report, scoped to one source file: the missed and partially-covered line numbers plus per-method detail. Use it after get_coverage_report names the weakest package. file matches by suffix across every module (an ambiguous name returns every match; a miss lists the files that have data). JVM unit tests only. Pass json=true for structured JSON.",
