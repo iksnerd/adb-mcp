@@ -176,7 +176,12 @@ func (sum *TestSummary) merge(s junitSuite) {
 		if c.Classname != "" {
 			name = c.Classname + "." + c.Name
 		}
-		msg := strings.TrimSpace(firstLine(fail.Message))
+		// The report is read from disk, so it never passed through the console
+		// redaction: a test that prints a token into its own failure would
+		// otherwise show it to the agent. Redact before the first-line cut and
+		// before truncation, so a secret is never split across either boundary.
+		message := strings.TrimSpace(RedactSecrets(fail.Message))
+		msg := strings.TrimSpace(firstLine(message))
 		if msg != "" {
 			sum.Failed = append(sum.Failed, name+": "+msg)
 		} else {
@@ -184,8 +189,8 @@ func (sum *TestSummary) merge(s junitSuite) {
 		}
 		sum.FailedDetail = append(sum.FailedDetail, TestFailure{
 			Name:    name,
-			Message: strings.TrimSpace(fail.Message),
-			Stack:   truncateStack(strings.TrimSpace(fail.Body)),
+			Message: message,
+			Stack:   truncateStack(strings.TrimSpace(RedactSecrets(fail.Body))),
 		})
 	}
 }

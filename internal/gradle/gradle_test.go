@@ -1,8 +1,12 @@
 package gradle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -75,5 +79,39 @@ func TestPickAPK(t *testing.T) {
 	onlyTest := apks[:1]
 	if got := PickAPK(onlyTest); got != onlyTest[0] {
 		t.Errorf("expected fallback to first, got %q", got)
+	}
+}
+
+// `gradle wrapper` can echo ~/.gradle/gradle.properties under --info-style
+// init scripts, so GenerateWrapper's output is redacted like every other
+// Gradle run, on both the success and the failure path.
+func TestGenerateWrapperRedactsOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell stub for the system gradle")
+	}
+	for _, tc := range []struct {
+		name string
+		exit int
+		ok   bool
+	}{{"success", 0, true}, {"failure", 1, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			stub := "#!/bin/sh\necho 'systemProp.repoPassword=fake-wrapper-secret-555'\nexit " + strconv.Itoa(tc.exit) + "\n"
+			if err := os.WriteFile(filepath.Join(bin, "gradle"), []byte(stub), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			out, ok, err := GenerateWrapper(context.Background(), t.TempDir())
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v (err=%v)", ok, tc.ok, err)
+			}
+			if strings.Contains(out, "fake-wrapper-secret-555") {
+				t.Errorf("credential reached GenerateWrapper output: %q", out)
+			}
+			if !strings.Contains(out, redactedMark) {
+				t.Errorf("expected %q in output, got %q", redactedMark, out)
+			}
+		})
 	}
 }

@@ -159,3 +159,48 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+// A test that prints a credential into its own failure message or stack trace
+// must not hand it to the agent: the JUnit XML bypasses Gradle's console
+// output, so it needs its own redaction.
+func TestParseTestResultsRedactsSecrets(t *testing.T) {
+	dir := t.TempDir()
+	unit := filepath.Join(dir, "build", "test-results", "testDebugUnitTest")
+	if err := os.MkdirAll(unit, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(unit, "TEST-com.example.AuthTest.xml"), `<?xml version="1.0"?>
+<testsuite name="com.example.AuthTest" tests="1" failures="1" errors="0" skipped="0" time="0.1">
+  <testcase name="signsIn" classname="com.example.AuthTest">
+    <failure message="login failed with mavenToken=fake-msg-secret-111">java.lang.AssertionError
+	Authorization: Bearer fake-bearer-222
+	repo https://ci:fake-url-333@maven.example.com/releases
+	apiKey=fake-stack-444
+	at com.example.AuthTest.signsIn(AuthTest.java:9)</failure>
+  </testcase>
+</testsuite>`)
+
+	sum, found := ParseTestResults(dir)
+	if !found {
+		t.Fatal("expected the report to be found")
+	}
+	all := sum.String()
+	for _, f := range sum.Failed {
+		all += "\n" + f
+	}
+	for _, d := range sum.FailedDetail {
+		all += "\n" + d.Name + "\n" + d.Message + "\n" + d.Stack
+	}
+	for _, secret := range []string{"fake-msg-secret-111", "fake-bearer-222", "fake-url-333", "fake-stack-444"} {
+		if strings.Contains(all, secret) {
+			t.Errorf("credential %q reached the test summary:\n%s", secret, all)
+		}
+	}
+	if !strings.Contains(all, redactedMark) {
+		t.Errorf("expected %q in the summary, got:\n%s", redactedMark, all)
+	}
+	// Redaction must not eat the diagnostic content around the secret.
+	if !strings.Contains(all, "com.example.AuthTest.signsIn") || !strings.Contains(all, "AuthTest.java:9") {
+		t.Errorf("redaction removed the test name or stack frame:\n%s", all)
+	}
+}
