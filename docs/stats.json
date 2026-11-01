@@ -1,0 +1,9 @@
+{
+  "version": "0.24.3",
+  "tools": 80,
+  "guides": 6,
+  "read_only": 22,
+  "additive": 46,
+  "destructive": 12,
+  "open_world": 12
+}
