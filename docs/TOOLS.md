@@ -123,6 +123,18 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 | `gradle_project_properties` | Dump evaluated Gradle properties for one module (`:app`, `:feature:login`, …) — secret-shaped values (password/token/key/credential) are redacted before returning |
 | `scaffold_android_project` | Create a minimal Kotlin Android project in a new empty directory — also generates the Gradle wrapper when a system `gradle` is on PATH, so it's immediately buildable |
 
+## Safety hints
+
+Every tool carries a `title` and the MCP safety hints, so a client can auto-approve what only observes and stop to ask before what destroys. A hint describes the tool's own effect, not what an app might do with the input: `tap` is additive even though a tap can land on a Delete button, because the tool sends an input event and removes nothing.
+
+| Hint | Tools |
+|---|---|
+| Read-only (22) | Observe only: `describe_ui`, `screenshot`, `logcat`, `app_state`, the `list_*` tools, `doctor`, and the like |
+| Additive (46) | Change state but delete nothing: input, launch, install, the emulator `set_*` tools, builds and tests |
+| Destructive (12) | `avd_snapshot`, `clear_app_data`, `clear_device_lock`, `clear_logcat`, `gradle_build`, `pull_file`, `push_file`, `revoke_permission`, `run_instrumented_tests`, `set_device_lock`, `shutdown_emulator`, `uninstall_app` |
+
+`openWorldHint` is `false` for anything that acts only on the attached device or emulator, and `true` for the 12 tools that can reach beyond it: the Gradle tools (plugin and dependency downloads, the project's own build scripts), `open_url` and `connect_wireless`. The source of truth is `internal/tools/annotations.go`; `annotations_test.go` fails when a tool has no row and pins the destructive set by name.
+
 ## Resources (the bundled "skill")
 
 The driving know-how ships as MCP resources the client can list and read. Not every client does: Claude Desktop does not read resources, so the plugins carry the same text as skills (each `SKILL.md` body is its guide, kept equal by `make docs`). The server also returns a short `instructions` block on `initialize` (the RN/Expo ordering, absence-is-not-evidence, viewport-scoped reads), which clients put in the model's system prompt before any tool is called:
