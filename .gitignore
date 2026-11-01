@@ -36,3 +36,6 @@ Thumbs.db
 
 # Personal / pre-launch drafts kept out of the public repo
 docs/personal/
+
+# Python bytecode (the release driver tests import mcp_drive.py)
+__pycache__/
