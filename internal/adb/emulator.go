@@ -50,6 +50,23 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipe
 		before[d.Serial] = true
 	}
 
+	// An emulator of this AVD may already be up. It is in the "before" snapshot,
+	// so the discovery loop below could never see it as new and would wait out
+	// the whole timeout, then report failure for a device that works. Two
+	// emulators cannot share an AVD's state either, so launching another is wrong.
+	if running, ok := findRunningAVD(attachedEmulators(ctx, devs), avd); ok {
+		if noSnapshot || wipeData {
+			return "", fmt.Errorf("emulator %q is already running as %s, so no_snapshot / wipe_data cannot apply to it: stop it first (shutdown_emulator) and boot again, or leave both off to use it as it is", avd, running.Serial)
+		}
+		if !waitForBoot {
+			return running.Serial, nil
+		}
+		if err := New(running.Serial).WaitForBoot(ctx, timeout); err != nil {
+			return running.Serial, err
+		}
+		return running.Serial, nil
+	}
+
 	args := []string{"-avd", avd}
 	if noSnapshot {
 		args = append(args, "-no-snapshot-load")
@@ -93,7 +110,11 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipe
 		time.Sleep(1 * time.Second)
 	}
 	if serial == "" {
-		return "", fmt.Errorf("emulator %q did not appear within %s", avd, timeout)
+		// Say what IS attached. boot_emulator only reports a NEW device, so a
+		// caller that sees a bare failure may boot a second emulator or give up
+		// on one that works.
+		now, _ := ListDevices(ctx)
+		return "", fmt.Errorf("emulator %q did not appear within %s as a new device (attached now: %s); if one of those is the AVD you wanted, use its serial", avd, timeout, describeAttached(attachedEmulators(ctx, now)))
 	}
 	if !waitForBoot {
 		return serial, nil
@@ -109,6 +130,66 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipe
 		return serial, err
 	}
 	return serial, nil
+}
+
+// attachedEmulator is one emulator-* device and the AVD it reports running.
+type attachedEmulator struct {
+	Serial, State, AVD string // AVD is empty when the emulator would not say
+}
+
+// attachedEmulators asks every emulator-* device which AVD it runs (the console
+// answers even while adb still reports the device as offline). Physical devices
+// have no AVD and are skipped.
+func attachedEmulators(ctx context.Context, devs []Device) []attachedEmulator {
+	var out []attachedEmulator
+	for _, d := range devs {
+		if !strings.HasPrefix(d.Serial, "emulator-") {
+			continue
+		}
+		name, _ := New(d.Serial).AVDName(ctx)
+		out = append(out, attachedEmulator{Serial: d.Serial, State: d.State, AVD: name})
+	}
+	return out
+}
+
+// findRunningAVD returns the attached emulator that runs avd, if any.
+func findRunningAVD(emus []attachedEmulator, avd string) (attachedEmulator, bool) {
+	for _, e := range emus {
+		if e.AVD == avd {
+			return e, true
+		}
+	}
+	return attachedEmulator{}, false
+}
+
+// describeAttached renders "emulator-5554 (device, Pixel_10a), …" for an error.
+func describeAttached(emus []attachedEmulator) string {
+	if len(emus) == 0 {
+		return "no emulators"
+	}
+	parts := make([]string, len(emus))
+	for i, e := range emus {
+		avd := e.AVD
+		if avd == "" {
+			avd = "AVD unknown"
+		}
+		parts[i] = fmt.Sprintf("%s (%s, %s)", e.Serial, e.State, avd)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// AVDName returns the AVD this emulator is running (adb emu avd name).
+func (c *Client) AVDName(ctx context.Context) (string, error) {
+	out, err := c.emu(ctx, "avd name", "avd", "name")
+	if err != nil {
+		return "", err
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		if s := strings.TrimSpace(line); s != "" && s != "OK" {
+			return s, nil
+		}
+	}
+	return "", fmt.Errorf("emulator %s reported no AVD name", c.Serial)
 }
 
 // WaitForBoot blocks until the device reports sys.boot_completed=1 or timeout.

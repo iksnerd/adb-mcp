@@ -11,7 +11,7 @@ single device is attached; with several, pass one from `list_devices`.
 | Tool | Purpose |
 |---|---|
 | `list_avds` | List AVDs available to boot |
-| `boot_emulator` | Boot an AVD (detached), wait for boot, return its serial |
+| `boot_emulator` | Boot an AVD (detached), wait for boot, return its serial; returns the serial of an already-running emulator of that AVD instead of launching a second |
 | `list_devices` | List attached devices and adb state |
 | `wait_for_boot` | Block until `sys.boot_completed=1` |
 | `shutdown_emulator` | Power off (`adb emu kill`) |

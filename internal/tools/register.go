@@ -30,7 +30,7 @@ func Register(s *mcp.Server) {
 		"List the Android Virtual Devices (AVDs) installed on this machine that can be booted. Start here when no emulator is running yet; the returned names feed boot_emulator.",
 		listAVDs)
 	add(s, "boot_emulator",
-		"Boot an AVD by name and return its device serial (e.g. emulator-5554). Launches the emulator detached so it outlives this call, and waits for full boot (sys.boot_completed) by default. Use the returned serial for later tools if you boot more than one device. Booting can take 30-120s on a cold start.",
+		"Boot an AVD by name and return its device serial (e.g. emulator-5554). Launches the emulator detached so it outlives this call, and waits for full boot (sys.boot_completed) by default. Use the returned serial for later tools if you boot more than one device. Booting can take 30-120s on a cold start. If an emulator of this AVD is already running it returns that serial instead of launching a second one; no_snapshot and wipe_data then error, because they cannot apply to a running emulator (stop it with shutdown_emulator first).",
 		bootEmulator)
 	add(s, "list_devices",
 		"List attached emulators/devices and their adb state (device = ready, offline, unauthorized). Use it to confirm a device is up before driving it, or to get the serial when several are attached. Driving a React Native/Expo dev build? Follow the rn-expo guide before you start (a skill, or the android://guide/rn-expo resource) — the ordering (adb_reverse BEFORE launch, app_state before believing anything) is the part that costs sessions.",
