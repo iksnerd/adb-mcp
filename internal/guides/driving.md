@@ -135,7 +135,8 @@ coordinate**. Because the screenshot is downscaled, multiply the pixel you read
 by the downscale factor (or re-take the screenshot with `max_dim: 0` for a
 1:1 image) before passing to `tap`. For a numeric pad specifically, `enter_pin`
 takes a `grid` (the pad's bounding box → standard 3×4 layout) or explicit
-`coords` so you don't hand-tap every digit — see `android://guide/pin-and-lock`.
+`coords` so you don't hand-tap every digit — see the `pin-and-lock` guide (a skill,
+or the `android://guide/pin-and-lock` resource).
 
 Note: `describe_ui` also *settles* the tree (it dumps twice and, if they differ,
 waits and re-dumps) to avoid handing back a stale mid-animation snapshot. If it

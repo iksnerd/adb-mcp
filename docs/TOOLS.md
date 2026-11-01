@@ -125,7 +125,7 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 
 ## Resources (the bundled "skill")
 
-The driving know-how ships as MCP resources the client can list and read. The server also returns a short `instructions` block on `initialize` (the RN/Expo ordering, absence-is-not-evidence, viewport-scoped reads), which clients put in the model's system prompt before any tool is called:
+The driving know-how ships as MCP resources the client can list and read. Not every client does: Claude Desktop does not read resources, so the plugins carry the same text as skills (each `SKILL.md` body is its guide, kept equal by `make docs`). The server also returns a short `instructions` block on `initialize` (the RN/Expo ordering, absence-is-not-evidence, viewport-scoped reads), which clients put in the model's system prompt before any tool is called:
 
 | URI | What it covers |
 |---|---|

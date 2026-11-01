@@ -62,8 +62,8 @@ whenever edits appear to have no effect or expected logs are absent.
   image reader accepts it. Set `max_dim: 0` for full resolution if you need it.
 - Prefer `tap_on_text` over `tap` when you know the label — it looks up the true
   pixel center for you, so you never miscalculate a coordinate.
-- Read the `android://guide/driving` resource for the full observe→act loop and
-  the gotchas that waste turns.
-- Building or testing rather than driving? `android://guide/build-and-test`
-  covers Gradle: mapping a multi-module project before guessing a task name,
+- Read the `driving` guide (a skill, or the `android://guide/driving` resource)
+  for the full observe→act loop and the gotchas that waste turns.
+- Building or testing rather than driving? The `build-and-test` guide
+  (`android://guide/build-and-test` as a resource) covers Gradle: mapping a multi-module project before guessing a task name,
   variants, JVM vs on-device tests, and coverage.

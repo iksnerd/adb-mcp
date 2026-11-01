@@ -3,4 +3,154 @@ name: driving
 description: The core observe→locate→act→re-observe loop for driving an Android UI with adb-mcp — true-pixel coordinates, and gotchas like overlays eating taps, keyboards covering buttons, and settle delays. Use whenever tapping, swiping, typing, or otherwise interacting with an Android screen.
 ---
 
-Read the `android://guide/driving` resource from the `adb` MCP server for the full loop before tapping, swiping, or typing on a device.
+# Driving an Android emulator with this MCP
+
+There is no built-in Android UI-automation the way XcodeBuildMCP has for iOS.
+These tools give you that: boot an AVD, look at the screen, read the real UI
+hierarchy, and act on it. Driving a UI is a **tight loop**:
+
+> **observe → locate → act → re-observe**
+
+Never fire a chain of taps blind. UI state (modals, errors, async loads, list
+reorders) drifts from your mental model fast; a one-call look prevents a chain of
+taps landing on the wrong screen.
+
+## The core loop
+
+1. **Observe** — call `screenshot` and actually look at the returned image to
+   understand the current state.
+2. **Locate precisely** — call `describe_ui`. It returns every interesting
+   element with its `text`, `content_desc`, `resource_id`, and a `center` in
+   **true device pixels**. Use that `center` for tap coordinates. **Do not guess
+   coordinates from the screenshot** — the image is downscaled, so guessed taps
+   miss. The screenshot is for *seeing*; `describe_ui` is for *aiming*.
+3. **Act** — `tap` (or `tap_on_text` to skip the manual lookup), `swipe`,
+   `input_text`, `press_key`.
+4. **Re-observe** — `screenshot` again and confirm the state actually changed
+   before the next action.
+
+`tap_on_text` fuses steps 2–3: it runs `describe_ui`, finds the element by
+visible label or content-description, and taps its center. Prefer it when you
+know the label of what you want to press.
+
+Loop economy: in a long drive, `describe_ui {compact: true}` gives the same
+aiming information at ~10x fewer tokens, and `{query: "..."}` answers "is X
+on screen?" without the whole tree. When an action might be silently consumed
+(a key press with an overlay up), `verify_change: true` on `press_key`/`tap`
+replaces a full re-observe with a built-in `ui_changed` answer. For purely
+time-based conditions (an app must stay backgrounded 18s to trip a native
+timer), use `wait` — `wait_for_text` can't express elapsed time. If the text
+you're waiting for is inside a `ScrollView` and starts off-screen, pass
+`wait_for_text {scroll: true}` — Android's accessibility tree only covers the
+current viewport, so a plain poll can time out on content that would appear
+on scroll.
+
+When a flow is several fixed steps — especially one gated on **native timing**
+(`home → sleep 19 → launch → sleep 9 → cancel the prompt if it's up → look`) —
+`run_sequence` runs them all in one call. That matters beyond convenience: a
+per-step agent round-trip *perturbs* timers like a background-token clear or a
+biometric prompt that auto-fires on resume, so batching is often the only way to
+reproduce them. Steps take an `if_present`/`if_absent` guard (skip unless a
+selector is/ isn't on screen — the conditional-cancel idiom) and `optional`
+(don't abort on failure); the call returns a per-step result plus the final
+hierarchy.
+
+## Coordinate rule
+
+`tap`/`swipe` always use **true device pixels**. The `center` values from
+`describe_ui` are already in true pixels — pass them straight through. When a tap
+"does nothing", it is almost always a stale or misscaled coordinate: re-run
+`describe_ui` and use a fresh `center`.
+
+## Gotchas that waste turns
+
+- **A toast/overlay silently eats taps.** e.g. a React-Native LogBox banner
+  ("Open debugger to view warnings") sits over the bottom tab bar and intercepts
+  taps meant for tabs beneath it. Dismiss the overlay (tap its ✕) first.
+- **The keyboard covers buttons after `input_text`.** Send `press_key escape`
+  (or `back`) to dismiss the IME before tapping a button lower on screen.
+- **Route/tab changes need a settle delay.** After navigation, take a
+  `screenshot` before assuming the new screen is ready; animations and
+  Fast-Refresh aren't instant.
+- **`describe_ui` can transiently fail mid-animation** ("could not get idle
+  state"). This tool already retries once; if it still fails, wait and call again.
+- **`screenshot` and `describe_ui` can briefly disagree during a transition.**
+  Mid-navigation (an app backgrounding, a dev-launcher hand-off) a `screenshot`
+  may show one screen while a `describe_ui` a moment later returns a different
+  tree — a timing race, not a bug. Let the screen settle (short wait, re-take)
+  before trusting the two together.
+- **A black `screenshot` isn't always a black screen.** `screenshot` retries an
+  all-black frame automatically and, if it stays black, tells you why in the
+  caption: a `FLAG_SECURE` window (e.g. a native PIN pad the OS blanks) or a
+  sleeping display. Either way, **fall back to `describe_ui`** — it reads the
+  hierarchy even when the pixels are blanked. Don't send a wake key on a black
+  frame unless the caption says the screen is off. When it *does* say
+  `screen_off` — especially if it keeps recurring on a doze-happy emulator —
+  `press_key wakeup` turns the display on (not `power`, which toggles and can
+  sleep an awake screen), and **`stay_awake` holds it on for the whole session**
+  so screenshots stop coming back black between steps.
+- **Foldables (multi-display) capture fine now.** On a device with more than one
+  physical display, `screenshot` used to return an undecodable file — the OS
+  prepends a "multiple displays" warning to the capture. That's handled; the
+  default screen captures cleanly. To grab the *other* panel, pass
+  `screenshot {display: "cover"}` (or `"inner"`/an index). `describe_ui` reads
+  the default display's hierarchy regardless.
+- **A SYSTEM window can replace the app's hierarchy wholesale.** When a
+  BiometricPrompt, permission dialog, or the shade has focus, `describe_ui`
+  returns *that* window's elements — the app's tree is gone, which reads like
+  "the app broke" if you don't notice. Check the `top window:` line at the top
+  of every `describe_ui` response: if it names `com.android.systemui` (or
+  another package than yours), dismiss/satisfy the overlay first (e.g.
+  `fingerprint_touch` for a biometric prompt, or tap its button). Pass
+  `describe_ui {package: "com.your.app"}` to get this checked for you — the
+  header adds an explicit warning line instead of you having to notice the
+  mismatch by eye. A key press
+  that "succeeds" while such a window is up may be consumed by it — pass
+  `verify_change: true` to `press_key`/`tap` to learn whether anything actually
+  changed.
+- **KEYCODE_HOME under automation doesn't reliably background the app.** Flows
+  that depend on a background-time threshold (e.g. "token clears after 15s in
+  background") reproduced only ~50% of the time via home-key automation — and
+  an apparent re-lock was sometimes a *cold process start* (new pid) rather
+  than the background timer firing. Confirm which one you got from logcat (a
+  fresh "Bootstrap starting"-style line + pid change = cold start) before
+  concluding the timer works or doesn't.
+- **"My edits aren't showing up" (RN/Expo) is usually the embedded bundle.** A
+  dev client that can't reach Metro silently runs its baked-in bundle and
+  ignores every JS change. Before debugging the code, call `app_state`: it
+  reports the running pid(s), process uptime, and whether the process is serving
+  a **metro** or **embedded** bundle. Embedded when you expected Metro → run
+  `adb_reverse {device_port: 8081}` and relaunch. It also flags **two live processes** for
+  one package (a lingering old build + a fresh install), the trap where your
+  taps and your log reads hit different pids.
+
+## When describe_ui can't see the element (RN / Flutter / Skia)
+
+`describe_ui` reads the **uiautomator** hierarchy. Content painted on a **canvas**
+— React Native (in some cases), Flutter, or a Skia-drawn SDK PIN pad — is not in
+that hierarchy at all, so `describe_ui`/`tap_on_text` return nothing (or only a
+container) for it even though the `screenshot` clearly shows it. Two tells:
+
+- The screenshot shows rows/keys but `describe_ui` lists an empty-state or just a
+  big container.
+- `tap_on_text` reports "no element matching …" for text you can plainly see.
+
+When that happens, **read the coordinates off the screenshot and tap by
+coordinate**. Because the screenshot is downscaled, multiply the pixel you read
+by the downscale factor (or re-take the screenshot with `max_dim: 0` for a
+1:1 image) before passing to `tap`. For a numeric pad specifically, `enter_pin`
+takes a `grid` (the pad's bounding box → standard 3×4 layout) or explicit
+`coords` so you don't hand-tap every digit — see the `pin-and-lock` guide (a skill,
+or the `android://guide/pin-and-lock` resource).
+
+Note: `describe_ui` also *settles* the tree (it dumps twice and, if they differ,
+waits and re-dumps) to avoid handing back a stale mid-animation snapshot. If it
+still looks stale, the content is almost certainly canvas-drawn — switch to the
+screenshot-coordinate approach above.
+
+## Buttons: label vs. content-desc
+
+Buttons often expose their label as `content_desc` on a clickable `ViewGroup`,
+with the visible `text` on a *non-clickable* child. `describe_ui` and
+`tap_on_text` match either, and `tap_on_text` prefers the clickable node so your
+tap lands on something that responds.
