@@ -135,6 +135,8 @@ Every tool carries a `title` and the MCP safety hints, so a client can auto-appr
 
 `openWorldHint` is `false` for anything that acts only on the attached device or emulator, and `true` for the 12 tools that can reach beyond it: the Gradle tools (plugin and dependency downloads, the project's own build scripts), `open_url` and `connect_wireless`. The source of truth is `internal/tools/annotations.go`; `annotations_test.go` fails when a tool has no row and pins the destructive set by name.
 
+`docs/stats.json` publishes these counts, with the tool and guide counts and the version, as JSON for other sites to read (the project website reads it). `make docs` writes it from the code and `make check` fails when the committed file differs, so it cannot drift.
+
 ## Resources (the bundled "skill")
 
 The driving know-how ships as MCP resources the client can list and read. Not every client does: Claude Desktop does not read resources, so the plugins carry the same text as skills (each `SKILL.md` body is its guide, kept equal by `make docs`). The server also returns a short `instructions` block on `initialize` (the RN/Expo ordering, absence-is-not-evidence, viewport-scoped reads), which clients put in the model's system prompt before any tool is called:

@@ -87,13 +87,14 @@ func main() {
 	}
 
 	stale = append(stale, syncSkillBodies(*root, *check)...)
+	stale = append(stale, syncStats(*root, c, *check)...)
 
 	if len(stale) > 0 {
-		fmt.Fprintf(os.Stderr, "\nstale counts or skill bodies in: %s\nrun `make docs` and commit the result\n", strings.Join(stale, ", "))
+		fmt.Fprintf(os.Stderr, "\nstale counts, skill bodies or stats in: %s\nrun `make docs` and commit the result\n", strings.Join(stale, ", "))
 		os.Exit(1)
 	}
 	if *check {
-		fmt.Println("all doc counts agree with the code; every skill body is its guide")
+		fmt.Println("all doc counts agree with the code; every skill body is its guide; docs/stats.json is current")
 	}
 }
 
