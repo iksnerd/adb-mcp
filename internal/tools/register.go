@@ -291,7 +291,7 @@ func Register(s *mcp.Server) {
 
 // add is a small generic wrapper over mcp.AddTool to cut boilerplate.
 func add[In any](s *mcp.Server, name, desc string, h func(context.Context, In) (*mcp.CallToolResult, error)) {
-	mcp.AddTool(s, &mcp.Tool{Name: name, Description: desc},
+	mcp.AddTool(s, &mcp.Tool{Name: name, Title: titleFor(name), Description: desc, Annotations: annotationsFor(name)},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			res, err := h(ctx, in)
 			return res, nil, err
