@@ -116,6 +116,12 @@ claude plugin marketplace add iksnerd/adb-mcp
 claude plugin install adb-mcp@adb-mcp
 ```
 
+Register the server one way, not both. `claude mcp add` and the plugin each
+register it, under different names (`adb` and `plugin:adb-mcp:adb`), so using
+both gives a session two copies of all the tools and no clear one to call. If you
+added it with `claude mcp add` and then install the plugin, remove the first
+(`claude mcp remove adb`).
+
 For Codex, the same plugin ships in Codex's manifest shape:
 
 ```bash
