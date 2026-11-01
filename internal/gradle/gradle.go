@@ -48,9 +48,9 @@ func GenerateWrapper(ctx context.Context, projectDir string) (out string, ok boo
 	cmd.Env = sdk.CommandEnv()
 	b, runErr := cmd.CombinedOutput()
 	if runErr != nil {
-		return string(b), false, fmt.Errorf("gradle wrapper failed: %w", runErr)
+		return RedactSecrets(string(b)), false, fmt.Errorf("gradle wrapper failed: %w", runErr)
 	}
-	return string(b), true, nil
+	return RedactSecrets(string(b)), true, nil
 }
 
 // FindAPKs returns any .apk files under projectDir's build outputs, newest

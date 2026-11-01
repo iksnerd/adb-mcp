@@ -133,9 +133,10 @@ minute cap). Both write the full output to a log file and return a small
 the error scan counts compiler lines and the line under Gradle's `* What went
 wrong:`. What `Gradle` returns and what `RunBuild` writes to its log both go through
 `RedactSecrets` (the log line by line), so a `--info` build cannot put a
-credential from `~/.gradle/gradle.properties` in a transcript or on disk. Two
-paths are not covered: `GenerateWrapper`'s output and the failure traces
-`ParseTestResults` reads from the JUnit XML.
+credential from `~/.gradle/gradle.properties` in a transcript or on disk.
+`GenerateWrapper`'s output and the failure messages and traces `ParseTestResults`
+reads from the JUnit XML are redacted the same way (the XML before it is cut to
+its first line or truncated).
 `FindAPKs`
 locates outputs (newest-first, `node_modules`/dot-dirs pruned); `PickAPK` skips
 androidTest APKs; `ParseTestResults` reads the JUnit XML. `FindCoverageReports`
