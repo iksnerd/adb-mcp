@@ -2,7 +2,9 @@
 // as MCP resources. A client can list and read them to learn the observe→act
 // loop, native PIN/lock handling, native crash triage, and the Gradle
 // build/test/coverage workflow, the same way it would consult a skill file. The
-// content is embedded so the binary is self-contained.
+// content is embedded so the binary is self-contained. Claude Desktop does not
+// read resources, so the plugins ship the same text as skills; scripts/docsync
+// keeps each SKILL.md body equal to its guide.
 package guides
 
 import (
