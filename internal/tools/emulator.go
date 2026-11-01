@@ -18,7 +18,7 @@ type listAVDsArgs struct{}
 type bootArgs struct {
 	AVD         string `json:"avd" jsonschema:"AVD name to boot (see list_avds)."`
 	WaitForBoot *bool  `json:"wait_for_boot,omitempty" jsonschema:"Wait until fully booted before returning. Default true."`
-	NoSnapshot  *bool  `json:"no_snapshot,omitempty" jsonschema:"Cold boot without loading a saved snapshot. Default true."`
+	NoSnapshot  *bool  `json:"no_snapshot,omitempty" jsonschema:"Cold boot without loading a saved snapshot. Default true when launching; if the AVD is already running it is ignored unless set true, which errors."`
 	WipeData    *bool  `json:"wipe_data,omitempty" jsonschema:"Factory-reset the AVD on this boot (-wipe-data). Default false. Use to start from a pristine device."`
 	TimeoutS    int    `json:"timeout_s,omitempty" jsonschema:"Boot timeout in seconds. Default 180."`
 }
@@ -55,7 +55,7 @@ func bootEmulator(ctx context.Context, in bootArgs) (*mcp.CallToolResult, error)
 	if in.TimeoutS > 0 {
 		timeout = time.Duration(in.TimeoutS) * time.Second
 	}
-	serial, err := adb.BootEmulator(ctx, in.AVD, boolOr(in.NoSnapshot, true), boolOr(in.WaitForBoot, true), boolOr(in.WipeData, false), timeout)
+	serial, err := adb.BootEmulator(ctx, in.AVD, in.NoSnapshot, boolOr(in.WaitForBoot, true), boolOr(in.WipeData, false), timeout)
 	if err != nil {
 		if serial != "" {
 			return nil, fmt.Errorf("emulator %s came up as %s but %w", in.AVD, serial, err)

@@ -36,7 +36,7 @@ func ListAVDs(ctx context.Context) ([]string, error) {
 // BootEmulator launches an AVD detached (so it outlives the request) and, when
 // waitForBoot is true, waits until it reports sys.boot_completed. It returns the
 // serial of the newly booted device.
-func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipeData bool, timeout time.Duration) (string, error) {
+func BootEmulator(ctx context.Context, avd string, noSnapshot *bool, waitForBoot, wipeData bool, timeout time.Duration) (string, error) {
 	// Snapshot the devices present before boot so we can identify the new one
 	// afterwards. If this listing fails we must not proceed: an empty snapshot
 	// would make the discovery loop below treat an already-attached, unrelated
@@ -55,7 +55,7 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipe
 	// the whole timeout, then report failure for a device that works. Two
 	// emulators cannot share an AVD's state either, so launching another is wrong.
 	if running, ok := findRunningAVD(attachedEmulators(ctx, devs), avd); ok {
-		if noSnapshot || wipeData {
+		if (noSnapshot != nil && *noSnapshot) || wipeData {
 			return "", fmt.Errorf("emulator %q is already running as %s, so no_snapshot / wipe_data cannot apply to it: stop it first (shutdown_emulator) and boot again, or leave both off to use it as it is", avd, running.Serial)
 		}
 		if !waitForBoot {
@@ -68,7 +68,7 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot, waitForBoot, wipe
 	}
 
 	args := []string{"-avd", avd}
-	if noSnapshot {
+	if noSnapshot == nil || *noSnapshot { // unset: a cold boot, the default
 		args = append(args, "-no-snapshot-load")
 	}
 	if wipeData {

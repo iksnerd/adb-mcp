@@ -83,7 +83,7 @@ func TestBootEmulatorReusesARunningEmulatorOfThatAVD(t *testing.T) {
 	f.set(t, "avd_emulator-5554", "Pixel_10a\n")
 
 	start := time.Now()
-	serial, err := BootEmulator(context.Background(), "Pixel_10a", false, true, false, 20*time.Second)
+	serial, err := BootEmulator(context.Background(), "Pixel_10a", boolPtr(false), true, false, 20*time.Second)
 	if err != nil {
 		t.Fatalf("a running emulator of that AVD is a success, got: %v", err)
 	}
@@ -98,6 +98,28 @@ func TestBootEmulatorReusesARunningEmulatorOfThatAVD(t *testing.T) {
 	}
 }
 
+func boolPtr(b bool) *bool { return &b }
+
+// The default call is boot_emulator {avd} with nothing else. no_snapshot is
+// unset there (its default only matters when an emulator is launched), so a
+// running emulator of that AVD must be returned, not refused.
+func TestBootEmulatorReusesARunningAVDWhenNoSnapshotIsUnset(t *testing.T) {
+	f := newFakeSDK(t)
+	f.set(t, "devices", "emulator-5554\tdevice\n")
+	f.set(t, "avd_emulator-5554", "Pixel_10a\n")
+
+	serial, err := BootEmulator(context.Background(), "Pixel_10a", nil, true, false, 20*time.Second)
+	if err != nil {
+		t.Fatalf("an unset no_snapshot must not refuse a running emulator, got: %v", err)
+	}
+	if serial != "emulator-5554" {
+		t.Errorf("serial = %q, want emulator-5554", serial)
+	}
+	if f.launched() {
+		t.Error("a second emulator was launched beside the running one")
+	}
+}
+
 func TestBootEmulatorStartsAnotherAVDBesideARunningOne(t *testing.T) {
 	f := newFakeSDK(t)
 	f.set(t, "devices", "emulator-5554\tdevice\n")
@@ -105,7 +127,7 @@ func TestBootEmulatorStartsAnotherAVDBesideARunningOne(t *testing.T) {
 	f.set(t, "after_launch", "emulator-5556\tdevice\n")
 	f.set(t, "avd_emulator-5556", "Pixel_10a\n")
 
-	serial, err := BootEmulator(context.Background(), "Pixel_10a", false, true, false, 20*time.Second)
+	serial, err := BootEmulator(context.Background(), "Pixel_10a", boolPtr(false), true, false, 20*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +149,7 @@ func TestBootEmulatorRefusesAFreshBootOfARunningAVD(t *testing.T) {
 			f.set(t, "devices", "emulator-5554\tdevice\n")
 			f.set(t, "avd_emulator-5554", "Pixel_10a\n")
 
-			_, err := BootEmulator(context.Background(), "Pixel_10a", args[0], true, args[1], 5*time.Second)
+			_, err := BootEmulator(context.Background(), "Pixel_10a", boolPtr(args[0]), true, args[1], 5*time.Second)
 			if err == nil {
 				t.Fatal("want an error: the AVD is already running")
 			}
@@ -150,7 +172,7 @@ func TestBootEmulatorTimeoutNamesWhatIsAttached(t *testing.T) {
 	f.set(t, "devices", "emulator-5554\tdevice\n")
 	f.set(t, "avd_emulator-5554", "Other_AVD\n")
 
-	_, err := BootEmulator(context.Background(), "Pixel_10a", false, true, false, 2*time.Second)
+	_, err := BootEmulator(context.Background(), "Pixel_10a", boolPtr(false), true, false, 2*time.Second)
 	if err == nil {
 		t.Fatal("want a timeout error")
 	}
