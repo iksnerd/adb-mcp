@@ -51,19 +51,17 @@ python3 .claude/skills/release/mcp_drive.py "$SCRATCH/adb-mcp" \
   'get_coverage_report|{}'
 ```
 
-`mcp_drive.py` has no per-step timeout, and it prints nothing until it ends, so a
-step that waits (an emulator call with no emulator, a build) looks like a hang
-with no clue which step. Run it as
-`perl -e 'alarm 90; exec @ARGV' -- python3 -u .claude/skills/release/mcp_drive.py ...`
-(macOS has no `timeout`), and put a step you doubt in a run of its own. With an
+`mcp_drive.py` flushes each line as it prints, times out a step after 120s by
+default (`--timeout N`, or `'name|{json}|SECONDS'` for one slow step such as a
+Gradle build), names the step that hung and ends with its summary. With an
 emulator already up, `boot_emulator {"avd": "<name>"}` alone must return its
 serial; that default call is the one that broke in v0.24.4.
 
-To check what `tools/list` advertises (titles, hints), use a client that reads
-the reply to the request before it closes stdin; closing stdin first prints
-nothing. A tool that is not read-only omits `readOnlyHint` (false is the
-default) and always carries `destructiveHint`, so count destructive as
-"not read-only and `destructiveHint` true", and compare with `docs/stats.json`.
+To check what `tools/list` advertises, add `--list-tools --stats docs/stats.json`.
+It fails on an untitled tool, a non-read-only tool without `destructiveHint`, or
+any tool, read-only, additive, destructive or open-world count that differs from
+`docs/stats.json`. Run the driver's own tests with
+`python3 .claude/skills/release/test_mcp_drive.py`.
 
 Exercise the **error paths too** (missing arg, not-found, ambiguous input), and
 hand-check the numbers against the source rather than accepting a plausible
