@@ -4,6 +4,27 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.5 — The Claude plugin hands its server only the environment it needs
+
+No new tools and no change to the server binary. One change to the Claude Code
+plugin's launcher.
+
+**Changed: the launcher no longer passes its whole environment to the server.**
+`launcher/launch.js` started the downloaded server with the installer's full
+environment, so a token or API key exported in the user's shell reached a binary
+fetched on first run. The Claude directory held v0.24.4 for this ("Uses a
+credential from the user's machine"). The server now receives only `PATH`,
+`HOME`, `USER`, locale and temp-dir variables, `ANDROID_*`, `JAVA_HOME`,
+`GRADLE_USER_HOME`, `GRADLE_OPTS`, `JAVA_TOOL_OPTIONS`, the proxy variables and
+the Windows system variables.
+
+**Behaviour change: Gradle builds started through the plugin no longer see
+credentials in the environment.** Variables such as `ORG_GRADLE_PROJECT_*` and
+`NPM_TOKEN` are not on the list, so a build that reads a private-registry token
+from the environment fails to resolve it when run through the plugin. The
+standalone binary and the Codex plugin are unaffected: they inherit the
+caller's environment as before.
+
 ## v0.24.4 — Every tool says what it can do, and the guides travel with the skills
 
 No new tools. A batch of changes to what a model is told about the existing 80,
