@@ -166,6 +166,7 @@ func undocumented(root string) []string {
 var pluginSkillDirs = []string{
 	"plugin/adb-mcp/skills",
 	"plugin/adb-mcp-codex/skills",
+	"plugin/adb-mcp-skills/skills",
 }
 
 var reGuideName = regexp.MustCompile(`(?m)^\t\tname:\s+"([a-z-]+)"`)
@@ -294,6 +295,9 @@ func rewrites(c counts) []rewrite {
 		// Nothing in the release gate looks at them, so left by hand they would
 		// simply stay on whatever release first wrote them.
 		{path: "plugin/adb-mcp/.claude-plugin/plugin.json", subs: []sub{
+			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
+		}},
+		{path: "plugin/adb-mcp-skills/.claude-plugin/plugin.json", subs: []sub{
 			{regexp.MustCompile(`"version": "[0-9][0-9.]*"`), `"version": "` + c.version + `"`},
 		}},
 		{path: "plugin/adb-mcp-codex/.codex-plugin/plugin.json", subs: []sub{

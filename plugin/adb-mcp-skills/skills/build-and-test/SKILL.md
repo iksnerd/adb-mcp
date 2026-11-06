@@ -1,0 +1,195 @@
+---
+description: Mapping a multi-module Gradle project before guessing a task name, building a variant, running JVM vs on-device tests, and turning a JaCoCo coverage report into the specific lines that need a test. Use when building, testing, or checking coverage for an Android/Gradle project.
+---
+
+# Building, testing, and measuring coverage with Gradle
+
+These tools run **on the host**, not on a device. Only `run_instrumented_tests`
+and `build_and_run` need a booted device. `project_dir` must be the directory
+holding the Gradle wrapper (`gradlew`), not a module inside it.
+
+Pin `project_dir` once instead of repeating it on every call:
+
+```
+session_set_defaults {project_dir: "/path/to/project"}
+```
+
+Every Gradle tool below then takes it from there. An explicit `project_dir` on a
+single call still wins.
+
+If a build fails with **"SDK location not found"**, the server could not resolve
+an Android SDK to hand Gradle. Run `doctor` — it prints the location it resolved
+and flags a path with no `platform-tools/` in it. The fix is on the client side:
+set `ANDROID_HOME`, or launch the server with `--sdk /path/to/sdk`.
+
+## Map the project before you build it
+
+The single biggest time-waster is guessing a task name. Two calls remove the
+guessing:
+
+```
+list_gradle_projects   → :app, :core, :feature:login   (empty = single-module)
+list_gradle_variants   → debug, release, prodDebug, …
+```
+
+**In a multi-module build the root project usually has no variants of its own** —
+the Android plugin is applied in `:app`, not at the root. `list_gradle_variants`
+with no arguments will tell you it found none and to point at the module that
+builds APKs. That is not an error to route around; it means scope the call:
+
+```
+list_gradle_variants {task: ":app:tasks"}
+```
+
+The same applies to `list_gradle_tasks`, which lists the *root* project's tasks
+by default. Anywhere you can name a task you can qualify it with a module path:
+`:app:assembleDebug`, `:feature:login:testDebugUnitTest`.
+
+## Build
+
+```
+gradle_build                             → assembleDebug
+gradle_build {task: "assembleRelease"}   → a specific variant
+gradle_build {background: true}          → returns a job id at once; poll build_status
+build_and_run {package: "com.example"}   → build → install → launch, one call
+```
+
+`gradle_build` returns a **summary**, not Gradle's output: status, duration,
+error count, the first few errors, the APKs under `build/outputs` (newest first,
+so a stale one from an earlier build can be in the list), and the path of the
+**full log**. Read the log file only if the summary does not explain the failure.
+Credential-shaped values (passwords, tokens, `user:pass@` URLs) are redacted
+from both the summary and the log, so a `--info` run is safe to read.
+
+A build of several minutes should not hold the call open. Start it in the
+background and keep working:
+
+```
+gradle_build {task: "assembleRelease", background: true}   → Job: 3f9a…, Log: /tmp/…/build-….log
+build_status {job_id: "3f9a…"}                             → running, 1m12s   (later: passed/failed + summary)
+```
+
+The log is written as Gradle runs, so tailing it shows progress. Jobs live only
+as long as the server process, and a background build is stopped after 60
+minutes.
+
+To get the `applicationId` after a build, read it from the APK instead of
+grepping `build.gradle`: `get_app_details {apk_path: "…/app-debug.apk"}` returns
+the package id, version and launcher activity with no device attached.
+
+A variant name `V` from `list_gradle_variants` maps to the task `assembleV`.
+`build_and_run` installs the **newest non-test** APK the build produced, so
+leftover `androidTest` APKs and multi-flavor outputs don't confuse it.
+
+Gradle is slow and the first run in a project downloads the distribution. Expect
+build calls to take minutes, not seconds; use `background: true` for those.
+`build_and_run` blocks for the whole build, so for a slow project run
+`gradle_build {background: true}`, then `install_app` and `launch_app`.
+
+## Test
+
+```
+run_unit_tests                                  → JVM tests, no device needed
+run_unit_tests {task: "testDebugUnitTest"}      → just one variant
+run_instrumented_tests                          → on-device, needs a booted device
+```
+
+**`test` runs every variant's unit tests** — debug *and* release — so on an
+Android project it does roughly twice the work you probably wanted. Pass
+`task: "testDebugUnitTest"` (or `":app:testDebugUnitTest"`) once you know the
+module.
+
+Both return a pass/fail/skip summary, per-suite timing, and stack traces for
+failures. Read the failure trace before re-running anything: the summary already
+contains the assertion message and the frame, so a second run rarely adds
+information. `json: true` gives the same data structured, which is easier to
+filter when a suite is large.
+
+The test and coverage tools run in the foreground and return only when Gradle
+finishes. For a long run, start the same task with `gradle_build {task: "…",
+background: true}` and read the log; you lose the parsed per-suite summary but
+not the wait.
+
+`run_instrumented_tests` needs a device in state `device` — check `list_devices`
+first if it errors, and see the `getting-started` guide (a skill, or the
+`android://guide/getting-started` resource) for booting one.
+
+## Coverage
+
+```
+get_coverage_report                      → overall %, per-package, worst first
+get_file_coverage {file: "Foo.kt"}       → missed lines + per-method detail
+```
+
+Both run a Gradle task that generates a JaCoCo XML report, then parse it. They
+cover **JVM unit tests only** — there is no on-device coverage analogue.
+
+**The default task `jacocoTestReport` is not something Android gives you.** The
+Android Gradle plugin defines no such task; it exists only if the project wrote
+one. If it isn't found, there are two setups and you want to know which one you
+are in:
+
+- The project applies the `jacoco` plugin and declares its own report task —
+  usually `jacocoTestReport`, but the name is whatever the build chose. Find it
+  with `list_gradle_tasks {task: ":app:tasks"}`.
+- A build type sets `enableUnitTestCoverage = true`, and AGP provides
+  **`createDebugUnitTestCoverageReport`**. Nothing about this one says "jacoco",
+  including its output path, but it writes the same JaCoCo XML:
+
+```
+get_coverage_report {task: ":app:createDebugUnitTestCoverageReport"}
+```
+
+If neither exists the project has no coverage set up, and the error says so
+rather than leaving you to guess.
+
+In a multi-module build every module's report is merged into one set of totals,
+and the output lists the files it merged — so the headline percentage describes
+the whole build, not whichever module Gradle happened to finish last.
+
+### Using coverage to actually do something
+
+The two tools are a funnel, not alternatives:
+
+1. `get_coverage_report` → the package list is sorted **worst-covered first**.
+   The top row is where a test is worth the most.
+2. `get_file_coverage {file: "Thing.kt"}` → `missed lines: 12,17` and
+   `partial lines: 9` are the exact lines with no test behind them. Partial
+   means a branch went one way only — usually an untested `else`.
+3. Write the test, re-run `get_coverage_report`, confirm the number moved.
+
+`file` matches by suffix, so `Foo.kt` works when it's unambiguous and
+`com/example/Foo.kt` disambiguates when it isn't. A name that matches several
+files returns all of them; a name that matches none lists what coverage data
+does exist, which is faster than guessing again.
+
+## Scaffolding a project
+
+`scaffold_android_project` writes a minimal Kotlin app into a **new empty
+directory** (it refuses a non-empty one) and generates the Gradle wrapper, so
+the result builds immediately:
+
+```
+scaffold_android_project {destination: "/tmp/demo", name: "Demo", package: "com.example.demo"}
+gradle_build {project_dir: "/tmp/demo"}
+```
+
+The wrapper step needs a system `gradle` on PATH. If there isn't one, the result
+says so and `gradle wrapper` has to be run there by hand — every Gradle tool
+here drives `./gradlew`, so a project without a wrapper is inert.
+
+## When a build fails
+
+`gradle_build` and `build_and_run` report the error count and the first few
+errors, plus the log path. The other Gradle tools return the tail of Gradle's
+output, which is where the real message is. Before changing anything:
+
+- Confirm the task exists (`list_gradle_tasks`) and that you scoped it to the
+  right module. "Task 'x' not found in root project" almost always means it
+  belongs to a module.
+- `gradle_project_properties {module: ":app"}` dumps a module's effective
+  configuration — namespace, SDK levels, build dir — when the failure looks like
+  a config mismatch rather than a code error. Secret-shaped values are redacted.
+- A JVM-target mismatch ("Inconsistent JVM-target compatibility") is a project
+  config problem, not something a tool argument fixes: the build needs
+  `compileOptions`/`kotlinOptions` pinned to the same version.
