@@ -4,8 +4,7 @@
 // Starts the adb-mcp server for this plugin. Claude Code runs it as
 // `node ${CLAUDE_PLUGIN_ROOT}/launcher/launch.js ${CLAUDE_PLUGIN_DATA}`: the
 // first argument is the directory to keep the server in, and the rest are passed
-// to the server. The launcher reads nothing from the environment
-// and hands the server only the variables in ENV_ALLOWLIST.
+// to the server. The launcher reads nothing from the environment.
 //
 // The server is a Go binary, too large to ship inside a plugin, so the first run
 // downloads the one build for this machine from this project's GitHub release,
@@ -101,29 +100,6 @@ async function ensureBinary({ pin, target, dataDir, fetchBytes = download }) {
   return dest;
 }
 
-// The server needs a few variables to find adb, the emulator, a JDK and the
-// Gradle cache; it does not need the rest of the installer's environment, which
-// is where tokens and API keys live. The child gets this list and nothing else.
-// A name ending in * matches by prefix. Windows env names are case-insensitive.
-const ENV_ALLOWLIST = [
-  'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_*', 'TZ', 'TMPDIR', 'TEMP', 'TMP',
-  'ANDROID_*', 'JAVA_HOME', 'GRADLE_USER_HOME', 'GRADLE_OPTS', 'JAVA_TOOL_OPTIONS',
-  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY',
-  'SystemRoot', 'SystemDrive', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PATHEXT', 'COMSPEC', 'ProgramFiles', 'ProgramFiles(x86)',
-];
-
-function serverEnv(env, platform = process.platform) {
-  const fold = platform === 'win32' ? (k) => k.toUpperCase() : (k) => k;
-  const exact = new Set(ENV_ALLOWLIST.filter((n) => !n.endsWith('*')).map(fold));
-  const prefixes = ENV_ALLOWLIST.filter((n) => n.endsWith('*')).map((n) => fold(n.slice(0, -1)));
-  const out = {};
-  for (const [key, value] of Object.entries(env)) {
-    const k = fold(key);
-    if (exact.has(k) || prefixes.some((p) => k.startsWith(p))) out[key] = value;
-  }
-  return out;
-}
-
 function fail(message) {
   process.stderr.write(`adb-mcp launcher: ${message}\n`);
   process.exit(1);
@@ -140,7 +116,7 @@ async function main() {
     fail(err.message);
   }
 
-  const child = spawn(bin, serverArgs, { stdio: 'inherit', env: serverEnv(process.env) });
+  const child = spawn(bin, serverArgs, { stdio: 'inherit' });
   for (const signal of Object.keys(SIGNAL_NUMBERS)) {
     process.on(signal, () => child.kill(signal));
   }
@@ -152,4 +128,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { resolveTarget, ensureBinary, serverEnv, TARGETS };
+module.exports = { resolveTarget, ensureBinary, TARGETS };

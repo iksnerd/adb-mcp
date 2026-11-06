@@ -27,7 +27,7 @@ import (
 
 // version is overridable at build time via -ldflags "-X main.version=...".
 // The Makefile injects the value from the VERSION file / git.
-var version = "0.24.5"
+var version = "0.24.6"
 
 func main() {
 	log.SetFlags(0)

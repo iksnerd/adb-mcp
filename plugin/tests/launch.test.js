@@ -11,7 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
-const { resolveTarget, ensureBinary, serverEnv, TARGETS } = require('../adb-mcp/launcher/launch.js');
+const { resolveTarget, ensureBinary, TARGETS } = require('../adb-mcp/launcher/launch.js');
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'launch-'));
@@ -143,11 +143,10 @@ function sandbox(script) {
 }
 
 // .mcp.json passes the data directory as the first argument, as the plugin runs it.
-function run(sb, args, { input = '', signal, dataDir = sb.dataDir, env } = {}) {
+function run(sb, args, { input = '', signal, dataDir = sb.dataDir } = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [sb.launcher, ...(dataDir ? [dataDir] : []), ...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      ...(env ? { env } : {}),
     });
     let stdout = '';
     let stderr = '';
@@ -196,31 +195,6 @@ test('launcher says what is missing when it is given no data directory', { skip:
     assert.notEqual(r.code, 0);
     assert.doesNotMatch(r.stdout, /RAN/);
     assert.match(r.stderr, /data directory/);
-  } finally {
-    sb.cleanup();
-  }
-});
-
-test('serverEnv keeps what adb and Gradle need and drops everything else', () => {
-  const out = serverEnv({
-    PATH: '/usr/bin', HOME: '/h', ANDROID_HOME: '/sdk', ANDROID_SERIAL: 'emulator-5554', JAVA_HOME: '/jdk',
-    LC_ALL: 'C', HTTPS_PROXY: 'http://p',
-    GITHUB_TOKEN: 'x', ANTHROPIC_API_KEY: 'x', AWS_SECRET_ACCESS_KEY: 'x', ORG_GRADLE_PROJECT_token: 'x', NPM_TOKEN: 'x',
-  }, 'linux');
-  assert.deepEqual(Object.keys(out).sort(), ['ANDROID_HOME', 'ANDROID_SERIAL', 'HOME', 'HTTPS_PROXY', 'JAVA_HOME', 'LC_ALL', 'PATH']);
-});
-
-test('serverEnv matches names case-insensitively on Windows only', () => {
-  assert.deepEqual(serverEnv({ Path: 'C:\\x', systemroot: 'C:\\Windows', GITHUB_TOKEN: 'x' }, 'win32'), { Path: 'C:\\x', systemroot: 'C:\\Windows' });
-  assert.deepEqual(serverEnv({ Path: 'x' }, 'linux'), {});
-});
-
-test('the server process does not receive secrets from the launcher environment', { skip: !posix }, async () => {
-  const sb = sandbox('#!/bin/sh\necho "token:${GITHUB_TOKEN:-unset} key:${ANTHROPIC_API_KEY:-unset} home:${ANDROID_HOME:-unset}"\n');
-  try {
-    const r = await run(sb, [], { env: { PATH: process.env.PATH, GITHUB_TOKEN: 'ghp_secret', ANTHROPIC_API_KEY: 'sk-secret', ANDROID_HOME: '/sdk' } });
-    assert.equal(r.code, 0);
-    assert.equal(r.stdout, 'token:unset key:unset home:/sdk\n');
   } finally {
     sb.cleanup();
   }

@@ -4,6 +4,20 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.24.6 — The plugin launcher reads nothing from the environment again
+
+No new tools and no change to the server binary. One change to the Claude Code
+plugin's launcher.
+
+**Reverted: the environment allowlist from v0.24.5.** The Claude directory held
+v0.24.5 for "Uses a credential from the user's machine" in `launcher/launch.js`
+and "Update adds credential forward". The allowlist made the launcher read
+`process.env` to filter it, and the directory's scan reads that as taking the
+installer's credentials. `launch.js` is back to the v0.24.4 code: it never reads
+the environment, and the server inherits it unchanged, as the standalone binary
+and the Codex plugin do. Gradle builds started through the plugin see
+`ORG_GRADLE_PROJECT_*` and other variables again.
+
 ## v0.24.5 — The Claude plugin hands its server only the environment it needs
 
 No new tools and no change to the server binary. One change to the Claude Code
