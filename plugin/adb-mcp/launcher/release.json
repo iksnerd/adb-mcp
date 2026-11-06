@@ -1,11 +1,11 @@
 {
-  "version": "0.24.5",
+  "version": "0.24.6",
   "assets": {
-    "linux-amd64": "375c971326d1caa135befe4bf6054caf25d896656cc062baa272c6766221c8cf",
-    "linux-arm64": "e4c1dd46698676a1da92f0da66d3d32349d58c8f78131bea20d01b90458650df",
-    "darwin-amd64": "d425b24ff23d558286f2f70ef1de1f660f75c0744aa1d70e79ec2b297bd6a15e",
-    "darwin-arm64": "27fb797e2c804af52eae0e6c971aaacf8a7e5ca00e03696b202c936df8cd613a",
-    "windows-amd64": "2ad97b827f62406428e58c955d552e08056c51d1d152b036558d0a73dede7cff",
-    "windows-arm64": "628ce61046e43e2a28d545cf7cef1684e9ee3dde51bb830de0afe78d84474a89"
+    "linux-amd64": "4e63947439087a8f2c2e34cecdc7a645d4e9ce1be262e7b23d0b5d16917a8705",
+    "linux-arm64": "d4fdc707d17445620f6f30e1f41592d87704798343254af2a2abb977578b1da0",
+    "darwin-amd64": "672f9b14009e739f2eaaefc09940ce546ad7bd6f2b0edd22f5c7690b55ccd8ce",
+    "darwin-arm64": "49c85a7078340da6f19713238cc58c8c26ff8108b775ac8b9db77948573ac6a0",
+    "windows-amd64": "fa891eabf707536650338161b34558ea04a2ed10b494dcbaf2fa284d42928541",
+    "windows-arm64": "a917695ef6a64ad323acd8ce6b5c52bad16de4b1b4a4c0a3444f6c36bb0d54a1"
   }
 }
