@@ -14,5 +14,6 @@
   "icon": "./.claude-plugin/icon.png",
   "documentationUrl": "https://adb-mcp.com/docs",
   "supportUrl": "https://adb-mcp.com/support",
-  "privacyPolicyUrl": "https://adb-mcp.com/privacy"
+  "privacyPolicyUrl": "https://adb-mcp.com/privacy",
+  "termsOfServiceUrl": "https://adb-mcp.com/terms"
 }
