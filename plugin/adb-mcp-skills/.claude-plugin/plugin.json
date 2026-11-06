@@ -1,6 +1,6 @@
 {
-  "name": "adb-mcp-skills",
-  "displayName": "adb-mcp skills",
+  "name": "adb-mcp-android-skills",
+  "displayName": "adb-mcp Android skills",
   "version": "0.24.6",
   "description": "Driving guides for the adb-mcp server: how Claude should drive an Android emulator or device, handle PIN and lock screens, triage crashes, and run Gradle builds and tests.",
   "author": {

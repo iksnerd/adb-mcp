@@ -1,4 +1,4 @@
-# adb-mcp skills
+# adb-mcp Android skills
 
 Guides that teach Claude how to drive an Android emulator or device with the
 [adb-mcp](https://github.com/iksnerd/adb-mcp) server. Claude reads the real UI
