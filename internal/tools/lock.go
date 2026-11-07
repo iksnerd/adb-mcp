@@ -23,6 +23,9 @@ type clearLockArgs struct {
 // ---- Handlers ----
 
 func setDeviceLock(ctx context.Context, in setLockArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("value", in.Value); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err

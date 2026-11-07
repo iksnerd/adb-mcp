@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
 
@@ -54,4 +55,14 @@ func boolOr(p *bool, def bool) bool {
 		return def
 	}
 	return *p
+}
+
+// requireNonEmpty rejects a blank required string argument. The schema's
+// `required` only checks that the key is present, so "" or "  " reaches the
+// handler and would otherwise be passed straight to adb (`adb uninstall ""`).
+func requireNonEmpty(name, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required and must not be empty", name)
+	}
+	return nil
 }

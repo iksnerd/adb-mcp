@@ -181,6 +181,9 @@ func uiHeader(snap adb.UISnapshot, filter uiauto.UIFilter, expectedPackage strin
 }
 
 func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("text", in.Text); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -194,6 +197,9 @@ func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, 
 }
 
 func renderStats(ctx context.Context, in renderStatsArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err

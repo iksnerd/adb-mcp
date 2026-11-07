@@ -110,6 +110,9 @@ func startScreenRecord(ctx context.Context, in serialArg) (*mcp.CallToolResult, 
 }
 
 func stopScreenRecord(ctx context.Context, in stopRecordArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("local_path", in.LocalPath); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err

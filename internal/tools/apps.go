@@ -95,6 +95,9 @@ func listPackages(ctx context.Context, in listPackagesArgs) (*mcp.CallToolResult
 }
 
 func installApp(ctx context.Context, in installArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("apk_path", in.APKPath); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -107,6 +110,9 @@ func installApp(ctx context.Context, in installArgs) (*mcp.CallToolResult, error
 }
 
 func launchApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -122,6 +128,9 @@ func launchApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) 
 }
 
 func stopApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -133,6 +142,9 @@ func stopApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
 }
 
 func reloadApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -155,6 +167,9 @@ func openDevMenu(ctx context.Context, in serialArg) (*mcp.CallToolResult, error)
 }
 
 func uninstallApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -167,6 +182,9 @@ func uninstallApp(ctx context.Context, in packageArg) (*mcp.CallToolResult, erro
 }
 
 func clearAppData(ctx context.Context, in packageArg) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -179,6 +197,12 @@ func clearAppData(ctx context.Context, in packageArg) (*mcp.CallToolResult, erro
 }
 
 func grantPermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("permission", in.Permission); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -190,6 +214,12 @@ func grantPermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResul
 }
 
 func revokePermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("permission", in.Permission); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -201,6 +231,9 @@ func revokePermission(ctx context.Context, in permissionArgs) (*mcp.CallToolResu
 }
 
 func openURL(ctx context.Context, in openURLArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("url", in.URL); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -285,8 +318,8 @@ func getAppDetails(ctx context.Context, in appDetailsArgs) (*mcp.CallToolResult,
 		}
 		return jsonResult(info)
 	}
-	if in.Package == "" {
-		return nil, fmt.Errorf("package is required unless apk_path is given")
+	if strings.TrimSpace(in.Package) == "" {
+		return nil, fmt.Errorf("package is required (and must not be empty) unless apk_path is given")
 	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
@@ -300,6 +333,9 @@ func getAppDetails(ctx context.Context, in appDetailsArgs) (*mcp.CallToolResult,
 }
 
 func appState(ctx context.Context, in appStateArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("package", in.Package); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -312,6 +348,12 @@ func appState(ctx context.Context, in appStateArgs) (*mcp.CallToolResult, error)
 }
 
 func pushFile(ctx context.Context, in pushArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("local_path", in.LocalPath); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("device_path", in.DevicePath); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -324,6 +366,12 @@ func pushFile(ctx context.Context, in pushArgs) (*mcp.CallToolResult, error) {
 }
 
 func pullFile(ctx context.Context, in pullArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("device_path", in.DevicePath); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("local_path", in.LocalPath); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
