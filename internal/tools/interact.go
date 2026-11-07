@@ -204,10 +204,10 @@ func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error)
 		return nil, fmt.Errorf("text is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
-		return accessibilityTap(ctx, c, "", in.Text, boolOr(in.Partial, true), boolOr(in.VerifyChange, false))
+		return accessibilityTap(ctx, c, "", in.Text, partialOrDefault(in.Partial), boolOr(in.VerifyChange, false))
 	}
 	e, verdict, err := findAndTap(ctx, c, in.Text, "", uiauto.FilterAuto, boolOr(in.VerifyChange, false), func(elems []uiauto.Element) (uiauto.Element, bool) {
-		return uiauto.FindByText(elems, in.Text, boolOr(in.Partial, true))
+		return uiauto.FindByText(elems, in.Text, partialOrDefault(in.Partial))
 	})
 	if err != nil {
 		return nil, err
@@ -228,13 +228,13 @@ func tapElement(ctx context.Context, in tapElementArgs) (*mcp.CallToolResult, er
 		return nil, fmt.Errorf("resource_id is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
-		return accessibilityTap(ctx, c, in.ResourceID, "", boolOr(in.Partial, true), boolOr(in.VerifyChange, false))
+		return accessibilityTap(ctx, c, in.ResourceID, "", partialOrDefault(in.Partial), boolOr(in.VerifyChange, false))
 	}
 	// FilterAll, not FilterAuto: the auto filter prunes non-clickable wrapper
 	// nodes with parent-equal bounds even when they carry a resource id —
 	// exactly the unlabeled elements this tool exists to address.
 	e, verdict, err := findAndTap(ctx, c, in.ResourceID, "with resource_id ", uiauto.FilterAll, boolOr(in.VerifyChange, false), func(elems []uiauto.Element) (uiauto.Element, bool) {
-		return uiauto.FindByResourceID(elems, in.ResourceID, boolOr(in.Partial, true))
+		return uiauto.FindByResourceID(elems, in.ResourceID, partialOrDefault(in.Partial))
 	})
 	if err != nil {
 		return nil, err
@@ -389,7 +389,7 @@ func runSequence(ctx context.Context, in runSequenceArgs) (*mcp.CallToolResult, 
 	if len(in.Steps) == 0 {
 		return nil, fmt.Errorf("steps is required (a non-empty ordered list)")
 	}
-	res, err := c.RunSequence(ctx, in.Steps, boolOr(in.CaptureFinal, true))
+	res, err := c.RunSequence(ctx, in.Steps, boolOr(in.CaptureFinal, defaultCaptureFinal))
 	if err != nil {
 		return nil, err
 	}

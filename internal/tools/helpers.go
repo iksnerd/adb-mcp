@@ -66,3 +66,15 @@ func requireNonEmpty(name, value string) error {
 	}
 	return nil
 }
+
+// Handler-side defaults for optional arguments. Each is also stated in the
+// matching schema description, and defaults_test.go fails if the two drift.
+const (
+	defaultPartial        = true // tap_on_text / tap_element / wait_for_text partial
+	defaultCaptureFinal   = true // run_sequence capture_final
+	defaultStopLogcatTail = 500  // stop_logcat_capture tail
+	defaultScreenshotDim  = 760  // screenshot max_dim
+)
+
+// partialOrDefault resolves an optional "partial" (substring match) argument.
+func partialOrDefault(p *bool) bool { return boolOr(p, defaultPartial) }

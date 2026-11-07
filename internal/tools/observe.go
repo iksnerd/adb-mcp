@@ -50,10 +50,7 @@ func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, er
 	if err != nil {
 		return nil, err
 	}
-	maxDim := 760 // default when omitted; an explicit 0/negative disables downscaling
-	if in.MaxDim != nil {
-		maxDim = *in.MaxDim
-	}
+	maxDim := screenshotMaxDim(in.MaxDim)
 	displayID, err := c.ResolveDisplay(ctx, in.Display)
 	if err != nil {
 		return nil, err
@@ -72,6 +69,15 @@ func screenshot(ctx context.Context, in screenshotArgs) (*mcp.CallToolResult, er
 			&mcp.ImageContent{Data: cap.PNG, MIMEType: "image/png"},
 		},
 	}, nil
+}
+
+// screenshotMaxDim resolves max_dim: the default when omitted, while an
+// explicit 0 or negative passes through to disable downscaling.
+func screenshotMaxDim(p *int) int {
+	if p == nil {
+		return defaultScreenshotDim
+	}
+	return *p
 }
 
 // blackCaptureNote explains an all-black frame and points at describe_ui, so
@@ -189,7 +195,7 @@ func waitForText(ctx context.Context, in waitForTextArgs) (*mcp.CallToolResult, 
 		return nil, err
 	}
 	timeout := time.Duration(in.TimeoutS) * time.Second
-	e, err := c.WaitForText(ctx, in.Text, boolOr(in.Partial, true), timeout, boolOr(in.Scroll, false))
+	e, err := c.WaitForText(ctx, in.Text, partialOrDefault(in.Partial), timeout, boolOr(in.Scroll, false))
 	if err != nil {
 		return nil, err
 	}

@@ -91,11 +91,16 @@ func stopLogcatCapture(ctx context.Context, in stopLogcatArgs) (*mcp.CallToolRes
 	if strings.TrimSpace(out) == "" {
 		return text("(capture stopped; no matching lines)"), nil
 	}
-	tail := in.Tail
-	if tail <= 0 {
-		tail = 500 // default cap so a long capture doesn't blow the token budget
+	return text("%s", tailLines(out, tailOrDefault(in.Tail))), nil
+}
+
+// tailOrDefault caps a long capture at the default so it doesn't blow the
+// token budget; a larger explicit tail lifts the cap.
+func tailOrDefault(n int) int {
+	if n <= 0 {
+		return defaultStopLogcatTail
 	}
-	return text("%s", tailLines(out, tail)), nil
+	return n
 }
 
 func startScreenRecord(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
