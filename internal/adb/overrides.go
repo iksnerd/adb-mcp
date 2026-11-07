@@ -45,6 +45,29 @@ var overrides = struct {
 	prior map[Override]string
 }{m: map[Override]struct{}{}, prior: map[Override]string{}}
 
+// untrackedTools lists the tools that leave device state behind but have no
+// override kind, each with the reason. It makes the decision explicit: a tool
+// that changes device state either has a kind above or a line here. Console
+// state lives in the emulator process and goes when it does; the others are
+// harmless or have no prior value we could restore.
+var untrackedTools = map[string]string{
+	"set_dark_mode": "persisted UI night mode; the previous mode is not read, so there is nothing to restore it to",
+	"set_location":  "emulator console geo fix; dies with the emulator process",
+	"cellular":      "emulator console radio and network profile; dies with the emulator process",
+	"set_sensor":    "emulator console sensor values; dies with the emulator process",
+	"rotate_screen": "emulator console rotation toggle; dies with the emulator process",
+}
+
+// UntrackedTools returns the documented tool -> reason table of state changes
+// that are deliberately not tracked as overrides.
+func UntrackedTools() map[string]string {
+	out := make(map[string]string, len(untrackedTools))
+	for k, v := range untrackedTools {
+		out[k] = v
+	}
+	return out
+}
+
 // NoteOverride records that this process applied kind on serial. Idempotent.
 func NoteOverride(serial string, kind OverrideKind) {
 	overrides.mu.Lock()
