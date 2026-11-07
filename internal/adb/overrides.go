@@ -19,6 +19,7 @@ const (
 	OverrideStatusBarDemo OverrideKind = "status_bar_demo"
 	OverrideStayAwake     OverrideKind = "stay_awake"
 	OverrideDeviceLock    OverrideKind = "device_lock"
+	OverrideDarkMode      OverrideKind = "dark_mode"
 )
 
 // Override is one recorded device-side change. It holds no credential: for
@@ -34,6 +35,7 @@ var undoHint = map[OverrideKind]string{
 	OverrideStatusBarDemo: "set_status_bar enabled=false",
 	OverrideStayAwake:     "stay_awake enabled=false",
 	OverrideDeviceLock:    "clear_device_lock (needs the credential)",
+	OverrideDarkMode:      "set_dark_mode back to its earlier mode (enabled=true|false)",
 }
 
 var overrides = struct {
@@ -51,7 +53,6 @@ var overrides = struct {
 // state lives in the emulator process and goes when it does; the others are
 // harmless or have no prior value we could restore.
 var untrackedTools = map[string]string{
-	"set_dark_mode": "persisted UI night mode; the previous mode is not read, so there is nothing to restore it to",
 	"set_location":  "emulator console geo fix; dies with the emulator process",
 	"cellular":      "emulator console radio and network profile; dies with the emulator process",
 	"set_sensor":    "emulator console sensor values; dies with the emulator process",
@@ -187,9 +188,9 @@ var (
 
 // RestoreOverrides reverses, best effort, the overrides that are safe to
 // reverse: battery (reset), status bar demo (exit, then the prior
-// sysui_demo_allowed) and stay_awake when its prior setting was captured.
-// device_lock (needs the old credential) and a stay_awake with an unknown
-// prior are left recorded and untouched.
+// sysui_demo_allowed), and stay_awake and dark_mode when their prior was
+// captured. device_lock (needs the old credential) and a stay_awake or
+// dark_mode with an unknown prior are left recorded and untouched.
 // Each adb call has its own short timeout and the whole pass is bounded, so a
 // wedged adb cannot hold up shutdown. Failures are collected, not fatal, and an
 // override whose undo failed stays recorded.
@@ -202,6 +203,7 @@ func RestoreOverrides(ctx context.Context) []error {
 		switch {
 		case o.Kind == OverrideBattery, o.Kind == OverrideStatusBarDemo:
 		case o.Kind == OverrideStayAwake && prior != "":
+		case o.Kind == OverrideDarkMode && prior != "":
 		default:
 			continue
 		}
@@ -225,6 +227,11 @@ func RestoreOverrides(ctx context.Context) []error {
 			}
 		case OverrideStayAwake:
 			err = c.restoreSetting(callCtx, stayOnKey, prior)
+			if err == nil {
+				ClearOverride(o.Serial, o.Kind)
+			}
+		case OverrideDarkMode:
+			_, err = c.adb(callCtx, "shell", "cmd", "uimode", "night", prior)
 			if err == nil {
 				ClearOverride(o.Serial, o.Kind)
 			}
