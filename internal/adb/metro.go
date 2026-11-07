@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -56,7 +57,10 @@ func HostMetroServer(ctx context.Context, port int) (MetroServer, bool) {
 // parseLsofListener reads `lsof -Fpc` field output: one "p<pid>" line starting
 // each process record, followed by "c<command>". Several processes can hold the
 // same listening port (a forked server, or a stale one alongside a live one);
-// the first record is reported, which is the one a new connection reaches.
+// the first record is reported. That is only a heuristic: lsof lists records in
+// its own order and nothing guarantees the first is the process a new
+// connection reaches, so callers should treat the result as "a listener", not
+// "the listener".
 func parseLsofListener(out string) (pid int, command string, ok bool) {
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -96,7 +100,8 @@ func parseLsofCWD(out string) (string, bool) {
 }
 
 // SameTree reports whether two host paths belong to the same checkout: equal,
-// or one containing the other. Used to decide whether the Metro a device is
+// or one containing the other when the outer one is a project root (has a
+// package.json). Used to decide whether the Metro a device is
 // talking to is serving the source_path the caller is reasoning about. Paths
 // that cannot be resolved compare false, which surfaces as "couldn't confirm"
 // rather than as a false all-clear.
@@ -112,8 +117,21 @@ func SameTree(a, b string) bool {
 	if pa == pb {
 		return true
 	}
-	return strings.HasPrefix(pa, pb+string(filepath.Separator)) ||
-		strings.HasPrefix(pb, pa+string(filepath.Separator))
+	// Containment counts only when the outer path is itself a project root: a
+	// Metro started from ~ or / would otherwise match every checkout.
+	if strings.HasPrefix(pa, pb+string(filepath.Separator)) {
+		return hasProjectMarker(pb)
+	}
+	if strings.HasPrefix(pb, pa+string(filepath.Separator)) {
+		return hasProjectMarker(pa)
+	}
+	return false
+}
+
+// hasProjectMarker reports whether dir is a JS project root (has package.json).
+func hasProjectMarker(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "package.json"))
+	return err == nil
 }
 
 // resolvePath makes a path absolute and symlink-free so two paths naming the

@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -41,8 +42,34 @@ func TestParseLsofCWD(t *testing.T) {
 	}
 }
 
+func TestSameTreeContainmentNeedsProjectMarker(t *testing.T) {
+	// A Metro whose cwd is a bare directory above the source (~ or /) must not
+	// match every checkout beneath it.
+	home := t.TempDir()
+	proj := filepath.Join(home, "work", "app")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if SameTree(home, proj) || SameTree(proj, home) {
+		t.Error("containment under a root with no package.json must not count as the same tree")
+	}
+	if err := os.WriteFile(filepath.Join(home, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !SameTree(home, proj) || !SameTree(proj, home) {
+		t.Error("containment under a package.json root is the same checkout")
+	}
+	if !SameTree(home, home) {
+		t.Error("equal paths are always the same tree")
+	}
+}
+
 func TestSameTree(t *testing.T) {
 	base := t.TempDir()
+	// The outer root is a project (package.json), so containment counts here.
+	if err := os.WriteFile(filepath.Join(base, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	nested := filepath.Join(base, "app", "src")
 	cases := []struct {
 		name, a, b string
