@@ -98,6 +98,7 @@ func main() {
 	}, &mcp.ServerOptions{Instructions: tools.Instructions})
 
 	tools.ServerVersion = version
+	adb.ServerVersion = version
 	tools.Register(srv)
 	guides.Register(srv)
 
