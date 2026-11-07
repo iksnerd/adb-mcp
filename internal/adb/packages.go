@@ -2,9 +2,11 @@ package adb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -58,7 +60,7 @@ func (c *Client) UninstallApp(ctx context.Context, pkg string) (string, error) {
 // launchComponentRe pulls the resolved component out of monkey's verbose
 // output line: "// Allowing start of Intent { ... cmp=<pkg>/<activity> ... }".
 var launchComponentRe = regexp.MustCompile(`cmp=(\S+)`)
-var registeredSchemeRe = regexp.MustCompile(`(?mi)^\s*(?:scheme|schemes?)\s*[:=]\s*([a-z][a-z0-9+.-]*)\b`)
+var registeredSchemeRe = regexp.MustCompile(`(?mi)^\s*schemes?\s*[:=]\s*["']?([a-z][a-z0-9+.-]*)`)
 
 // RegisteredURLSchemes returns best-effort URL schemes declared by an
 // installed package. Android's dumpsys layout varies by release, so callers
@@ -184,7 +186,15 @@ var (
 // <pkg>" instead of the "Package [<pkg>] (...):" header every installed
 // package has.
 func isPackageInstalled(dump string) bool {
-	return !strings.Contains(dump, "Unable to find package") && strings.Contains(dump, "Package [")
+	if strings.Contains(dump, "Unable to find package") || !strings.Contains(dump, "Package [") {
+		return false
+	}
+	// A record can outlive an uninstall-for-user: every user entry then says
+	// installed=false. Defensive; only an explicit false with no true counts.
+	if strings.Contains(dump, "installed=false") && !strings.Contains(dump, "installed=true") {
+		return false
+	}
+	return true
 }
 
 // AppState is a runtime snapshot of an installed app: whether and where its
@@ -255,6 +265,18 @@ func stalenessVerdict(bundleSource, metroRoot, sourcePath string, sourceTime, ma
 	}
 }
 
+// etimeRe is what `ps -o ETIME=` prints: [[dd-]hh:]mm:ss. Anything else (a
+// usage line, an error from a toybox ps without -o) is not an uptime.
+var etimeRe = regexp.MustCompile(`^[\d:-]+$`)
+
+// pidofFoundNothing reports whether a failed pidof means "no such process"
+// rather than a transport failure: pidof exits 1 with no output when nothing
+// matches, while an offline device or a missing binary fails differently.
+func pidofFoundNothing(out string, err error) bool {
+	var exitErr *exec.ExitError
+	return strings.TrimSpace(out) == "" && errors.As(err, &exitErr) && exitErr.ExitCode() == 1
+}
+
 var (
 	firstInstallRe = regexp.MustCompile(`firstInstallTime=(.+)`)
 	lastUpdateRe   = regexp.MustCompile(`lastUpdateTime=(.+)`)
@@ -285,25 +307,41 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		}
 	}
 
-	if dump, err := c.adb(ctx, "shell", "dumpsys", "package", escapeInputText(pkg)); err == nil {
-		s.Installed = isPackageInstalled(dump)
-		if m := firstInstallRe.FindStringSubmatch(dump); m != nil {
-			s.FirstInstall = strings.TrimSpace(m[1])
+	dump, dumpErr := c.adb(ctx, "shell", "dumpsys", "package", escapeInputText(pkg))
+	if dumpErr != nil {
+		// A failed probe is not an answer. Installed is a plain bool, so it stays
+		// false here; the note is what says the real state is unknown.
+		s.Notes = append(s.Notes, fmt.Sprintf("install state unknown: dumpsys package failed (%v); installed=false here means not determined, not absent", dumpErr))
+		if sourcePath != "" {
+			s.setStaleness("undetermined", "could not read the package's install state, so there is no running bundle to compare against")
 		}
-		if m := lastUpdateRe.FindStringSubmatch(dump); m != nil {
-			s.LastUpdate = strings.TrimSpace(m[1])
-		}
+		return s, nil
+	}
+	s.Installed = isPackageInstalled(dump)
+	if m := firstInstallRe.FindStringSubmatch(dump); m != nil {
+		s.FirstInstall = strings.TrimSpace(m[1])
+	}
+	if m := lastUpdateRe.FindStringSubmatch(dump); m != nil {
+		s.LastUpdate = strings.TrimSpace(m[1])
 	}
 	if !s.Installed {
-		s.Notes = append(s.Notes, "package not installed (or dumpsys package couldn't read it)")
+		s.Notes = append(s.Notes, "package not installed")
 		if sourcePath != "" {
 			s.setStaleness("undetermined", "the package is not installed, so there is no running bundle to compare against")
 		}
 		return s, nil
 	}
 
-	if out, err := c.adb(ctx, "shell", "pidof", escapeInputText(pkg)); err == nil {
-		s.PIDs = parsePIDs(out)
+	pidOut, pidErr := c.adb(ctx, "shell", "pidof", escapeInputText(pkg))
+	if pidErr != nil && !pidofFoundNothing(pidOut, pidErr) {
+		s.Notes = append(s.Notes, fmt.Sprintf("running state unknown: pidof failed (%v)", pidErr))
+		if sourcePath != "" {
+			s.setStaleness("undetermined", "could not tell whether the app is running, so there is no bundle to compare against")
+		}
+		return s, nil
+	}
+	if pidErr == nil {
+		s.PIDs = parsePIDs(pidOut)
 	}
 	s.Running = len(s.PIDs) > 0
 	if !s.Running {
@@ -339,7 +377,22 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		s.Notes = append(s.Notes, fmt.Sprintf("%d live processes for this package — taps and log reads may be hitting different ones; stop_app then launch_app for a clean single process", len(s.PIDs)))
 	}
 	if psErr == nil {
-		s.ProcessUptime = strings.TrimSpace(psOut)
+		if up := strings.TrimSpace(psOut); etimeRe.MatchString(up) {
+			s.ProcessUptime = up
+		} else if up != "" {
+			s.Notes = append(s.Notes, fmt.Sprintf("process uptime unavailable: unexpected ps output %q", up))
+		}
+	}
+	if len(s.PIDs) > 1 {
+		// The probes below key on PIDs[0], which may not be the process the
+		// foreground activity belongs to; a verdict from the wrong one would be
+		// confidently wrong. Leave the bundle undetermined.
+		s.BundleSource = "unknown"
+		s.Notes = append(s.Notes, "bundle source undetermined: several live processes, so the logcat and socket evidence of the first one may not be the process on screen")
+		if sourcePath != "" {
+			s.setStaleness("undetermined", "several live processes for this package, so there is no single bundle to compare against — stop_app then launch_app, then call app_state again")
+		}
+		return s, nil
 	}
 
 	// Bundle source: scan the app's recent logcat for dev-server / hot-reload
