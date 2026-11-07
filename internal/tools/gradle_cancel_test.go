@@ -90,4 +90,3 @@ func TestCancelBuildRejectsBlankJobID(t *testing.T) {
 		t.Errorf("err = %v, want job_id is required", err)
 	}
 }
-

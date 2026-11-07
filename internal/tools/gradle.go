@@ -106,6 +106,9 @@ func gradleBuild(ctx context.Context, in gradleBuildArgs) (*mcp.CallToolResult, 
 }
 
 func buildStatus(_ context.Context, in buildStatusArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("job_id", in.JobID); err != nil {
+		return nil, err
+	}
 	s, err := gradle.BuildStatus(in.JobID)
 	if err != nil {
 		return nil, err
@@ -263,6 +266,9 @@ func getCoverageReport(ctx context.Context, in coverageReportArgs) (*mcp.CallToo
 }
 
 func getFileCoverage(ctx context.Context, in fileCoverageArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("file", in.File); err != nil {
+		return nil, err
+	}
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
 		return nil, err
@@ -353,6 +359,9 @@ func listGradleProjects(ctx context.Context, in gradleProjectsArgs) (*mcp.CallTo
 func gradleProjectProperties(ctx context.Context, in gradlePropertiesArgs) (*mcp.CallToolResult, error) {
 	projectDir, err := resolveProjectDir(in.ProjectDir)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("module", in.Module); err != nil {
 		return nil, err
 	}
 	out, err := gradle.ListProjectProperties(ctx, projectDir, in.Module)
