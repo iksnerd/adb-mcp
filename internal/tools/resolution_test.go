@@ -72,9 +72,7 @@ func TestHandlersResolveThroughHelpers(t *testing.T) {
 // A handler whose input type has a serial but binds it to `_` ignores the
 // caller's target device. Allowlisted cases need a reason.
 func TestNoHandlerDiscardsItsSerialArgument(t *testing.T) {
-	allowed := map[string]string{
-		"listDevices": "lists every attached device, so a serial argument has nothing to select",
-	}
+	allowed := map[string]string{}
 	sources := toolSources(t)
 	var all strings.Builder
 	for _, s := range sources {

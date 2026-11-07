@@ -65,13 +65,29 @@ func bootEmulator(ctx context.Context, in bootArgs) (*mcp.CallToolResult, error)
 	return text("Booted %q as %s.", in.AVD, serial), nil
 }
 
-func listDevices(ctx context.Context, _ serialArg) (*mcp.CallToolResult, error) {
+func listDevices(ctx context.Context, in serialArg) (*mcp.CallToolResult, error) {
 	devices, err := adb.ListDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if len(devices) == 0 {
 		return text("No devices attached."), nil
+	}
+	// The raw argument, not resolve(): listing everything is this tool's
+	// purpose, so a serial pinned by session_set_defaults must not filter it.
+	if want := strings.TrimSpace(in.Serial); want != "" {
+		var matched []adb.Device
+		serials := make([]string, 0, len(devices))
+		for _, d := range devices {
+			serials = append(serials, d.Serial)
+			if d.Serial == want {
+				matched = append(matched, d)
+			}
+		}
+		if len(matched) == 0 {
+			return text("No device with serial %s is attached. Attached: %s", want, strings.Join(serials, ", ")), nil
+		}
+		devices = matched
 	}
 	return jsonResult(devices)
 }
