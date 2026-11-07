@@ -51,9 +51,12 @@ func TestNoHintRowForAToolThatDoesNotExist(t *testing.T) {
 // before running. Pinned by name so widening or narrowing it is a deliberate edit.
 func TestDestructiveToolsArePinned(t *testing.T) {
 	want := []string{
-		"avd_snapshot", "clear_app_data", "clear_device_lock", "clear_logcat",
-		"gradle_build", "pull_file", "push_file", "revoke_permission",
-		"run_instrumented_tests", "set_device_lock", "shutdown_emulator",
+		"avd_snapshot", "boot_emulator", "build_and_run", "clear_app_data",
+		"clear_device_lock", "clear_logcat", "get_coverage_report",
+		"get_file_coverage", "gradle_build", "list_gradle_tasks",
+		"list_gradle_variants", "pull_file", "push_file", "revoke_permission",
+		"run_instrumented_tests", "run_unit_tests", "set_device_lock",
+		"shutdown_emulator", "start_logcat_capture", "stop_screen_record",
 		"uninstall_app",
 	}
 	var got []string

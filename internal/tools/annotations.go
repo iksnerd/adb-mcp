@@ -51,7 +51,7 @@ func (h hint) network() hint    { h.web = true; return h }
 var hints = map[string]hint{
 	// --- Emulator / device management ---
 	"list_avds":         observe(),
-	"boot_emulator":     change(),
+	"boot_emulator":     destroy(), // wipe_data=true factory-resets the AVD
 	"list_devices":      observe(),
 	"wait_for_boot":     observe(),
 	"shutdown_emulator": destroy().idempotent(),
@@ -62,10 +62,10 @@ var hints = map[string]hint{
 	// --- Observe ---
 	"screenshot":    observe(),
 	"describe_ui":   observe(),
-	"render_stats":  observe(),
+	"render_stats":  change(), // reset=true zeroes the gfxinfo frame counters
 	"app_state":     observe(),
 	"wait":          observe(),
-	"wait_for_text": observe(),
+	"wait_for_text": change(), // scroll=true swipes the screen while polling
 
 	// --- Interact ---
 	"tap":             change(),
@@ -77,7 +77,7 @@ var hints = map[string]hint{
 	"input_text":      change(),
 	"input_key_combo": change(),
 	"press_key":       change(),
-	"rotate_screen":   change().idempotent(),
+	"rotate_screen":   change(), // cycles orientation on every call, so a repeat is not a no-op
 	"run_sequence":    change(),
 	"open_url":        change().network(),
 
@@ -112,10 +112,10 @@ var hints = map[string]hint{
 	// --- Logs and capture ---
 	"logcat":               observe(),
 	"clear_logcat":         destroy().idempotent(),
-	"start_logcat_capture": change(),
+	"start_logcat_capture": destroy(), // clear defaults true and runs logcat -c, as clear_logcat does
 	"stop_logcat_capture":  change(),
 	"start_screen_record":  change(),
-	"stop_screen_record":   change(),
+	"stop_screen_record":   destroy(), // overwrites local_path, as pull_file does
 
 	// --- Emulator environment ---
 	"set_battery":    change().idempotent(),
@@ -136,15 +136,15 @@ var hints = map[string]hint{
 	// --- Gradle ---
 	"scaffold_android_project":  change(),            // never overwrites a non-empty directory
 	"gradle_build":              destroy().network(), // task= is arbitrary: clean and publish are both reachable
-	"build_and_run":             change().network(),
+	"build_and_run":             destroy().network(), // task=/args= are arbitrary, as for gradle_build
 	"build_status":              observe(),
-	"run_unit_tests":            change().network(),
+	"run_unit_tests":            destroy().network(), // task=/args= are arbitrary, as for gradle_build
 	"run_instrumented_tests":    destroy().network(), // connectedAndroidTest uninstalls the app under test
-	"get_coverage_report":       change().network(),
-	"get_file_coverage":         change().network(),
+	"get_coverage_report":       destroy().network(), // task=/args= are arbitrary, as for gradle_build
+	"get_file_coverage":         destroy().network(), // task=/args= are arbitrary, as for gradle_build
 	"list_gradle_projects":      observe().network(),
-	"list_gradle_tasks":         observe().network(),
-	"list_gradle_variants":      observe().network(),
+	"list_gradle_tasks":         destroy().network(), // task= is arbitrary (clean, --init-script), not only a listing task
+	"list_gradle_variants":      destroy().network(), // task= is arbitrary, as for list_gradle_tasks
 	"gradle_project_properties": observe().network(),
 }
 
