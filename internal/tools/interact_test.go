@@ -24,7 +24,7 @@ case "$*" in
   *enabled_accessibility_services*) echo com.iksnerd.adbmcp.bridge/.BridgeAccessibilityService;;
   *"am broadcast"*) touch "$ANDROID_HOME/clicked";;
   *"logcat -d"*) echo 'I AdbMcpBridge: {"ok":true,"matched_text":"Go","clickable":true,"action_result":true}';;
-  *"cat /sdcard/window_dump.xml"*) if [ -f "$ANDROID_HOME/clicked" ]; then dump `+after+`; else dump Before; fi;;
+  *"cat /sdcard/aemcp-ui-"*) if [ -f "$ANDROID_HOME/clicked" ]; then dump `+after+`; else dump Before; fi;;
 esac`)
 }
 

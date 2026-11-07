@@ -190,6 +190,10 @@ func TestSessionSetDefaultsAdbErrorDoesNotFail(t *testing.T) {
 	resetSessionDefaults(t)
 	home := t.TempDir() // no platform-tools/adb here, and PATH has none we rely on
 	t.Setenv("ANDROID_HOME", home)
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	// An invalid ANDROID_HOME now falls through to the default SDK location, so
+	// point HOME at the empty dir too or this machine's real adb answers.
+	t.Setenv("HOME", home)
 	t.Setenv("PATH", home)
 	res, err := sessionSetDefaults(context.Background(), sessionSetDefaultsArgs{Serial: "emulator-5554"})
 	if err != nil {
