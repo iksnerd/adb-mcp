@@ -44,7 +44,7 @@ var secretPropertyKeyRe = regexp.MustCompile(`(?i)(pass|secret|token|key|credent
 
 // propertyLineRe matches one "key: value" line from gradlew's properties task
 // output, e.g. "NEXUS_PASS: hunter2".
-var propertyLineRe = regexp.MustCompile(`^([A-Za-z_][\w.]*): (.*)$`)
+var propertyLineRe = regexp.MustCompile(`^([A-Za-z_][\w.\-]*): (.*)$`)
 
 // redactSecretProperties masks the value of any property line whose key looks
 // secret-shaped, so a properties dump doesn't leak credentials into an agent
