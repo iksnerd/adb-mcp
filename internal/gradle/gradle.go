@@ -180,7 +180,8 @@ func PickAPKForBuild(apks []string, task string, started time.Time) (apk, note s
 	return apk, note, nil
 }
 
-func wrapperName() string {
+// WrapperName is the Gradle wrapper script name for this OS.
+func WrapperName() string {
 	if runtime.GOOS == "windows" {
 		return "gradlew.bat"
 	}

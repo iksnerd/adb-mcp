@@ -370,9 +370,9 @@ func gradleCmd(ctx context.Context, projectDir string, args ...string) (*exec.Cm
 	if strings.TrimSpace(projectDir) == "" {
 		return nil, fmt.Errorf("project_dir is required (path to the Android project root containing gradlew)")
 	}
-	gradlew := filepath.Join(projectDir, wrapperName())
+	gradlew := filepath.Join(projectDir, WrapperName())
 	if !sdk.FileExists(gradlew) {
-		return nil, fmt.Errorf("%s not found in %s — point project_dir at the module/root that has the Gradle wrapper", wrapperName(), projectDir)
+		return nil, fmt.Errorf("%s not found in %s — point project_dir at the module/root that has the Gradle wrapper", WrapperName(), projectDir)
 	}
 	if runtime.GOOS != "windows" {
 		if info, err := os.Stat(gradlew); err == nil && info.Mode().Perm()&0o111 == 0 {

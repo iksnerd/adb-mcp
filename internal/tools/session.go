@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sync"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
+	"github.com/iksnerd/adb-mcp/internal/gradle"
 	"github.com/iksnerd/adb-mcp/internal/sdk"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -93,10 +93,7 @@ func validateProjectDir(dir string) error {
 	if !filepath.IsAbs(dir) {
 		return fmt.Errorf("project_dir %q must be an absolute path (a relative one would resolve against the server's working directory)", dir)
 	}
-	wrapper := "gradlew"
-	if runtime.GOOS == "windows" {
-		wrapper = "gradlew.bat"
-	}
+	wrapper := gradle.WrapperName()
 	if !sdk.FileExists(filepath.Join(dir, wrapper)) {
 		return fmt.Errorf("project_dir %q does not contain the Gradle wrapper (%s); point it at the Android project root", dir, wrapper)
 	}
