@@ -38,10 +38,15 @@ type counts struct {
 }
 
 var (
-	reRegisteredTool = regexp.MustCompile(`(?m)^\tadd\(s, "([a-z_]+)"`)
+	reRegisteredTool = regexp.MustCompile(`(?m)^\tadd\(s, "([a-z0-9_]+)"`)
+	// reAddCall is deliberately looser than reRegisteredTool: it counts every
+	// add(s, call whatever its first argument is, so a tool registered by a
+	// variable, a loop or an unusual name shows up as a disagreement instead of
+	// being silently uncounted.
+	reAddCall        = regexp.MustCompile(`(?m)^\s*add\(s,`)
 	reGuideURI       = regexp.MustCompile(`(?m)^\t\turi:\s+"android://guide/`)
 	reToolsArea      = regexp.MustCompile(`(?m)^### `)
-	reDocumentedTool = regexp.MustCompile("`([a-z_]+)`")
+	reDocumentedTool = regexp.MustCompile("`([a-z0-9_]+)`")
 )
 
 func main() {
@@ -55,6 +60,9 @@ func main() {
 	}
 	fmt.Printf("derived: %d tools, %d guide resources, %d areas, version %s\n", c.tools, c.guides, c.areas, c.version)
 
+	if len(skillTrees(*root)) == 0 && *check {
+		fail(fmt.Errorf("none of %s exists under %s: the plugin trees moved, so no skill body was checked", strings.Join(pluginSkillDirs, ", "), *root))
+	}
 	if problems := undocumented(*root); len(problems) > 0 {
 		fail(fmt.Errorf("registered but absent from docs/TOOLS.md: %s", strings.Join(problems, ", ")))
 	}
@@ -72,7 +80,10 @@ func main() {
 			}
 			fail(err)
 		}
-		after := f.apply(string(before))
+		after, err := f.apply(string(before))
+		if err != nil {
+			fail(fmt.Errorf("%s: %w", f.path, err))
+		}
 		if after == string(before) {
 			continue
 		}
@@ -118,6 +129,9 @@ func derive(root string) (counts, error) {
 	}
 
 	c.tools = len(reRegisteredTool.FindAllSubmatch(register, -1))
+	if loose := len(reAddCall.FindAll(register, -1)); loose != c.tools {
+		return c, fmt.Errorf("internal/tools/register.go has %d add(s, calls but only %d match the registration pattern: a tool is registered by a name the scan cannot read", loose, c.tools)
+	}
 	c.guides = len(reGuideURI.FindAll(guides, -1))
 	// Areas are the "### " sections of the tool reference — the same headings
 	// the README's bullet list mirrors.
@@ -130,10 +144,10 @@ func derive(root string) (counts, error) {
 	return c, nil
 }
 
-// undocumented reports registered tools with no mention in docs/TOOLS.md.
+// undocumented reports registered tools with no table row in docs/TOOLS.md.
 // Counting table rows would not catch this: several tools share a row
 // ("`install_app` / `uninstall_app`"), so the totals can agree while a tool is
-// missing.
+// missing. A tool named only in prose does not count as documented.
 func undocumented(root string) []string {
 	register, err := os.ReadFile(filepath.Join(root, "internal/tools/register.go"))
 	if err != nil {
@@ -143,9 +157,18 @@ func undocumented(root string) []string {
 	if err != nil {
 		fail(err)
 	}
+	return undocumentedIn(register, doc)
+}
+
+func undocumentedIn(register, doc []byte) []string {
 	documented := map[string]bool{}
-	for _, m := range reDocumentedTool.FindAllSubmatch(doc, -1) {
-		documented[string(m[1])] = true
+	for line := range strings.SplitSeq(string(doc), "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		for _, m := range reDocumentedTool.FindAllStringSubmatch(line, -1) {
+			documented[m[1]] = true
+		}
 	}
 	var missing []string
 	for _, m := range reRegisteredTool.FindAllSubmatch(register, -1) {
@@ -170,6 +193,17 @@ var pluginSkillDirs = []string{
 }
 
 var reGuideName = regexp.MustCompile(`(?m)^\t\tname:\s+"([a-z-]+)"`)
+
+// skillTrees returns the plugin skill trees that exist under root.
+func skillTrees(root string) []string {
+	var found []string
+	for _, dir := range pluginSkillDirs {
+		if _, err := os.Stat(filepath.Join(root, dir)); err == nil {
+			found = append(found, dir)
+		}
+	}
+	return found
+}
 
 // unwrappedGuides reports "<plugin>/<guide>" for every guide resource missing
 // its skill directory in either plugin.
@@ -250,11 +284,21 @@ type sub struct {
 	with string
 }
 
-func (r rewrite) apply(s string) string {
+// apply runs every substitution. A pattern that matches nothing is an error:
+// ReplaceAllString would pass it silently, and the count it was meant to keep
+// would stop being checked. The optional (gitignored) roadmap is exempt, since
+// its wording is free-form.
+func (r rewrite) apply(s string) (string, error) {
 	for _, x := range r.subs {
+		if !x.re.MatchString(s) {
+			if r.optional {
+				continue
+			}
+			return s, fmt.Errorf("pattern %q matches nothing: the text it keeps in sync was reworded or removed", x.re)
+		}
 		s = x.re.ReplaceAllString(s, x.with)
 	}
-	return s
+	return s, nil
 }
 
 // rewrites lists every place a derived number is written down. Each pattern
