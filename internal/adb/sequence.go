@@ -2,6 +2,7 @@ package adb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -33,6 +34,42 @@ type Step struct {
 	IfPresent  string  `json:"if_present,omitempty" jsonschema:"Guard: only run this step if a selector (matched against text/content_desc/resource_id) is currently on screen — e.g. 'biometric' to cancel a prompt only when it's up."`
 	IfAbsent   string  `json:"if_absent,omitempty" jsonschema:"Guard: only run this step if the selector is NOT currently on screen."`
 	Optional   bool    `json:"optional,omitempty" jsonschema:"If true, a failure in this step is recorded but does NOT abort the rest of the sequence."`
+
+	// present records which JSON keys the caller sent, so a tap that omits x/y
+	// is rejected instead of tapping (0,0). nil for a Step built in Go, which
+	// is not checked. Unexported, so it stays out of the tool's JSON schema.
+	present map[string]bool
+}
+
+// UnmarshalJSON decodes a Step and remembers which keys were present. The
+// schema is unchanged: the fields keep their types.
+func (s *Step) UnmarshalJSON(b []byte) error {
+	type plain Step
+	if err := json.Unmarshal(b, (*plain)(s)); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	s.present = make(map[string]bool, len(raw))
+	for k, v := range raw {
+		s.present[k] = string(v) != "null"
+	}
+	return nil
+}
+
+// require returns an error naming the first of keys the caller did not send.
+func (s *Step) require(keys ...string) error {
+	if s.present == nil {
+		return nil
+	}
+	for _, k := range keys {
+		if !s.present[k] {
+			return fmt.Errorf("%s needs '%s' (omitting it would silently use 0)", s.Action, k)
+		}
+	}
+	return nil
 }
 
 // StepResult is the outcome of one Step: status is ok, skipped (a guard
@@ -118,7 +155,9 @@ func (c *Client) RunSequence(ctx context.Context, steps []Step, captureFinal boo
 // hierarchy read: IfPresent requires the selector to be on screen, IfAbsent
 // requires it not to be. Both empty means no guard (always runs).
 func (c *Client) guardPasses(ctx context.Context, ifPresent, ifAbsent string) (bool, error) {
-	elems, err := c.dumpOnce(ctx)
+	// FilterAll: FilterAuto drops resource-id-only wrapper nodes, which a guard
+	// may well name.
+	elems, _, err := c.dumpFiltered(ctx, uiauto.FilterAll)
 	if err != nil {
 		return false, err
 	}
@@ -149,6 +188,9 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 		return fmt.Sprintf("slept %gs", s.Seconds), nil, nil
 
 	case "tap":
+		if err := s.require("x", "y"); err != nil {
+			return "", nil, err
+		}
 		return fmt.Sprintf("tapped (%d,%d)", s.X, s.Y), nil, c.Tap(ctx, s.X, s.Y)
 
 	case "tap_text":
@@ -184,6 +226,9 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 		return fmt.Sprintf("typed %q", s.Text), nil, c.InputText(ctx, s.Text)
 
 	case "swipe":
+		if err := s.require("x", "y", "x2", "y2"); err != nil {
+			return "", nil, err
+		}
 		return fmt.Sprintf("swiped (%d,%d)->(%d,%d)", s.X, s.Y, s.X2, s.Y2), nil,
 			c.Swipe(ctx, s.X, s.Y, s.X2, s.Y2, s.DurationMS)
 
