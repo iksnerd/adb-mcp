@@ -2,7 +2,7 @@
 
 ← Back to the [README](../README.md)
 
-80 tools + 6 guide resources, across the ten areas below.
+81 tools + 6 guide resources, across the ten areas below.
 
 Every device-facing tool takes an optional `serial` (adb `-s`). Omit it when a
 single device is attached; with several, pass one from `list_devices`.
@@ -112,6 +112,7 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 |---|---|
 | `gradle_build` | `./gradlew assembleDebug` (or a given task) → compact summary (status, duration, error count, first errors, APK paths) plus the full redacted log's path. `background=true` returns a job id and log path at once |
 | `build_status` | Result of a background `gradle_build`: running with elapsed time, or the final summary |
+| `cancel_build` | Stop a background `gradle_build` by `job_id`. `build_status` then reports the job as failed, "cancelled by cancel_build". A job that already finished is reported as such |
 | `build_and_run` | One-shot: `gradle_build` → `install_app` → `launch_app` on a device (installs the newest non-test APK the build produced). Blocks for the whole build; a failed build returns the same summary and log path as `gradle_build` |
 | `run_unit_tests` | `./gradlew test` → pass/fail/skip summary, per-suite timing, failure stack traces; `json=true` for structured output. Foreground only: for a long run use `gradle_build` with this task and `background=true` |
 | `run_instrumented_tests` | `./gradlew connectedAndroidTest` (needs a device) → same summary. Foreground only, like `run_unit_tests` |

@@ -138,6 +138,7 @@ var hints = map[string]hint{
 	"gradle_build":              destroy().network(), // task= is arbitrary: clean and publish are both reachable
 	"build_and_run":             destroy().network(), // task=/args= are arbitrary, as for gradle_build
 	"build_status":              observe(),
+	"cancel_build":              destroy(),           // stops a running build
 	"run_unit_tests":            destroy().network(), // task=/args= are arbitrary, as for gradle_build
 	"run_instrumented_tests":    destroy().network(), // connectedAndroidTest uninstalls the app under test
 	"get_coverage_report":       destroy().network(), // task=/args= are arbitrary, as for gradle_build

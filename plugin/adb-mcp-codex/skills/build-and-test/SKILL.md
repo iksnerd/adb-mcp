@@ -72,7 +72,8 @@ build_status {job_id: "3f9a…"}                             → running, 1m12s 
 
 The log is written as Gradle runs, so tailing it shows progress. Jobs live only
 as long as the server process, and a background build is stopped after 60
-minutes.
+minutes. To stop one sooner, call `cancel_build {job_id}`; `build_status` then
+reports the job as failed, "cancelled by cancel_build".
 
 To get the `applicationId` after a build, read it from the APK instead of
 grepping `build.gradle`: `get_app_details {apk_path: "…/app-debug.apk"}` returns

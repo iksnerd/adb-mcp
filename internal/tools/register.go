@@ -255,11 +255,14 @@ func Register(s *mcp.Server) {
 
 	// --- Build & test (Gradle) ---
 	add(s, "gradle_build",
-		"Build the app with Gradle (default task assembleDebug) in project_dir. project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device. Returns a compact summary (status, duration, error count, first errors) and the path of the full log, with credential-shaped values redacted. It also lists the APKs under build/outputs, newest first; that can include APKs left by earlier builds. For builds that take minutes pass background=true: it returns a job id and log path at once, and build_status reports the result.",
+		"Build the app with Gradle (default task assembleDebug) in project_dir. project_dir must contain the Gradle wrapper (gradlew). Runs on the host, not a device. Returns a compact summary (status, duration, error count, first errors) and the path of the full log, with credential-shaped values redacted. It also lists the APKs under build/outputs, newest first; that can include APKs left by earlier builds. For builds that take minutes pass background=true: it returns a job id and log path at once, and build_status reports the result and cancel_build stops it.",
 		gradleBuild)
 	add(s, "build_status",
-		"Report a background gradle_build (started with background=true): running with elapsed time, or the final summary (passed/failed, error count, first errors, APK paths, full-log path). Jobs live only as long as this server process.",
+		"Report a background gradle_build (started with background=true): running with elapsed time, or the final summary (passed/failed, error count, first errors, APK paths, full-log path). Jobs live only as long as this server process. A job stopped with cancel_build reports as failed, cancelled by cancel_build.",
 		buildStatus)
+	add(s, "cancel_build",
+		"Stop a background gradle_build by job id. Cancellation is asynchronous: build_status then reports the job as failed, with 'cancelled by cancel_build' as the reason. A job that already finished is reported as such and left alone; an unknown or evicted id is an error.",
+		cancelBuild)
 	add(s, "build_and_run",
 		"One-shot build → install → launch: runs Gradle (default task assembleDebug) in project_dir, installs the resulting APK on the device, and launches package. Equivalent to gradle_build + install_app + launch_app in a single call, and it blocks for the whole build. A failed build returns the same summary and full-log path as gradle_build. If several APKs exist under build/outputs (multi-flavor projects, leftover androidTest APKs), the newest non-test one is installed.",
 		buildAndRun)

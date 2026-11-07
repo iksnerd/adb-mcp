@@ -32,6 +32,10 @@ type buildStatusArgs struct {
 	JobID string `json:"job_id" jsonschema:"Job id returned by gradle_build with background=true."`
 }
 
+type cancelBuildArgs struct {
+	JobID string `json:"job_id" jsonschema:"Job id returned by gradle_build with background=true."`
+}
+
 type gradleProjectsArgs struct {
 	projectDirArg
 }
@@ -107,6 +111,23 @@ func buildStatus(_ context.Context, in buildStatusArgs) (*mcp.CallToolResult, er
 		return nil, err
 	}
 	return text("%s", s.String()), nil
+}
+
+func cancelBuild(_ context.Context, in cancelBuildArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("job_id", in.JobID); err != nil {
+		return nil, err
+	}
+	s, err := gradle.BuildStatus(in.JobID)
+	if err != nil {
+		return nil, err
+	}
+	if s.Status != gradle.StatusRunning {
+		return text("Job %s had already finished (%s); nothing to cancel. build_status job_id=%s has its summary.", in.JobID, s.Status, in.JobID), nil
+	}
+	if err := gradle.CancelBuild(in.JobID); err != nil {
+		return nil, err
+	}
+	return text("Cancellation requested for job %s. Gradle stops shortly; build_status job_id=%s will then report the job as failed (cancelled by cancel_build).", in.JobID, in.JobID), nil
 }
 
 func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, error) {

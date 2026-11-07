@@ -165,7 +165,7 @@ func CancelAll() {
 }
 
 // CancelBuild stops a running background build. Cancelling a finished build
-// is a no-op. It is not wired to an MCP tool.
+// is a no-op. The cancel_build tool calls it.
 func CancelBuild(id string) error {
 	jobsMu.Lock()
 	j, ok := jobs[id]
@@ -207,6 +207,11 @@ func StartBuild(projectDir, task string, extra []string) (Job, error) {
 	go func() {
 		defer cancel()
 		final := execute(cmd, logFile, projectDir, BuildSummary{ID: id, Task: task, LogPath: logFile.Name()})
+		// A timeout leaves DeadlineExceeded; only CancelBuild/CancelAll
+		// produce Canceled. Say so, or the failure reads like a Gradle crash.
+		if final.Status == StatusFailed && errors.Is(ctx.Err(), context.Canceled) {
+			final.Err = "cancelled by cancel_build"
+		}
 		j.mu.Lock()
 		j.summary = final
 		j.mu.Unlock()
