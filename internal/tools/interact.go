@@ -204,7 +204,7 @@ func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error)
 		return nil, fmt.Errorf("text is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
-		return accessibilityTap(ctx, c, "", in.Text, boolOr(in.Partial, true))
+		return accessibilityTap(ctx, c, "", in.Text, boolOr(in.Partial, true), boolOr(in.VerifyChange, false))
 	}
 	e, verdict, err := findAndTap(ctx, c, in.Text, "", uiauto.FilterAuto, boolOr(in.VerifyChange, false), func(elems []uiauto.Element) (uiauto.Element, bool) {
 		return uiauto.FindByText(elems, in.Text, boolOr(in.Partial, true))
@@ -228,7 +228,7 @@ func tapElement(ctx context.Context, in tapElementArgs) (*mcp.CallToolResult, er
 		return nil, fmt.Errorf("resource_id is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
-		return accessibilityTap(ctx, c, in.ResourceID, "", boolOr(in.Partial, true))
+		return accessibilityTap(ctx, c, in.ResourceID, "", boolOr(in.Partial, true), boolOr(in.VerifyChange, false))
 	}
 	// FilterAll, not FilterAuto: the auto filter prunes non-clickable wrapper
 	// nodes with parent-equal bounds even when they carry a resource id —
@@ -247,7 +247,7 @@ func tapElement(ctx context.Context, in tapElementArgs) (*mcp.CallToolResult, er
 // through the companion bridge (see repo-root bridge/) instead of a
 // coordinate c.Tap. EXPERIMENTAL — see the field's jsonschema description.
 // Exactly one of resourceID/text is passed by the caller.
-func accessibilityTap(ctx context.Context, c *adb.Client, resourceID, textQuery string, partial bool) (*mcp.CallToolResult, error) {
+func accessibilityTap(ctx context.Context, c *adb.Client, resourceID, textQuery string, partial, verify bool) (*mcp.CallToolResult, error) {
 	status, err := c.GetBridgeStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("checking accessibility bridge status: %w", err)
@@ -255,7 +255,12 @@ func accessibilityTap(ctx context.Context, c *adb.Client, resourceID, textQuery 
 	if !status.Installed || !status.Enabled {
 		return nil, fmt.Errorf("accessibility bridge not ready (installed=%t, enabled=%t) — run `adb-mcp bridge install` once for this device, then retry with via_accessibility=true", status.Installed, status.Enabled)
 	}
-	result, err := c.AccessibilityClick(ctx, resourceID, textQuery, partial)
+	var result adb.BridgeClickResult
+	verdict, err := withChangeCheck(ctx, c, verify, func() error {
+		var clickErr error
+		result, clickErr = c.AccessibilityClick(ctx, resourceID, textQuery, partial)
+		return clickErr
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +279,7 @@ func accessibilityTap(ctx context.Context, c *adb.Client, resourceID, textQuery 
 	if label == "" {
 		label = result.MatchedResourceID
 	}
-	return text("Accessibility-clicked %q (matched %q, clickable=%t) via the bridge — a real AccessibilityNodeInfo.performAction(ACTION_CLICK), not a coordinate tap.", query, label, result.Clickable), nil
+	return text("Accessibility-clicked %q (matched %q, clickable=%t) via the bridge — a real AccessibilityNodeInfo.performAction(ACTION_CLICK), not a coordinate tap.%s", query, label, result.Clickable, verdict), nil
 }
 
 func swipe(ctx context.Context, in swipeArgs) (*mcp.CallToolResult, error) {
