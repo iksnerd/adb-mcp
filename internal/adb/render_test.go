@@ -1,6 +1,69 @@
 package adb
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+func TestParseGfxInfoFirstProcessOnly(t *testing.T) {
+	multi := gfxDump + `
+** Graphics info for pid 5000 [com.example.app:remote] **
+
+Stats since: 84636070394ns
+Total frames rendered: 7
+Janky frames: 7 (100.00%)
+
+View hierarchy:
+
+  com.example.app:remote/android.view.ViewRootImpl@ffeedd
+  99 views, 10.00 kB of render nodes
+
+Total ViewRootImpl: 1
+Total Views: 99
+Total DisplayList: 10.00 kB
+`
+	s := parseGfxInfo(multi)
+	if s.PID != 4113 || s.Views != 1560 || s.TotalFrames != 1240 || s.JankyFrames != 56 {
+		t.Errorf("must parse only the first pid's section, got %+v", s)
+	}
+	if len(s.Windows) != 2 {
+		t.Errorf("windows = %d, want 2 from the first section", len(s.Windows))
+	}
+}
+
+func TestRenderStatsSkippedFramesHonourReset(t *testing.T) {
+	logs := `11-07 00:00:01.000  4113  4113 I Choreographer: Skipped 47 frames!
+11-07 00:00:02.000  4113  4113 I Choreographer: Skipped 112 frames!
+`
+	logOut := logs
+	run := func(_ context.Context, args ...string) ([]byte, error) {
+		j := strings.Join(args, " ")
+		switch {
+		case strings.Contains(j, "gfxinfo"):
+			return []byte(gfxDump), nil
+		case strings.Contains(j, "logcat"):
+			return []byte(logOut), nil
+		}
+		return nil, nil
+	}
+	c := &Client{Serial: "render-reset-1", run: run}
+	ctx := context.Background()
+
+	s, _ := c.GetRenderStats(ctx, "com.example.app", true)
+	if s.SkippedFrameEvents != 2 {
+		t.Fatalf("first call = %d events, want 2", s.SkippedFrameEvents)
+	}
+	s, _ = c.GetRenderStats(ctx, "com.example.app", false)
+	if s.SkippedFrameEvents != 0 || s.MaxSkippedFrames != 0 {
+		t.Errorf("after reset the old events must not count, got %d/%d", s.SkippedFrameEvents, s.MaxSkippedFrames)
+	}
+	logOut = logs + "11-07 00:00:09.000  4113  4113 I Choreographer: Skipped 30 frames!\n"
+	s, _ = c.GetRenderStats(ctx, "com.example.app", false)
+	if s.SkippedFrameEvents != 1 || s.MaxSkippedFrames != 30 {
+		t.Errorf("only the post-reset event should count, got %d/%d", s.SkippedFrameEvents, s.MaxSkippedFrames)
+	}
+}
 
 // A trimmed but structurally faithful `dumpsys gfxinfo <pkg>` dump.
 const gfxDump = `Applications Graphics Acceleration Info:

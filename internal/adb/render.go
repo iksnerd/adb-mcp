@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // RenderStats is the whole-tree counterpart to describe_ui. describe_ui reads
@@ -65,6 +66,12 @@ var (
 // section must degrade to zero rather than fail the call.
 func parseGfxInfo(out string) RenderStats {
 	var s RenderStats
+	// A multi-process app prints one "Graphics info for pid" section per
+	// process. Counts from different processes must not be mixed, so keep only
+	// the first section (the app's main process).
+	if locs := gfxPIDRe.FindAllStringIndex(out, 2); len(locs) == 2 {
+		out = out[:locs[1][0]]
+	}
 	if m := gfxPIDRe.FindStringSubmatch(out); m != nil {
 		s.PID, _ = strconv.Atoi(m[1])
 	}
@@ -151,6 +158,48 @@ func parseSkippedFrames(logs string) (events, worst int) {
 	return events, worst
 }
 
+var logTimeRe = regexp.MustCompile(`^(\d\d-\d\d \d\d:\d\d:\d\d\.\d+)`)
+
+// parseSkippedFramesSince is parseSkippedFrames limited to events logged after
+// the threadtime timestamp `after` ("" counts everything). It also returns the
+// newest timestamp seen on any matching line, which a reset stores as the next
+// baseline. Lines without a leading timestamp can't be placed, so they count
+// only when there is no baseline.
+func parseSkippedFramesSince(logs, after string) (events, worst int, newest string) {
+	for line := range strings.SplitSeq(logs, "\n") {
+		m := skippedFramesRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		ts := ""
+		if t := logTimeRe.FindStringSubmatch(line); t != nil {
+			ts = t[1]
+		}
+		if ts > newest {
+			newest = ts
+		}
+		if after != "" && ts <= after {
+			continue
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			continue
+		}
+		events++
+		if n > worst {
+			worst = n
+		}
+	}
+	return events, worst, newest
+}
+
+// skippedBaseline remembers, per serial+package, the newest Choreographer event
+// seen when counters were last reset, so later scans count only newer events.
+var (
+	skippedBaselineMu sync.Mutex
+	skippedBaseline   = map[string]string{}
+)
+
 // GetRenderStats reports the app's real view-tree size and recent frame health.
 // reset zeroes gfxinfo's frame counters AFTER reading, so the next call measures
 // only what happened in between — the way to attribute jank to one interaction
@@ -167,9 +216,19 @@ func (c *Client) GetRenderStats(ctx context.Context, pkg string, reset bool) (Re
 	}
 	// Choreographer logs to the app's own pid, so scope the scan the same way
 	// app_state does rather than reading the whole device buffer.
+	baseKey := c.Serial + "/" + pkg
+	var pendingBaseline string
 	if s.PID > 0 {
 		if logs, err := c.adb(ctx, "shell", "logcat", "-d", "-t", "4000", "--pid", strconv.Itoa(s.PID)); err == nil {
-			s.SkippedFrameEvents, s.MaxSkippedFrames = parseSkippedFrames(logs)
+			skippedBaselineMu.Lock()
+			after := skippedBaseline[baseKey]
+			skippedBaselineMu.Unlock()
+			var newest string
+			s.SkippedFrameEvents, s.MaxSkippedFrames, newest = parseSkippedFramesSince(logs, after)
+			if reset && newest > after {
+				// Applied below only if the gfxinfo reset itself succeeded.
+				pendingBaseline = newest
+			}
 		} else {
 			s.Notes = append(s.Notes, fmt.Sprintf("skipped-frame tally unavailable: %v", err))
 		}
@@ -178,6 +237,11 @@ func (c *Client) GetRenderStats(ctx context.Context, pkg string, reset bool) (Re
 		if _, err := c.adb(ctx, "shell", "dumpsys", "gfxinfo", pkg, "reset"); err != nil {
 			s.Notes = append(s.Notes, fmt.Sprintf("counters were NOT reset: %v", err))
 		} else {
+			if pendingBaseline != "" {
+				skippedBaselineMu.Lock()
+				skippedBaseline[baseKey] = pendingBaseline
+				skippedBaselineMu.Unlock()
+			}
 			s.Notes = append(s.Notes, "frame counters reset — the next render_stats call measures only what happens from now on")
 		}
 	}
