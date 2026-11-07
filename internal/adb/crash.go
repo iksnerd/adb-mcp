@@ -30,14 +30,25 @@ var crashHeaderRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\b
 // simply has none).
 func (c *Client) LastCrash(ctx context.Context, pkg string) (crash string, found bool, err error) {
 	var best, bestTS string
+	var firstErr error
+	failed := 0
 	for _, tag := range crashTags {
 		out, e := c.adb(ctx, "shell", "dumpsys", "dropbox", "--print", tag)
 		if e != nil {
-			continue // tag may be absent on this device; try the next
+			// A tag may be absent on this device, so one failure is tolerated.
+			failed++
+			if firstErr == nil {
+				firstErr = e
+			}
+			continue
 		}
 		if entry, ts, ok := latestDropboxEntry(out, pkg); ok && ts >= bestTS {
 			bestTS, best = ts, entry
 		}
+	}
+	if failed == len(crashTags) {
+		// Every read failed (offline device, adb error): that is not "no crash".
+		return "", false, fmt.Errorf("could not read DropBox crash entries: %w", firstErr)
 	}
 	if best == "" {
 		return "", false, nil
@@ -61,7 +72,7 @@ func latestDropboxEntry(out, pkg string) (entry, ts string, ok bool) {
 		if m == nil {
 			continue
 		}
-		if pkg != "" && !strings.Contains(part, pkg) {
+		if pkg != "" && !entryMentionsPackage(part, pkg) {
 			continue
 		}
 		if m[1] >= ts { // lexical compare works for this fixed timestamp format
@@ -69,6 +80,35 @@ func latestDropboxEntry(out, pkg string) (entry, ts string, ok bool) {
 		}
 	}
 	return entry, ts, ok
+}
+
+// entryMentionsPackage reports whether a DropBox entry belongs to pkg. Entries
+// carry "Process: <name>[:<sub>]" and "Package: <pkg> v<code>" header lines, and
+// those are compared exactly so "com.app" does not match "com.app.debug" or a
+// trace that merely mentions the package. An entry with neither header falls
+// back to a bounded substring match.
+func entryMentionsPackage(part, pkg string) bool {
+	hasHeader := false
+	for line := range strings.SplitSeq(part, "\n") {
+		key, val, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key != "Process" && key != "Package" {
+			continue
+		}
+		hasHeader = true
+		name, _, _ := strings.Cut(strings.TrimSpace(val), " ")
+		name, _, _ = strings.Cut(name, ":")
+		if name == pkg {
+			return true
+		}
+	}
+	if hasHeader {
+		return false
+	}
+	return regexp.MustCompile(`(^|[^\w.])` + regexp.QuoteMeta(pkg) + `($|[^\w.]|\.($|[^\w]))`).MatchString(part)
 }
 
 // firstLine returns everything before the first newline in s.
