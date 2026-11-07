@@ -18,7 +18,7 @@ import (
 // errors aborts the rest of the sequence unless Optional is set.
 type Step struct {
 	Action     string  `json:"action" jsonschema:"The operation: sleep, tap, tap_text, tap_element, key, text, swipe, launch, stop, assert_foreground, wait_text, or describe_ui."`
-	Seconds    float64 `json:"seconds,omitempty" jsonschema:"sleep: how long to pause, in seconds (fractions ok)."`
+	Seconds    float64 `json:"seconds,omitempty" jsonschema:"sleep: how long to pause, in seconds (fractions ok; capped at 300, like the wait tool)."`
 	X          int     `json:"x,omitempty" jsonschema:"tap/swipe: X in true device pixels (swipe start)."`
 	Y          int     `json:"y,omitempty" jsonschema:"tap/swipe: Y in true device pixels (swipe start)."`
 	X2         int     `json:"x2,omitempty" jsonschema:"swipe: end X in true device pixels."`
@@ -170,6 +170,20 @@ func (c *Client) guardPasses(ctx context.Context, ifPresent, ifAbsent string) (b
 	return true, nil
 }
 
+// maxSleepSeconds caps a sleep step, matching the wait tool's limit.
+const maxSleepSeconds = 300
+
+func sleepDuration(seconds float64) time.Duration {
+	return time.Duration(min(seconds, maxSleepSeconds) * float64(time.Second))
+}
+
+func sleepDetail(seconds float64) string {
+	if seconds > maxSleepSeconds {
+		return fmt.Sprintf("slept %ds (capped from %g)", maxSleepSeconds, seconds)
+	}
+	return fmt.Sprintf("slept %gs", seconds)
+}
+
 // runStep dispatches one step to the matching client command. It returns a short
 // human detail, any captured elements (describe_ui only), and an error.
 func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element, error) {
@@ -179,13 +193,12 @@ func (c *Client) runStep(ctx context.Context, s *Step) (string, []uiauto.Element
 		if s.Seconds <= 0 {
 			return "", nil, fmt.Errorf("sleep needs a positive 'seconds'")
 		}
-		d := time.Duration(s.Seconds * float64(time.Second))
 		select {
 		case <-ctx.Done():
 			return "", nil, ctx.Err()
-		case <-time.After(d):
+		case <-time.After(sleepDuration(s.Seconds)):
 		}
-		return fmt.Sprintf("slept %gs", s.Seconds), nil, nil
+		return sleepDetail(s.Seconds), nil, nil
 
 	case "tap":
 		if err := s.require("x", "y"); err != nil {
