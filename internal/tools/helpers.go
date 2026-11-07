@@ -39,7 +39,7 @@ func jsonResult(v any) (*mcp.CallToolResult, error) {
 // the single-device default (adb.ResolveSerial) and returns a client bound
 // to that device. Handlers read c.Serial for messages and call c.Method(...).
 func resolve(ctx context.Context, serial string) (*adb.Client, error) {
-	if serial == "" {
+	if strings.TrimSpace(serial) == "" {
 		_, serial = getSessionDefaults()
 	}
 	s, err := adb.ResolveSerial(ctx, serial)

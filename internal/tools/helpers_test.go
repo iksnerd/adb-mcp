@@ -64,3 +64,22 @@ func TestHandlersRejectEmptyRequiredStrings(t *testing.T) {
 		})
 	}
 }
+
+// A whitespace serial must fall back to the session default exactly like an
+// empty one, not slide into adb.ResolveSerial's single-device rule.
+func TestResolveWhitespaceSerialUsesSessionDefault(t *testing.T) {
+	resetSessionDefaults(t)
+	fakeAdb(t, "")
+	sessionDefaults.mu.Lock()
+	sessionDefaults.serial = "pinned-1"
+	sessionDefaults.mu.Unlock()
+	for _, s := range []string{"", "  ", "\t"} {
+		c, err := resolve(context.Background(), s)
+		if err != nil {
+			t.Fatalf("resolve(%q): %v", s, err)
+		}
+		if c.Serial != "pinned-1" {
+			t.Errorf("resolve(%q).Serial = %q, want the session default pinned-1", s, c.Serial)
+		}
+	}
+}
