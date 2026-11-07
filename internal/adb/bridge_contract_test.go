@@ -34,6 +34,37 @@ func firstGroup(t *testing.T, re, src string) string {
 	return m[1]
 }
 
+// The bridge's versionCode/versionName come from the repo-root VERSION file, so
+// an installed bridge can be told stale from current. A hardcoded literal
+// would bring back the "stuck at 1.0" problem silently.
+var hardcodedVersionRe = regexp.MustCompile(`version(?:Code\s*=\s*\d|Name\s*=\s*")`)
+
+func bridgeHardcodesVersion(gradle string) bool { return hardcodedVersionRe.MatchString(gradle) }
+
+func TestBridgeGradleDerivesVersionFromVERSIONFile(t *testing.T) {
+	gradle := bridgeFile(t, "app/build.gradle.kts")
+	if bridgeHardcodesVersion(gradle) {
+		t.Error("bridge/app/build.gradle.kts hardcodes versionCode/versionName; derive them from the repo-root VERSION file")
+	}
+	if !strings.Contains(gradle, "VERSION") {
+		t.Error("bridge/app/build.gradle.kts does not read the VERSION file")
+	}
+}
+
+func TestBridgeHardcodesVersionDetector(t *testing.T) {
+	for src, want := range map[string]bool{
+		`versionCode = 1`:                 true,
+		`versionName = "1.0"`:             true,
+		`versionCode=42`:                  true,
+		`versionCode = bridgeVersionCode`: false,
+		`versionName = bridgeVersionName`: false,
+	} {
+		if got := bridgeHardcodesVersion(src); got != want {
+			t.Errorf("bridgeHardcodesVersion(%q) = %v, want %v", src, got, want)
+		}
+	}
+}
+
 const kotlinService = "app/src/main/kotlin/com/iksnerd/adbmcp/bridge/BridgeAccessibilityService.kt"
 
 func TestBridgeConstantsMatchTheKotlinBridge(t *testing.T) {
