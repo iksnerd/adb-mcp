@@ -11,7 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
-const { resolveTarget, ensureBinary, TARGETS } = require('../adb-mcp/launcher/launch.js');
+const { resolveTarget, ensureBinary, nodeVersionProblem, TARGETS } = require('../adb-mcp/launcher/launch.js');
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'launch-'));
@@ -37,6 +37,22 @@ test('resolveTarget maps every shipped target to its asset', () => {
     );
   }
   assert.equal(TARGETS.length, cases.length);
+});
+
+// The build matrix lives in release.yml; the launcher and its table must cover exactly it.
+test('the launcher serves exactly the targets release.yml builds', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../../.github/workflows/release.yml'), 'utf8');
+  const list = workflow.match(/for p in ((?:[a-z]+\/[a-z0-9]+ ?)+); do/);
+  assert.ok(list, 'release.yml no longer has a `for p in os/arch ...` list');
+  const built = list[1].trim().split(/\s+/).map((p) => p.replace('/', '-')).sort();
+  assert.deepEqual([...TARGETS].sort(), built);
+});
+
+test('nodeVersionProblem names the requirement on Node older than 18', () => {
+  for (const v of ['16.20.2', '14.0.0', '17.9.1']) {
+    assert.match(nodeVersionProblem(v), new RegExp(`Node\\.js 18 or newer.*${v.replace(/\./g, '\\.')}`));
+  }
+  for (const v of ['18.0.0', '20.11.1', '24.11.0']) assert.equal(nodeVersionProblem(v), null);
 });
 
 test('resolveTarget refuses an unsupported machine and names what is supported', () => {

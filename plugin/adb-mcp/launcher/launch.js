@@ -27,6 +27,16 @@ const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
 const MAX_BINARY_BYTES = 64 << 20;
 const DOWNLOAD_TIMEOUT_MS = 120000;
 
+const MIN_NODE_MAJOR = 18;
+
+// The download uses fetch and AbortSignal.timeout, which Node 18 introduced. On
+// older Node the failure would be "fetch is not defined"; say what is wrong.
+function nodeVersionProblem(version) {
+  const major = Number.parseInt(String(version).split('.')[0], 10);
+  if (Number.isInteger(major) && major >= MIN_NODE_MAJOR) return null;
+  return `needs Node.js ${MIN_NODE_MAJOR} or newer, but this is Node.js ${version}. Update Node.js and restart Claude.`;
+}
+
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
 function resolveTarget(platform, arch, version) {
@@ -106,6 +116,8 @@ function fail(message) {
 }
 
 async function main() {
+  const nodeProblem = nodeVersionProblem(process.versions.node);
+  if (nodeProblem) fail(nodeProblem);
   const [dataDir, ...serverArgs] = process.argv.slice(2);
   let bin;
   try {
@@ -128,4 +140,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { resolveTarget, ensureBinary, TARGETS };
+module.exports = { resolveTarget, ensureBinary, nodeVersionProblem, TARGETS };
