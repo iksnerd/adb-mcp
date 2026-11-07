@@ -34,6 +34,15 @@ func ListAVDs(ctx context.Context) ([]string, error) {
 	return avds, nil
 }
 
+// Bounds for boot discovery, vars so tests can shrink them.
+var (
+	bootPollInterval   = time.Second
+	bootNameGracePolls = 5                      // polls a new emulator may stay unnamed before it is accepted
+	avdNameRetryDelay  = 500 * time.Millisecond // between AVDName tries for one emulator
+	avdNameTries       = 4
+	waitForBootPoll    = 2 * time.Second
+)
+
 // BootEmulator launches an AVD detached (so it outlives the request) and, when
 // waitForBoot is true, waits until it reports sys.boot_completed. It returns the
 // serial of the newly booted device.
@@ -55,7 +64,19 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot *bool, waitForBoot
 	// so the discovery loop below could never see it as new and would wait out
 	// the whole timeout, then report failure for a device that works. Two
 	// emulators cannot share an AVD's state either, so launching another is wrong.
-	if running, ok := findRunningAVD(attachedEmulators(ctx, devs), avd); ok {
+	attached := attachedEmulators(ctx, devs)
+	running, ok := findRunningAVD(attached, avd)
+	if !ok {
+		// An emulator still starting does not answer `avd name` yet. Its AVD is
+		// unknown, not different: launching beside it could fight it for the
+		// AVD lock. Say which device and let the caller wait or pick it.
+		for _, e := range attached {
+			if e.AVD == "" {
+				return "", fmt.Errorf("emulator %s (%s) is attached but would not say which AVD it runs, so booting %q could start a second emulator on the same AVD: wait for it to finish starting and retry, or use its serial directly", e.Serial, e.State, avd)
+			}
+		}
+	}
+	if ok {
 		if (noSnapshot != nil && *noSnapshot) || wipeData {
 			return "", fmt.Errorf("emulator %q is already running as %s, so no_snapshot / wipe_data cannot apply to it: stop it first (shutdown_emulator) and boot again, or leave both off to use it as it is", avd, running.Serial)
 		}
@@ -89,26 +110,43 @@ func BootEmulator(ctx context.Context, avd string, noSnapshot *bool, waitForBoot
 	}
 	_ = cmd.Process.Release()
 
-	// Discover the new serial by polling for a device not present before boot.
+	// Discover the new serial by polling for a new emulator-* device that runs
+	// avd. Physical devices that appear meanwhile are not ours. A new emulator
+	// in any adb state counts (it shows as offline while starting; WaitForBoot
+	// covers that), but one whose AVD name is known and different is another
+	// emulator. One whose name is still unknown gets bootNameGracePolls polls
+	// to answer before it is accepted on trust.
 	deadline := time.Now().Add(timeout)
 	var serial string
-	for time.Now().Before(deadline) {
+	unnamed := map[string]int{}
+	for time.Now().Before(deadline) && serial == "" {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
 		devs, err := ListDevices(ctx)
 		if err == nil {
 			for _, d := range devs {
-				if !before[d.Serial] {
-					serial = d.Serial
-					break
+				if before[d.Serial] || !strings.HasPrefix(d.Serial, "emulator-") {
+					continue
 				}
+				name, nerr := New(d.Serial).AVDName(ctx)
+				if nerr == nil && name != avd {
+					before[d.Serial] = true // another AVD: never ours
+					continue
+				}
+				if nerr != nil {
+					unnamed[d.Serial]++
+					if unnamed[d.Serial] < bootNameGracePolls {
+						continue
+					}
+				}
+				serial = d.Serial
+				break
 			}
 		}
-		if serial != "" {
-			break
+		if serial == "" {
+			time.Sleep(bootPollInterval)
 		}
-		time.Sleep(1 * time.Second)
 	}
 	if serial == "" {
 		// Say what IS attached. boot_emulator only reports a NEW device, so a
@@ -147,7 +185,7 @@ func attachedEmulators(ctx context.Context, devs []Device) []attachedEmulator {
 		if !strings.HasPrefix(d.Serial, "emulator-") {
 			continue
 		}
-		name, _ := New(d.Serial).AVDName(ctx)
+		name := New(d.Serial).avdNameRetry(ctx)
 		out = append(out, attachedEmulator{Serial: d.Serial, State: d.State, AVD: name})
 	}
 	return out
@@ -179,6 +217,24 @@ func describeAttached(emus []attachedEmulator) string {
 	return strings.Join(parts, ", ")
 }
 
+// avdNameRetry asks for the AVD name a few times: a starting emulator's console
+// is not up for the first moments. Empty when it never answers.
+func (c *Client) avdNameRetry(ctx context.Context) string {
+	for i := 0; i < avdNameTries; i++ {
+		if name, err := c.AVDName(ctx); err == nil {
+			return name
+		}
+		if i < avdNameTries-1 {
+			select {
+			case <-ctx.Done():
+				return ""
+			case <-time.After(avdNameRetryDelay):
+			}
+		}
+	}
+	return ""
+}
+
 // AVDName returns the AVD this emulator is running (adb emu avd name).
 func (c *Client) AVDName(ctx context.Context) (string, error) {
 	out, err := c.emu(ctx, "avd name", "avd", "name")
@@ -193,7 +249,9 @@ func (c *Client) AVDName(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("emulator %s reported no AVD name", c.Serial)
 }
 
-// WaitForBoot blocks until the device reports sys.boot_completed=1 or timeout.
+// WaitForBoot blocks until the device reports sys.boot_completed=1 and the
+// package manager answers (`pm path android`), or timeout. boot_completed is
+// set before the package manager is ready, and installs/launches fail in that gap.
 func (c *Client) WaitForBoot(ctx context.Context, timeout time.Duration) error {
 	if timeout <= 0 {
 		timeout = 120 * time.Second
@@ -205,9 +263,11 @@ func (c *Client) WaitForBoot(ctx context.Context, timeout time.Duration) error {
 		}
 		out, err := c.adb(ctx, "shell", "getprop", "sys.boot_completed")
 		if err == nil && strings.TrimSpace(out) == "1" {
-			return nil
+			if pm, perr := c.adb(ctx, "shell", "pm", "path", "android"); perr == nil && strings.Contains(pm, "package:") {
+				return nil
+			}
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(waitForBootPoll)
 	}
 	return fmt.Errorf("device %s did not finish booting within %s", c.Serial, timeout)
 }

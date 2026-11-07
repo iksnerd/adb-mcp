@@ -49,7 +49,12 @@ case "$1" in
       echo OK
     fi
     exit 0 ;;
-  shell) echo 1; exit 0 ;;
+  shell)
+    case "$*" in
+      *"pm path"*) echo "package:/system/framework/framework-res.apk" ;;
+      *) echo 1 ;;
+    esac
+    exit 0 ;;
 esac
 exit 0
 `)
