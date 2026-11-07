@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: the image the last good release ran on; bump it on purpose
     env:
       # Pinned rather than :latest — the registry is still in preview, and a
       # breaking change there would block a release at tag time. Bump
