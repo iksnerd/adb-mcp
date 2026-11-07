@@ -19,18 +19,29 @@ func ListDevices(ctx context.Context) ([]Device, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseDevices(out), nil
+}
+
+// parseDevices parses `adb devices` output. Each device line is
+// "<serial>\t<state>"; the state may be several words ("no permissions (user
+// in plugdev group; ...)") so it is kept whole. Daemon status lines
+// ("* daemon not running; starting now ...") and anything without a tab
+// separator are not devices and are skipped.
+func parseDevices(out string) []Device {
 	var devices []Device
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "List of devices") {
+		if line == "" || strings.HasPrefix(line, "*") || strings.HasPrefix(line, "List of devices") {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) >= 2 {
-			devices = append(devices, Device{Serial: fields[0], State: fields[1]})
+		serial, state, ok := strings.Cut(line, "\t")
+		serial, state = strings.TrimSpace(serial), strings.TrimSpace(state)
+		if !ok || serial == "" || state == "" {
+			continue
 		}
+		devices = append(devices, Device{Serial: serial, State: state})
 	}
-	return devices, nil
+	return devices
 }
 
 // ResolveSerial returns the serial to target. If serial is set it is used
@@ -38,7 +49,7 @@ func ListDevices(ctx context.Context) ([]Device, error) {
 // chosen; any other count yields an actionable error.
 func ResolveSerial(ctx context.Context, serial string) (string, error) {
 	if strings.TrimSpace(serial) != "" {
-		return serial, nil
+		return strings.TrimSpace(serial), nil
 	}
 	devices, err := ListDevices(ctx)
 	if err != nil {
