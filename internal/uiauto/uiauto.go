@@ -161,11 +161,20 @@ func parseBounds(s string) (Bounds, bool) {
 	if m == nil {
 		return Bounds{}, false
 	}
-	x1, _ := strconv.Atoi(m[1])
-	y1, _ := strconv.Atoi(m[2])
-	x2, _ := strconv.Atoi(m[3])
-	y2, _ := strconv.Atoi(m[4])
-	return Bounds{X1: x1, Y1: y1, X2: x2, Y2: y2}, true
+	var v [4]int
+	for i := range v {
+		n, err := strconv.Atoi(m[i+1])
+		if err != nil {
+			return Bounds{}, false // overflow: a bogus rect would give a bogus tap point
+		}
+		v[i] = n
+	}
+	// Inverted or zero-area rects have no tappable centre; treat the node as
+	// having no usable bounds (same as an unparseable string).
+	if v[2] <= v[0] || v[3] <= v[1] {
+		return Bounds{}, false
+	}
+	return Bounds{X1: v[0], Y1: v[1], X2: v[2], Y2: v[3]}, true
 }
 
 // FilterByQuery keeps elements whose text, content-description, or resource id
@@ -197,17 +206,33 @@ func FilterByQuery(elems []Element, query string) []Element {
 // never reported (a common reason a raw coordinate tap silently does nothing).
 // Pass a FilterAll element list so wrapper nodes are considered.
 func ElementAt(elems []Element, x, y int) (Element, bool) {
+	// Edges are inclusive so the far corner pixel still hits, but a point on
+	// the shared edge of two adjacent elements belongs to the one it is
+	// half-open inside ([X1,X2) x [Y1,Y2)). Order: half-open hit, then smallest
+	// area, then clickable, then the later node (drawn on top).
 	best := -1
 	var bestArea int
+	var bestInside bool
 	for i := range elems {
 		b := elems[i].Bounds
 		if x < b.X1 || x > b.X2 || y < b.Y1 || y > b.Y2 {
 			continue
 		}
+		inside := x < b.X2 && y < b.Y2
 		area := (b.X2 - b.X1) * (b.Y2 - b.Y1)
+		take := false
 		switch {
-		case best < 0, area < bestArea, area == bestArea && elems[i].Clickable && !elems[best].Clickable:
-			best, bestArea = i, area
+		case best < 0, inside != bestInside:
+			take = best < 0 || inside
+		case area != bestArea:
+			take = area < bestArea
+		case elems[i].Clickable != elems[best].Clickable:
+			take = elems[i].Clickable
+		default:
+			take = true
+		}
+		if take {
+			best, bestArea, bestInside = i, area, inside
 		}
 	}
 	if best < 0 {

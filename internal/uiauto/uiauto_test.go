@@ -248,3 +248,41 @@ func TestElementAt(t *testing.T) {
 		t.Error("expected the bottom-right boundary pixel to count as a hit")
 	}
 }
+
+func TestParseHierarchySkipsDegenerateBounds(t *testing.T) {
+	for name, b := range map[string]string{
+		"overflow":    "[0,0][99999999999999999999,10]",
+		"inverted":    "[50,50][10,10]",
+		"zero-width":  "[10,10][10,50]",
+		"zero-height": "[10,10][50,10]",
+	} {
+		xml := `<hierarchy><node text="Bad" clickable="true" bounds="` + b + `"/><node text="Good" clickable="true" bounds="[0,0][10,10]"/></hierarchy>`
+		elems, _, err := ParseHierarchyFiltered(xml, FilterAll)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(elems) != 1 || elems[0].Text != "Good" {
+			t.Errorf("%s: want only the well-formed node, got %+v", name, elems)
+		}
+	}
+}
+
+func TestElementAtAdjacentElementsDoNotTie(t *testing.T) {
+	left := Element{ResourceID: "left", Clickable: true, Bounds: Bounds{X1: 0, Y1: 0, X2: 100, Y2: 100}}
+	right := Element{ResourceID: "right", Clickable: true, Bounds: Bounds{X1: 100, Y1: 0, X2: 200, Y2: 100}}
+	for _, elems := range [][]Element{{left, right}, {right, left}} {
+		if e, _ := ElementAt(elems, 100, 50); e.ResourceID != "right" {
+			t.Errorf("shared edge x=100 belongs to the element starting there, got %s", e.ResourceID)
+		}
+		if e, _ := ElementAt(elems, 99, 50); e.ResourceID != "left" {
+			t.Errorf("x=99 is inside left, got %s", e.ResourceID)
+		}
+	}
+	// Identical bounds and clickability: the later node (drawn on top) wins,
+	// whatever the slice order of equal candidates would otherwise suggest.
+	a := Element{ResourceID: "a", Bounds: Bounds{X1: 0, Y1: 0, X2: 10, Y2: 10}}
+	b := Element{ResourceID: "b", Bounds: Bounds{X1: 0, Y1: 0, X2: 10, Y2: 10}}
+	if e, _ := ElementAt([]Element{a, b}, 5, 5); e.ResourceID != "b" {
+		t.Errorf("equal candidates: later node should win, got %s", e.ResourceID)
+	}
+}
