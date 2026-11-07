@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -37,6 +38,17 @@ const maxArchiveBytes = 200 << 20
 // downloads, verifies, and installs it over the running executable. Progress
 // goes to out.
 func Run(ctx context.Context, currentVersion string, out io.Writer) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("locate running binary: %w", err)
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return fmt.Errorf("resolve running binary path: %w", err)
+	}
+	if pluginManaged(exe) {
+		return fmt.Errorf("%s is the server the Claude plugin's launcher keeps; it re-checks that file against the checksum pinned in the plugin and would undo an update. Update the plugin instead (/plugin update adb-mcp), or install adb-mcp separately with install.sh", exe)
+	}
+
 	client := &http.Client{Timeout: 120 * time.Second}
 
 	tag, err := latestTag(ctx, client)
@@ -75,19 +87,23 @@ func Run(ctx context.Context, currentVersion string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("locate running binary: %w", err)
-	}
-	if exe, err = filepath.EvalSymlinks(exe); err != nil {
-		return fmt.Errorf("resolve running binary path: %w", err)
-	}
 	if err := replaceBinary(exe, bin); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "installed %s at %s\n", tag, exe)
 	return nil
 }
+
+// pluginManaged reports whether exe is the copy the plugin launcher
+// (plugin/adb-mcp/launcher/launch.js) caches under the plugin's data directory:
+// <data>/adb-mcp/<version>/<os>-<arch>/adb-mcp[.exe]. The launcher hashes that
+// file on every start and replaces anything that differs from its pin, so an
+// in-place update would be silently reverted.
+func pluginManaged(exe string) bool {
+	return pluginCachePath.MatchString(filepath.ToSlash(exe))
+}
+
+var pluginCachePath = regexp.MustCompile(`/adb-mcp/\d+\.\d+\.\d+[^/]*/(darwin|linux|windows)-(amd64|arm64)/adb-mcp(\.exe)?$`)
 
 // isUpgrade reports whether release tag is strictly newer than current. Both are
 // compared as dotted numeric versions (a leading "v" and any pre-release/build
@@ -268,6 +284,12 @@ func replaceBinary(exe string, bin []byte) error {
 	defer os.Remove(tmpName) // no-op after the successful rename
 
 	if _, err := tmp.Write(bin); err != nil {
+		tmp.Close()
+		return err
+	}
+	// Flush the new bytes to disk before the renames: a crash between them
+	// must not leave a renamed-but-empty file as the only binary.
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}
