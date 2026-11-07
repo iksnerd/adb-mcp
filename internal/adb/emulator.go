@@ -451,20 +451,8 @@ func (c *Client) isEmulator() bool { return strings.HasPrefix(c.Serial, "emulato
 // on either — call it to undo a forced state. At least one of level/charging
 // must be set unless reset is true.
 func (c *Client) SetBattery(ctx context.Context, level *int, charging *bool, reset bool) error {
-	err := c.setBattery(ctx, level, charging, reset)
-	if err == nil && !reset {
-		NoteOverride(c.Serial, OverrideBattery)
-	}
-	return err
-}
-
-func (c *Client) setBattery(ctx context.Context, level *int, charging *bool, reset bool) error {
 	if reset {
-		_, err := c.adb(ctx, "shell", "dumpsys", "battery", "reset")
-		if err == nil {
-			ClearOverride(c.Serial, OverrideBattery)
-		}
-		return err
+		return c.resetBattery(ctx)
 	}
 	if level == nil && charging == nil {
 		return fmt.Errorf("set a battery level and/or charging state (or pass reset)")
@@ -472,7 +460,33 @@ func (c *Client) setBattery(ctx context.Context, level *int, charging *bool, res
 	if level != nil && (*level < 0 || *level > 100) {
 		return fmt.Errorf("battery level must be 0-100, got %d", *level)
 	}
+	// Record before the first mutating call: a set that fails half way (the
+	// level applied, the charging state not) has still changed the device.
+	NoteOverride(c.Serial, OverrideBattery)
+	return c.applyBattery(ctx, level, charging)
+}
 
+// resetBattery restores automatic battery reporting and clears the override only
+// once every step has been confirmed. On an emulator the values were set through
+// the console (adb emu power), which `dumpsys battery reset` may not undo, so
+// the console is also sent back to its automatic state (full, on AC).
+func (c *Client) resetBattery(ctx context.Context) error {
+	if _, err := c.adb(ctx, "shell", "dumpsys", "battery", "reset"); err != nil {
+		return err
+	}
+	if c.isEmulator() {
+		if _, err := c.emu(ctx, "power capacity", "power", "capacity", "100"); err != nil {
+			return err
+		}
+		if _, err := c.emu(ctx, "power ac", "power", "ac", "on"); err != nil {
+			return err
+		}
+	}
+	ClearOverride(c.Serial, OverrideBattery)
+	return nil
+}
+
+func (c *Client) applyBattery(ctx context.Context, level *int, charging *bool) error {
 	if c.isEmulator() {
 		if level != nil {
 			if _, err := c.emu(ctx, "power capacity", "power", "capacity", strconv.Itoa(*level)); err != nil {

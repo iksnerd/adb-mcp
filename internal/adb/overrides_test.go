@@ -85,16 +85,87 @@ func TestSetBatteryRecordsAndResetClears(t *testing.T) {
 	}
 }
 
-func TestSetBatteryFailureNotRecorded(t *testing.T) {
+func TestSetBatteryValidationFailureRecordsNothing(t *testing.T) {
 	resetOverrides(t)
-	l := &callLog{failOn: "battery set"}
+	l := &callLog{}
 	c := &Client{Serial: "R58", run: l.runner()}
-	lvl := 5
-	if err := c.SetBattery(context.Background(), &lvl, nil, false); err == nil {
+	bad := 101
+	if err := c.SetBattery(context.Background(), &bad, nil, false); err == nil {
+		t.Fatal("want validation error")
+	}
+	if err := c.SetBattery(context.Background(), nil, nil, false); err == nil {
+		t.Fatal("want validation error")
+	}
+	if len(Overrides()) != 0 || len(l.calls) != 0 {
+		t.Fatalf("validation failure touched state: %v %v", Overrides(), l.calls)
+	}
+}
+
+// A set that fails after a mutation was attempted may have changed the device
+// (the level applied, the charging state did not), so it stays recorded.
+func TestSetBatteryFailureAfterMutationStaysRecorded(t *testing.T) {
+	resetOverrides(t)
+	l := &callLog{failOn: "battery set ac"}
+	c := &Client{Serial: "R58", run: l.runner()}
+	lvl, charging := 5, true
+	if err := c.SetBattery(context.Background(), &lvl, &charging, false); err == nil {
 		t.Fatal("want error")
 	}
+	if !l.has("battery set level 5") {
+		t.Fatalf("level never applied: %v", l.calls)
+	}
+	if len(Overrides()) != 1 {
+		t.Fatalf("half-applied set must stay recorded: %v", Overrides())
+	}
+}
+
+func TestSetBatteryRecordedBeforeFirstMutation(t *testing.T) {
+	resetOverrides(t)
+	var seen int
+	c := &Client{Serial: "R58", run: func(context.Context, ...string) ([]byte, error) {
+		seen = len(Overrides())
+		return nil, errors.New("boom")
+	}}
+	lvl := 5
+	_ = c.SetBattery(context.Background(), &lvl, nil, false)
+	if seen != 1 {
+		t.Fatalf("override not recorded before the mutating call (saw %d)", seen)
+	}
+}
+
+// On an emulator the values were set through the console, so a reset also sends
+// the console back to its automatic state.
+func TestSetBatteryResetOnEmulatorRestoresConsoleState(t *testing.T) {
+	resetOverrides(t)
+	l := &callLog{}
+	c := &Client{Serial: "emulator-5554", run: l.runner()}
+	lvl := 5
+	if err := c.SetBattery(context.Background(), &lvl, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetBattery(context.Background(), nil, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"dumpsys battery reset", "emu power capacity 100", "emu power ac on"} {
+		if !l.has(want) {
+			t.Errorf("reset missing %q: %v", want, l.calls)
+		}
+	}
 	if len(Overrides()) != 0 {
-		t.Fatalf("failed call recorded: %v", Overrides())
+		t.Fatalf("confirmed reset must clear: %v", Overrides())
+	}
+}
+
+func TestSetBatteryResetFailureStaysRecorded(t *testing.T) {
+	resetOverrides(t)
+	l := &callLog{failOn: "power ac on"}
+	c := &Client{Serial: "emulator-5554", run: l.runner()}
+	NoteOverride(c.Serial, OverrideBattery)
+	if err := c.SetBattery(context.Background(), nil, nil, true); err == nil {
+		t.Fatal("want error")
+	}
+	if len(Overrides()) != 1 {
+		t.Fatalf("unconfirmed reset must stay recorded: %v", Overrides())
 	}
 }
 

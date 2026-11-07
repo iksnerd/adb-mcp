@@ -182,7 +182,20 @@ func TestSetBatteryPaths(t *testing.T) {
 	if err := c.SetBattery(ctx, nil, nil, true); err != nil {
 		t.Fatal(err)
 	}
+	wantArgv(t, f.calls[0], []string{"shell", "dumpsys", "battery", "reset"})
+	// An emulator also gets its console state put back.
+	wantArgv(t, f.calls[1], []string{"emu", "power", "capacity", "100"})
+	wantArgv(t, f.last(), []string{"emu", "power", "ac", "on"})
+
+	// A physical device has no console: the dumpsys reset is the whole undo.
+	c, f = phys()
+	if err := c.SetBattery(ctx, nil, nil, true); err != nil {
+		t.Fatal(err)
+	}
 	wantArgv(t, f.last(), []string{"shell", "dumpsys", "battery", "reset"})
+	if len(f.calls) != 1 {
+		t.Errorf("physical reset made %d calls, want 1", len(f.calls))
+	}
 }
 
 // TestInstallAppFailureScan pins the regression fix: adb that prints
