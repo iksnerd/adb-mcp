@@ -122,6 +122,14 @@ var coverageReportDirs = []string{"/reports/jacoco/", "/reports/coverage/"}
 // classes; the same rule keeps a stale report from an earlier run from
 // shadowing the one just generated.
 func FindCoverageReports(projectDir string) ([]string, error) {
+	return FindCoverageReportsSince(projectDir, time.Time{})
+}
+
+// FindCoverageReportsSince is FindCoverageReports ignoring reports written
+// before since (the start of the Gradle invocation), so a report from an
+// earlier run is never presented as this run's coverage. A zero since accepts
+// every report.
+func FindCoverageReportsSince(projectDir string, since time.Time) ([]string, error) {
 	type candidate struct {
 		path string
 		mod  time.Time
@@ -130,7 +138,13 @@ func FindCoverageReports(projectDir string) ([]string, error) {
 	// (".../app/build", ".../core/build").
 	newestPerModule := map[string]candidate{}
 	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != projectDir && isVendorDir(d.Name()) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		slash := filepath.ToSlash(path)
@@ -149,7 +163,7 @@ func FindCoverageReports(projectDir string) ([]string, error) {
 		}
 		module, _, _ := strings.Cut(slash, "/reports/")
 		info, ierr := d.Info()
-		if ierr != nil {
+		if ierr != nil || !modifiedSince(info, since) {
 			return nil
 		}
 		if cur, seen := newestPerModule[module]; !seen || info.ModTime().After(cur.mod) {

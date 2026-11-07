@@ -9,7 +9,24 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// mtimeSlack absorbs coarse file-system timestamps (1-2 s on some volumes) so
+// a report written right after the run started is not mistaken for stale.
+const mtimeSlack = 2 * time.Second
+
+// isVendorDir names directories that never hold Gradle reports and can be
+// huge (node_modules in React Native projects).
+func isVendorDir(name string) bool {
+	return name == "node_modules" || name == ".git" || name == ".gradle"
+}
+
+// modifiedSince reports whether a file was written at or after since. A zero
+// since accepts everything.
+func modifiedSince(info fs.FileInfo, since time.Time) bool {
+	return since.IsZero() || !info.ModTime().Before(since.Add(-mtimeSlack))
+}
 
 // TestSummary is the aggregated result of a Gradle test run, parsed from the
 // JUnit XML that both JVM unit tests (build/test-results/**) and instrumented
@@ -80,11 +97,29 @@ const maxStackChars = 4000
 // found reports whether any report files were located at all (so callers can
 // distinguish "0 tests" from "no report written").
 func ParseTestResults(projectDir string) (sum TestSummary, found bool) {
+	return ParseTestResultsSince(projectDir, time.Time{})
+}
+
+// ParseTestResultsSince is ParseTestResults restricted to reports written at
+// or after since (the start of the Gradle invocation), so XML left by an
+// earlier run — another variant, a unit run before an instrumented one, a
+// test that has since been deleted — is not mixed into this run's result. A
+// zero since accepts every report.
+func ParseTestResultsSince(projectDir string, since time.Time) (sum TestSummary, found bool) {
 	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != projectDir && isVendorDir(d.Name()) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !isTestReport(path) {
+			return nil
+		}
+		if info, ierr := d.Info(); ierr != nil || !modifiedSince(info, since) {
 			return nil
 		}
 		data, err := os.ReadFile(path)

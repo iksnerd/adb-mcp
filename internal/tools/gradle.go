@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/iksnerd/adb-mcp/internal/gradle"
 	"github.com/iksnerd/adb-mcp/internal/scaffold"
@@ -125,7 +126,10 @@ func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, 
 	if len(apks) == 0 {
 		return nil, fmt.Errorf("build succeeded (%s) but no APK was found under %s/**/build/outputs/ — check that the task produces one (log: %s)", task, projectDir, build.LogPath)
 	}
-	apk := gradle.PickAPK(apks)
+	apk, staleNote, err := gradle.PickAPKForBuild(apks, task, build.Started)
+	if err != nil {
+		return nil, fmt.Errorf("build succeeded (%s) but nothing was installed: %v (log: %s)", task, err, build.LogPath)
+	}
 	if _, err := c.InstallApp(ctx, apk); err != nil {
 		return nil, fmt.Errorf("build succeeded (%s) but install of %s failed: %v", task, apk, err)
 	}
@@ -141,8 +145,11 @@ func buildAndRun(ctx context.Context, in buildAndRunArgs) (*mcp.CallToolResult, 
 	if build.LogPath != "" {
 		msg += "\nFull build log: " + build.LogPath
 	}
+	if staleNote != "" {
+		msg += "\nNote: " + staleNote
+	}
 	if len(apks) > 1 {
-		msg += fmt.Sprintf("\nNote: %d APKs were found; installed the newest non-test one: %s\nAll (newest first): %s", len(apks), apk, strings.Join(apks, ", "))
+		msg += fmt.Sprintf("\nNote: %d APKs were found; installed %s (matched to %s)\nAll (newest first): %s", len(apks), apk, task, strings.Join(apks, ", "))
 	}
 	return text("%s", msg), nil
 }
@@ -164,11 +171,14 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 	if task == "" {
 		task = defaultTask
 	}
+	started := time.Now()
 	out, err := gradle.Gradle(ctx, projectDir, append([]string{task}, in.Args...)...)
 	// Parse the JUnit XML regardless of exit code: a non-zero Gradle exit is
 	// exactly when the per-test breakdown (which tests failed and why) is most
-	// useful, so surface it in both the success and failure paths.
-	summary, found := gradle.ParseTestResults(projectDir)
+	// useful, so surface it in both the success and failure paths. Only
+	// reports written since this invocation started count: after a compile
+	// failure, or an UP-TO-DATE task, the XML on disk is from an earlier run.
+	summary, found := gradle.ParseTestResultsSince(projectDir, started)
 	if err != nil {
 		msg := fmt.Sprintf("%v", err)
 		if found {
@@ -182,7 +192,7 @@ func runGradleReporting(ctx context.Context, in gradleArgs, defaultTask string) 
 		}
 		return text("Tests passed (%s).\n\n%s\n\n%s", task, summary.String(), tailLines(out, 20)), nil
 	}
-	return text("Tests passed (%s).\n\n%s", task, tailLines(out, 30)), nil
+	return text("Tests passed (%s).\n\nNo test reports newer than this run were found (the task may have been UP-TO-DATE, so older reports on disk were ignored).\n\n%s", task, tailLines(out, 30)), nil
 }
 
 // runCoverageTask runs the JaCoCo report-generating Gradle task (default
@@ -195,11 +205,12 @@ func runCoverageTask(ctx context.Context, projectDir, task string, extra []strin
 	if task == "" {
 		task = "jacocoTestReport"
 	}
+	started := time.Now()
 	out, err := gradle.Gradle(ctx, projectDir, append([]string{task}, extra...)...)
 	if err != nil {
 		return report, nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}
-	reportPaths, err = gradle.FindCoverageReports(projectDir)
+	reportPaths, err = gradle.FindCoverageReportsSince(projectDir, started)
 	if err != nil {
 		return report, nil, fmt.Errorf("%v\n%s", err, tailLines(out, 40))
 	}

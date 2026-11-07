@@ -29,6 +29,12 @@ func Gradle(ctx context.Context, projectDir string, args ...string) (string, err
 	return RedactSecrets(string(out)), nil
 }
 
+// WrapperGradleVersion is the Gradle version `gradle wrapper` pins in a
+// scaffolded project. The scaffold uses Android Gradle Plugin 8.7.3, which
+// needs Gradle 8.9 or newer; an older system Gradle would otherwise generate a
+// wrapper for itself and the project would not build.
+const WrapperGradleVersion = "8.9"
+
 // GenerateWrapper runs the *system* `gradle wrapper` in projectDir to create
 // the wrapper scripts and gradle-wrapper.jar. Every other Gradle call in this
 // package goes through the wrapper, so a freshly scaffolded project can't be
@@ -43,7 +49,7 @@ func GenerateWrapper(ctx context.Context, projectDir string) (out string, ok boo
 	if lookErr != nil {
 		return "", false, nil
 	}
-	cmd := exec.CommandContext(ctx, bin, "wrapper")
+	cmd := exec.CommandContext(ctx, bin, "wrapper", "--gradle-version", WrapperGradleVersion)
 	cmd.Dir = projectDir
 	cmd.Env = sdk.CommandEnv()
 	b, runErr := cmd.CombinedOutput()
@@ -111,6 +117,67 @@ func PickAPK(apks []string) string {
 		}
 	}
 	return apks[0]
+}
+
+// VariantFromTask derives the build variant an assemble task produces, in the
+// lower-camel form ListVariants uses: assembleDebug -> debug,
+// assembleFooRelease -> fooRelease. A module prefix (":app:assembleDebug") is
+// ignored. It returns "" for anything that does not name one variant (bare
+// assemble, build, bundle*, the AndroidTest/UnitTest tasks).
+func VariantFromTask(task string) string {
+	if i := strings.LastIndex(task, ":"); i >= 0 {
+		task = task[i+1:]
+	}
+	if v := ParseVariants(task); len(v) == 1 {
+		return v[0]
+	}
+	return ""
+}
+
+// apkVariantDir returns the directory segments between build/outputs/apk/ and
+// the file, joined and lower-cased: ".../apk/free/debug/x.apk" -> "freedebug",
+// which equals the lower-cased variant "freeDebug". "" if the path has no
+// outputs/apk part.
+func apkVariantDir(apk string) string {
+	slash := filepath.ToSlash(apk)
+	_, rest, ok := strings.Cut(slash, "/outputs/apk/")
+	if !ok {
+		return ""
+	}
+	dir := rest[:max(0, strings.LastIndex(rest, "/"))]
+	return strings.ToLower(strings.ReplaceAll(dir, "/", ""))
+}
+
+// PickAPKForBuild chooses the APK to install after running task. When the task
+// names a variant, only APKs in that variant's output directory qualify (newest
+// first within it), so an UP-TO-DATE assembleDebug cannot install a newer
+// release APK left by another build; if none matches, it is an error rather
+// than a silent pick of another variant. Without a variant it falls back to
+// PickAPK. note is non-empty when the chosen APK is older than started: a
+// legitimately up-to-date build, but worth saying.
+func PickAPKForBuild(apks []string, task string, started time.Time) (apk, note string, err error) {
+	variant := VariantFromTask(task)
+	if variant == "" {
+		apk = PickAPK(apks)
+	} else {
+		want := strings.ToLower(variant)
+		var matching []string
+		for _, a := range apks {
+			if apkVariantDir(a) == want {
+				matching = append(matching, a)
+			}
+		}
+		if len(matching) == 0 {
+			return "", "", fmt.Errorf("no APK for variant %q found among %d APK(s) under build/outputs/apk/ — the task %s may not produce one for it", variant, len(apks), task)
+		}
+		apk = matching[0]
+	}
+	if apk != "" && !started.IsZero() {
+		if info, serr := os.Stat(apk); serr == nil && info.ModTime().Before(started.Add(-mtimeSlack)) {
+			note = fmt.Sprintf("%s predates this build (modified %s): Gradle treated %s as up to date, so this is the existing APK, not a rebuilt one.", apk, info.ModTime().Format(time.RFC3339), task)
+		}
+	}
+	return apk, note, nil
 }
 
 func wrapperName() string {
