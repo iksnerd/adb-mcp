@@ -132,7 +132,7 @@ func (c *Client) AccessibilityClick(ctx context.Context, resourceID, text string
 	if text != "" {
 		args = append(args, "-e", "text", escapeInputText(text))
 	}
-	args = append(args, "-e", "partial", strconv.FormatBool(partial))
+	args = append(args, "--ez", "partial", strconv.FormatBool(partial))
 	if _, err := c.adb(ctx, args...); err != nil {
 		return result, fmt.Errorf("broadcasting accessibility click: %w", err)
 	}

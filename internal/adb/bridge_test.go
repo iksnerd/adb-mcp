@@ -81,7 +81,7 @@ func TestAccessibilityClick(t *testing.T) {
 	}
 
 	wantArgv(t, f.calls[0], []string{"shell", "logcat", "-c"})
-	wantArgv(t, f.calls[1], []string{"shell", "am", "broadcast", "-a", BridgeClickAction, "-e", "text", "'Chrome'", "-e", "partial", "true"})
+	wantArgv(t, f.calls[1], []string{"shell", "am", "broadcast", "-a", BridgeClickAction, "-e", "text", "'Chrome'", "--ez", "partial", "true"})
 	wantArgv(t, f.calls[2], []string{"shell", "logcat", "-d", "-s", "AdbMcpBridge:I"})
 }
 
@@ -92,7 +92,7 @@ func TestAccessibilityClickResourceID(t *testing.T) {
 	if _, err := c.AccessibilityClick(ctx, "submit", "", false); err != nil {
 		t.Fatalf("AccessibilityClick: %v", err)
 	}
-	wantArgv(t, f.calls[1], []string{"shell", "am", "broadcast", "-a", BridgeClickAction, "-e", "resource_id", "'submit'", "-e", "partial", "false"})
+	wantArgv(t, f.calls[1], []string{"shell", "am", "broadcast", "-a", BridgeClickAction, "-e", "resource_id", "'submit'", "--ez", "partial", "false"})
 }
 
 func TestAccessibilityClickNoResponse(t *testing.T) {

@@ -16,7 +16,7 @@ func TestAccessibilityClickQuotesSelectors(t *testing.T) {
 			t.Fatal(err)
 		}
 		wantArgv(t, f.calls[1], []string{"shell", "am", "broadcast", "-a", BridgeClickAction,
-			"-e", "resource_id", escapeInputText(v), "-e", "text", escapeInputText(v), "-e", "partial", "true"})
+			"-e", "resource_id", escapeInputText(v), "-e", "text", escapeInputText(v), "--ez", "partial", "true"})
 	}
 }
 
