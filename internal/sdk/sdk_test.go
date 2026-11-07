@@ -145,3 +145,63 @@ func TestCommandEnvPrependsToolDirsToPath(t *testing.T) {
 		t.Errorf("PATH appears %d times in CommandEnv(), want 1", count)
 	}
 }
+
+func TestAapt2PathSortsBuildToolsNumerically(t *testing.T) {
+	root := fakeSDK(t)
+	mk := func(v string) string {
+		dir := filepath.Join(root, "build-tools", v)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(dir, Exe("aapt2"))
+		if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	mk("9.0.0")
+	mk("34.0.0")
+	rc := mk("35.0.0-rc1")
+	t.Setenv("ANDROID_HOME", root)
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	if got := Aapt2Path(); got != rc {
+		t.Errorf("9.0.0 must not outrank 34/35: got %s, want the 35.0.0-rc1 one %s", got, rc)
+	}
+	rel := mk("35.0.0")
+	if got := Aapt2Path(); got != rel {
+		t.Errorf("a release must outrank its rc: got %s, want %s", got, rel)
+	}
+}
+
+func TestRootSkipsInvalidEnvForValidDefault(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Root()'s fallback reads USERPROFILE/AppData on Windows")
+	}
+	home := t.TempDir()
+	fallback := filepath.Join(home, "Library", "Android", "sdk")
+	if runtime.GOOS == "linux" {
+		fallback = filepath.Join(home, "Android", "Sdk")
+	}
+	if err := os.MkdirAll(filepath.Join(fallback, "platform-tools"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	t.Setenv("ANDROID_HOME", filepath.Join(t.TempDir(), "typo"))
+	if got := Root(); got != fallback {
+		t.Errorf("invalid ANDROID_HOME must fall through to the valid default: got %s, want %s", got, fallback)
+	}
+	good := fakeSDK(t)
+	t.Setenv("ANDROID_HOME", good)
+	if got := Root(); got != good {
+		t.Errorf("a valid ANDROID_HOME still wins: got %s, want %s", got, good)
+	}
+	// Nothing valid anywhere: keep reporting the variable so doctor can name it.
+	empty := t.TempDir()
+	t.Setenv("HOME", empty)
+	bad := filepath.Join(t.TempDir(), "typo")
+	t.Setenv("ANDROID_HOME", bad)
+	if got := Root(); got != bad {
+		t.Errorf("with no valid SDK anywhere Root() should still report the set variable: got %s", got)
+	}
+}

@@ -9,17 +9,37 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 // Root resolves the Android SDK location, checking the standard environment
 // variables first and falling back to the per-platform default install path.
+//
+// A variable that is set but does not point at an SDK (a typo, a stale path)
+// does not win over a valid variable or a valid default install; otherwise it
+// would hide behind a bare "adb not found". When nothing valid exists, the
+// first set variable is still returned so doctor can name it.
 func Root() string {
+	var badEnv string
 	for _, env := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
 		if v := os.Getenv(env); v != "" {
-			return v
+			if IsSDKRoot(v) {
+				return v
+			}
+			if badEnv == "" {
+				badEnv = v
+			}
 		}
 	}
+	def := defaultRoot()
+	if badEnv != "" && !IsSDKRoot(def) {
+		return badEnv
+	}
+	return def
+}
+
+func defaultRoot() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -160,7 +180,9 @@ func IsSDKRoot(root string) bool {
 func Aapt2Path() string {
 	if root := Root(); root != "" {
 		versions, _ := filepath.Glob(filepath.Join(root, "build-tools", "*"))
-		sort.Sort(sort.Reverse(sort.StringSlice(versions)))
+		sort.Slice(versions, func(i, j int) bool {
+			return versionLess(filepath.Base(versions[j]), filepath.Base(versions[i])) // newest first
+		})
 		for _, dir := range versions {
 			if p := filepath.Join(dir, Exe("aapt2")); FileExists(p) {
 				return p
@@ -168,4 +190,51 @@ func Aapt2Path() string {
 		}
 	}
 	return Exe("aapt2")
+}
+
+// versionLess orders build-tools directory names such as "34.0.0" or
+// "35.0.0-rc1" by numeric components, so 9.0.0 < 34.0.0, and a release sorts
+// above its own pre-release. Names that are not versions sort lowest.
+func versionLess(a, b string) bool {
+	an, apre, aok := splitVersion(a)
+	bn, bpre, bok := splitVersion(b)
+	if aok != bok {
+		return !aok
+	}
+	if !aok {
+		return a < b
+	}
+	for i := 0; i < len(an) || i < len(bn); i++ {
+		var x, y int
+		if i < len(an) {
+			x = an[i]
+		}
+		if i < len(bn) {
+			y = bn[i]
+		}
+		if x != y {
+			return x < y
+		}
+	}
+	switch {
+	case apre == bpre:
+		return false
+	case apre == "":
+		return false // a release is newer than any of its pre-releases
+	case bpre == "":
+		return true
+	}
+	return apre < bpre
+}
+
+func splitVersion(v string) (nums []int, pre string, ok bool) {
+	core, pre, _ := strings.Cut(v, "-")
+	for _, p := range strings.Split(core, ".") {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, "", false
+		}
+		nums = append(nums, n)
+	}
+	return nums, pre, true
 }
