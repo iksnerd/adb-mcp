@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/iksnerd/adb-mcp/internal/uiauto"
 )
@@ -89,7 +90,19 @@ func (c *Client) LongPress(ctx context.Context, x, y, durationMS int) error {
 
 // InputText types text via the IME. The text is quoted for the device shell so
 // spaces and metacharacters survive intact (see escapeInputText).
+//
+// `input text` itself (below the shell) turns a literal "%s" into a space and
+// cannot type non-ASCII, so such text is rejected rather than typed wrongly
+// while reporting success.
 func (c *Client) InputText(ctx context.Context, text string) error {
+	if strings.Contains(text, "%s") {
+		return fmt.Errorf("input text turns a literal %%s into a space; remove it or type that part by key events")
+	}
+	for _, r := range text {
+		if r > unicode.MaxASCII {
+			return fmt.Errorf("input text cannot type non-ASCII characters (%q); use ASCII or set the text through the app", r)
+		}
+	}
 	_, err := c.adb(ctx, "shell", "input", "text", escapeInputText(text))
 	return err
 }

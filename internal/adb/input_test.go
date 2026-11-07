@@ -1,6 +1,8 @@
 package adb
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/iksnerd/adb-mcp/internal/uiauto"
@@ -88,5 +90,27 @@ func TestDialpadPointOffset(t *testing.T) {
 	got, _ = dialpadPoint(b, '0')
 	if want := (uiauto.Point{X: 250, Y: 550}); got != want {
 		t.Errorf("dialpadPoint('0') = %+v, want %+v", got, want)
+	}
+}
+
+// `input text` turns a literal %s into a space and cannot type non-ASCII; both
+// used to return success with the wrong text on the device.
+func TestInputTextRejectsWhatInputTextCannotType(t *testing.T) {
+	for _, in := range []string{"100%sure", "café", "hi \U0001F600"} {
+		c, f := newFake("")
+		err := c.InputText(context.Background(), in)
+		if err == nil {
+			t.Errorf("InputText(%q) should be rejected", in)
+		}
+		if f.last() != nil {
+			t.Errorf("InputText(%q) must not reach the device, ran %q", in, f.last())
+		}
+		if err != nil && !strings.Contains(err.Error(), "input text") {
+			t.Errorf("error should explain itself, got %v", err)
+		}
+	}
+	c, f := newFake("")
+	if err := c.InputText(context.Background(), "100% sure"); err != nil || f.last() == nil {
+		t.Errorf("plain ASCII with a bare %% must still type: err=%v", err)
 	}
 }
