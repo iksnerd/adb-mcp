@@ -42,7 +42,8 @@ curl -fsSL -o "$tmp/$archive" "$url"
 
 echo "verifying checksum"
 curl -fsSL -o "$tmp/checksums.txt" "https://github.com/$REPO/releases/download/$tag/checksums.txt"
-expected=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")
+# sha256sum writes "*name" in binary mode and "name" in text mode; accept both.
+expected=$(awk -v f="$archive" '{ n = $2; sub(/^\*/, "", n) } n == f { print $1 }' "$tmp/checksums.txt")
 [ -n "$expected" ] || { echo "error: $archive not found in checksums.txt" >&2; exit 1; }
 if command -v sha256sum >/dev/null 2>&1; then
   actual=$(sha256sum "$tmp/$archive" | awk '{ print $1 }')

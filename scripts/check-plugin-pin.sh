@@ -1,6 +1,6 @@
 #!/bin/sh
 # Checks the pin the Claude plugin's launcher runs: release.json names the same
-# version as plugin.json and pins a SHA-256 for each of the six targets. With a
+# version as plugin.json and pins a SHA-256 for each build target. With a
 # third argument, the release's plugin-checksums.txt, every pin must also equal
 # the checksum the release workflow recorded for that build.
 #
@@ -10,7 +10,12 @@ set -eu
 launcher_dir="${1:-plugin/adb-mcp/launcher}"
 plugin_json="${2:-plugin/adb-mcp/.claude-plugin/plugin.json}"
 expected="${3:-}"
-targets="darwin-amd64 darwin-arm64 linux-amd64 linux-arm64 windows-amd64 windows-arm64"
+# The targets are the os/arch pairs release.yml builds, read from its `for p in`
+# list so there is no second copy to keep in step.
+workflow="${RELEASE_WORKFLOW:-$(dirname "$0")/../.github/workflows/release.yml}"
+targets=$(sed -n 's/.*for p in \(.*\); do.*/\1/p' "$workflow" | head -n 1 | tr '/' '-')
+[ -n "$targets" ] || { echo "plugin pin: no build targets found in $workflow" >&2; exit 1; }
+want_count=$(printf '%s\n' $targets | wc -l | tr -d ' ')
 pin="$launcher_dir/release.json"
 
 fail=0
@@ -25,13 +30,14 @@ plugin_version=$(jq -r '.version // empty' "$plugin_json")
 [ "$pinned_version" = "$plugin_version" ] || problem "release.json pins $pinned_version, plugin.json says $plugin_version"
 
 count=$(jq -r '.assets | length' "$pin")
-[ "$count" -eq 6 ] || problem "release.json pins $count builds, want 6"
+[ "$count" -eq "$want_count" ] || problem "release.json pins $count builds, want $want_count"
 
 for target in $targets; do
   hash=$(jq -r --arg t "$target" '.assets[$t] // empty' "$pin")
   if ! printf '%s' "$hash" | grep -Eq '^[0-9a-f]{64}$'; then problem "$target has no valid sha256 pin"; continue; fi
   if [ -n "$expected" ]; then
-    want=$(awk -v t="$target" '$2 == t { print $1 }' "$expected")
+    # sha256sum writes "*name" in binary mode and "name" in text mode.
+    want=$(awk -v t="$target" '{ n = $2; sub(/^\*/, "", n) } n == t { print $1 }' "$expected")
     [ "$hash" = "$want" ] || problem "$target pins $hash, the release recorded '${want:-nothing}'"
   fi
 done
