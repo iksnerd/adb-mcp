@@ -201,9 +201,11 @@ next. The Codex plugin is unchanged: it runs `adb-mcp` from `PATH`.
 
 ## Before the tag: actions that only a tag exercises
 
-`ci.yml` runs on every push, so its actions are tested constantly. `release.yml`
-runs on tags only, so `setup-java`, `setup-android`, the Docker actions and
-`action-gh-release` are not exercised between releases and rot silently. v0.24.0
+The repo deliberately runs no workflow on push or pull request (the owner wants CI/CD
+only on tags), so `release.yml` is the only workflow and a tag is the only thing that
+exercises it. Every action in it (`checkout`, `setup-go`, `setup-java`,
+`setup-android`, the Docker actions, `action-gh-release`) rots silently between
+releases, and the local gate in section 5 is the only test run before the tag. v0.24.0
 failed in "Set up Android SDK" (`Failed to find package 'tools'`: Google stopped
 serving it, and `setup-android@v3` installed it) with the code untouched since
 a release that had passed. Before tagging, run `gh api repos/<owner>/<action>/releases/latest --jq .tag_name`

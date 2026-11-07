@@ -7,7 +7,6 @@
 
 [![Website](https://img.shields.io/badge/website-adb--mcp.com-3DDC84?logo=vercel&logoColor=white)](https://adb-mcp.com)
 [![Release](https://img.shields.io/github/v/release/iksnerd/adb-mcp?logo=github&color=3DDC84)](https://github.com/iksnerd/adb-mcp/releases/latest)
-[![CI](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/adb-mcp/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![MCP](https://img.shields.io/badge/MCP-stdio-3DDC84)](https://modelcontextprotocol.io)
 
