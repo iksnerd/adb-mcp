@@ -125,13 +125,13 @@ Pin a `project_dir`/`serial` for the rest of this session so later calls can omi
 
 ## Safety hints
 
-Every tool carries a `title` and the MCP safety hints, so a client can auto-approve what only observes and stop to ask before what destroys. A hint describes the tool's own effect, not what an app might do with the input: `tap` is additive even though a tap can land on a Delete button, because the tool sends an input event and removes nothing.
+Every tool carries a `title` and the MCP safety hints, so a client can auto-approve what only observes and stop to ask before what destroys. A hint describes the worst a parameter can make the tool do, not what an app might do with the input (a Gradle `task` can be `clean`, so those tools are destructive): `tap` is additive even though a tap can land on a Delete button, because the tool sends an input event and removes nothing.
 
 | Hint | Tools |
 |---|---|
-| Read-only (22) | Observe only: `describe_ui`, `screenshot`, `logcat`, `app_state`, the `list_*` tools, `doctor`, and the like |
-| Additive (46) | Change state but delete nothing: input, launch, install, the emulator `set_*` tools, builds and tests |
-| Destructive (12) | `avd_snapshot`, `clear_app_data`, `clear_device_lock`, `clear_logcat`, `gradle_build`, `pull_file`, `push_file`, `revoke_permission`, `run_instrumented_tests`, `set_device_lock`, `shutdown_emulator`, `uninstall_app` |
+| Read-only (18) | Observe only: `describe_ui`, `screenshot`, `logcat`, `app_state`, the `list_*` tools, `doctor`, and the like |
+| Additive (41) | Change state but delete nothing: input, launch, install, the emulator `set_*` tools, builds and tests |
+| Destructive (21) | `avd_snapshot`, `boot_emulator` (`wipe_data`), `build_and_run`, `clear_app_data`, `clear_device_lock`, `clear_logcat`, `get_coverage_report`, `get_file_coverage`, `gradle_build`, `list_gradle_tasks`, `list_gradle_variants`, `pull_file`, `push_file`, `revoke_permission`, `run_instrumented_tests`, `run_unit_tests`, `set_device_lock`, `shutdown_emulator`, `start_logcat_capture` (`clear`), `stop_screen_record`, `uninstall_app` |
 
 `openWorldHint` is `false` for anything that acts only on the attached device or emulator, and `true` for the 12 tools that can reach beyond it: the Gradle tools (plugin and dependency downloads, the project's own build scripts), `open_url` and `connect_wireless`. The source of truth is `internal/tools/annotations.go`; `annotations_test.go` fails when a tool has no row and pins the destructive set by name.
 

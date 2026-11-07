@@ -2,8 +2,8 @@
   "version": "0.24.6",
   "tools": 80,
   "guides": 6,
-  "read_only": 22,
-  "additive": 46,
-  "destructive": 12,
+  "read_only": 18,
+  "additive": 41,
+  "destructive": 21,
   "open_world": 12
 }
