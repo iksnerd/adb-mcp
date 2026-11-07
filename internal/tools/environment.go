@@ -65,11 +65,6 @@ func stayAwake(ctx context.Context, in stayAwakeArgs) (*mcp.CallToolResult, erro
 		return nil, err
 	}
 	if in.Enabled {
-		adb.NoteOverride(c.Serial, adb.OverrideStayAwake)
-	} else {
-		adb.ClearOverride(c.Serial, adb.OverrideStayAwake)
-	}
-	if in.Enabled {
 		return text("Screen will stay on while %s is charging (emulators always are). Call again with enabled=false to restore the normal timeout.", c.Serial), nil
 	}
 	return text("Restored the normal display timeout on %s.", c.Serial), nil

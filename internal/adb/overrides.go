@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -38,7 +39,11 @@ var undoHint = map[OverrideKind]string{
 var overrides = struct {
 	mu sync.Mutex
 	m  map[Override]struct{}
-}{m: map[Override]struct{}{}}
+	// prior holds, per override, the value of the setting this process
+	// overwrote, when it could be read ("null" = the key was unset). Absent
+	// means unknown, and an override with an unknown prior is not restored.
+	prior map[Override]string
+}{m: map[Override]struct{}{}, prior: map[Override]string{}}
 
 // NoteOverride records that this process applied kind on serial. Idempotent.
 func NoteOverride(serial string, kind OverrideKind) {
@@ -52,12 +57,71 @@ func ClearOverride(serial string, kind OverrideKind) {
 	overrides.mu.Lock()
 	defer overrides.mu.Unlock()
 	delete(overrides.m, Override{serial, kind})
+	delete(overrides.prior, Override{serial, kind})
 }
 
 func clearAllOverrides() {
 	overrides.mu.Lock()
 	defer overrides.mu.Unlock()
 	overrides.m = map[Override]struct{}{}
+	overrides.prior = map[Override]string{}
+}
+
+// overrideState returns the stored prior value and whether kind is recorded.
+func overrideState(serial string, kind OverrideKind) (prior string, recorded bool) {
+	overrides.mu.Lock()
+	defer overrides.mu.Unlock()
+	o := Override{serial, kind}
+	_, recorded = overrides.m[o]
+	return overrides.prior[o], recorded
+}
+
+// noteOverridePrior records kind and, if it was not recorded yet, the setting
+// value in force before this process changed it. A repeat call keeps the first
+// prior: the value then on the device is our own. An empty prior means unknown.
+func noteOverridePrior(serial string, kind OverrideKind, prior string) {
+	overrides.mu.Lock()
+	defer overrides.mu.Unlock()
+	o := Override{serial, kind}
+	if _, ok := overrides.m[o]; !ok && prior != "" {
+		overrides.prior[o] = prior
+	}
+	overrides.m[o] = struct{}{}
+}
+
+// stayOnKey is the global setting `svc power stayon` writes.
+const stayOnKey = "stay_on_while_plugged_in"
+
+var settingValueRe = regexp.MustCompile(`^(\d+|null)$`)
+
+// readSetting returns the current value of a global setting: digits, "null"
+// when unset, or "" when it cannot be read or is not a plain integer. Device
+// output only ever reaches a later command through this filter.
+func (c *Client) readSetting(ctx context.Context, key string) string {
+	out, err := c.adb(ctx, "shell", "settings", "get", "global", key)
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(out)
+	if !settingValueRe.MatchString(v) {
+		return ""
+	}
+	return v
+}
+
+// restoreSetting puts a global setting back to prior as read by readSetting.
+// An empty prior (unknown) does nothing.
+func (c *Client) restoreSetting(ctx context.Context, key, prior string) error {
+	switch prior {
+	case "":
+		return nil
+	case "null":
+		_, err := c.adb(ctx, "shell", "settings", "delete", "global", key)
+		return err
+	default:
+		_, err := c.adb(ctx, "shell", "settings", "put", "global", key, prior)
+		return err
+	}
 }
 
 // Overrides returns the recorded overrides, sorted by serial then kind.
@@ -99,9 +163,10 @@ var (
 )
 
 // RestoreOverrides reverses, best effort, the overrides that are safe to
-// reverse without knowing prior state: battery (dumpsys battery reset) and
-// status bar demo (exit). stay_awake (the previous setting is unknown) and
-// device_lock (needs the old credential) are left recorded and untouched.
+// reverse: battery (reset), status bar demo (exit, then the prior
+// sysui_demo_allowed) and stay_awake when its prior setting was captured.
+// device_lock (needs the old credential) and a stay_awake with an unknown
+// prior are left recorded and untouched.
 // Each adb call has its own short timeout and the whole pass is bounded, so a
 // wedged adb cannot hold up shutdown. Failures are collected, not fatal, and an
 // override whose undo failed stays recorded.
@@ -110,7 +175,11 @@ func RestoreOverrides(ctx context.Context) []error {
 	defer cancel()
 	var errs []error
 	for _, o := range Overrides() {
-		if o.Kind != OverrideBattery && o.Kind != OverrideStatusBarDemo {
+		prior, _ := overrideState(o.Serial, o.Kind)
+		switch {
+		case o.Kind == OverrideBattery, o.Kind == OverrideStatusBarDemo:
+		case o.Kind == OverrideStayAwake && prior != "":
+		default:
 			continue
 		}
 		if err := ctx.Err(); err != nil {
@@ -120,10 +189,19 @@ func RestoreOverrides(ctx context.Context) []error {
 		callCtx, callCancel := context.WithTimeout(ctx, restoreCallTimeout)
 		c := newClient(o.Serial)
 		var err error
-		if o.Kind == OverrideBattery {
+		switch o.Kind {
+		case OverrideBattery:
 			err = c.SetBattery(callCtx, nil, nil, true)
-		} else {
+		case OverrideStatusBarDemo:
 			err = c.demoBroadcast(callCtx, "exit")
+			if err == nil {
+				err = c.restoreDemoAllowed(callCtx, prior)
+			}
+			if err == nil {
+				ClearOverride(o.Serial, o.Kind)
+			}
+		case OverrideStayAwake:
+			err = c.restoreSetting(callCtx, stayOnKey, prior)
 			if err == nil {
 				ClearOverride(o.Serial, o.Kind)
 			}

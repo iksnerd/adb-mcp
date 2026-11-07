@@ -68,37 +68,61 @@ func (opts StatusBarOptions) validate() error {
 // (opts is ignored in that case).
 //
 // Requires the demo-mode broadcast to be allowed, which this enables first
-// (settings global sysui_demo_allowed=1).
+// (settings global sysui_demo_allowed=1). The prior value is restored on exit.
 func (c *Client) StatusBarDemo(ctx context.Context, enter bool, opts StatusBarOptions) error {
 	if enter {
 		if err := opts.validate(); err != nil {
 			return err
 		}
 	}
-	if _, err := c.adb(ctx, "shell", "settings", "put", "global", "sysui_demo_allowed", "1"); err != nil {
+	// Remember what sysui_demo_allowed was before this process set it, once: a
+	// repeat call would otherwise read back our own 1.
+	prior, recorded := overrideState(c.Serial, OverrideStatusBarDemo)
+	if !recorded {
+		prior = c.readSetting(ctx, demoAllowedKey)
+	}
+	if _, err := c.adb(ctx, "shell", "settings", "put", "global", demoAllowedKey, "1"); err != nil {
 		return err
 	}
 	if !enter {
-		err := c.demoBroadcast(ctx, "exit")
-		if err == nil {
-			ClearOverride(c.Serial, OverrideStatusBarDemo)
+		if err := c.demoBroadcast(ctx, "exit"); err != nil {
+			return err
+		}
+		if err := c.restoreDemoAllowed(ctx, prior); err != nil {
+			return err
+		}
+		ClearOverride(c.Serial, OverrideStatusBarDemo)
+		return nil
+	}
+	if err := c.demoBroadcast(ctx, "enter"); err != nil {
+		if !recorded {
+			_ = c.restoreDemoAllowed(ctx, prior) // nothing entered: undo the allow flag
 		}
 		return err
 	}
-	if err := c.demoBroadcast(ctx, "enter"); err != nil {
-		return err
-	}
-	NoteOverride(c.Serial, OverrideStatusBarDemo)
+	noteOverridePrior(c.Serial, OverrideStatusBarDemo, prior)
 	if err := c.configureDemo(ctx, opts); err != nil {
 		// Demo mode is entered but half configured: put the bar back rather
 		// than leave it that way, and say which outcome the caller got.
 		if exitErr := c.demoBroadcast(ctx, "exit"); exitErr != nil {
 			return fmt.Errorf("%w (status bar demo mode could NOT be rolled back: rollback failed: %v; run set_status_bar enabled=false)", err, exitErr)
 		}
+		_ = c.restoreDemoAllowed(ctx, prior)
 		ClearOverride(c.Serial, OverrideStatusBarDemo)
 		return fmt.Errorf("%w (status bar demo mode rolled back)", err)
 	}
 	return nil
+}
+
+const demoAllowedKey = "sysui_demo_allowed"
+
+// restoreDemoAllowed puts sysui_demo_allowed back to what it was before this
+// process enabled it. A prior of 1 (already allowed) or unknown changes nothing.
+func (c *Client) restoreDemoAllowed(ctx context.Context, prior string) error {
+	if prior == "1" {
+		return nil
+	}
+	return c.restoreSetting(ctx, demoAllowedKey, prior)
 }
 
 // configureDemo sends the post-"enter" demo commands.

@@ -287,13 +287,31 @@ func resolveDisplay(sel string, ds []Display) (string, error) {
 // session — the fix for an AVD whose framebuffer sleeps mid-flow and blanks
 // screenshots to black. On a real unplugged device it has no effect until the
 // device is charging.
+//
+// Enabling reads stay_on_while_plugged_in first and keeps it with the override
+// so disabling (and shutdown) can put the user's own setting back rather than
+// guess one. The value is only ever a plain integer or "null".
 func (c *Client) StayAwake(ctx context.Context, on bool) error {
-	val := "false"
 	if on {
-		val = "true"
+		prior, recorded := overrideState(c.Serial, OverrideStayAwake)
+		if !recorded {
+			prior = c.readSetting(ctx, stayOnKey)
+		}
+		if _, err := c.adb(ctx, "shell", "svc", "power", "stayon", "true"); err != nil {
+			return err
+		}
+		noteOverridePrior(c.Serial, OverrideStayAwake, prior)
+		return nil
 	}
-	_, err := c.adb(ctx, "shell", "svc", "power", "stayon", val)
-	return err
+	prior, _ := overrideState(c.Serial, OverrideStayAwake)
+	if _, err := c.adb(ctx, "shell", "svc", "power", "stayon", "false"); err != nil {
+		return err
+	}
+	if err := c.restoreSetting(ctx, stayOnKey, prior); err != nil {
+		return err
+	}
+	ClearOverride(c.Serial, OverrideStayAwake)
+	return nil
 }
 
 // hasSecureWindow reports whether any window on screen carries FLAG_SECURE,
