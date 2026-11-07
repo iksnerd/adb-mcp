@@ -54,8 +54,21 @@ func isMostlyBlackImg(src image.Image) bool {
 	if w == 0 || h == 0 {
 		return false
 	}
-	stepX := max(1, w/200)
-	stepY := max(1, h/200)
+	// Allow a hair of noise but require ~everything to be black — a true failed
+	// grab is uniformly (0,0,0).
+	if nonBlackFraction(src, max(1, w/200), max(1, h/200)) >= 0.001 {
+		return false
+	}
+	// The sparse sample can miss a small icon on an OLED-black UI. Confirm a
+	// positive with a full scan (10x stricter) before calling it a failed grab.
+	// Only positives pay for it.
+	return nonBlackFraction(src, 1, 1) < 0.0001
+}
+
+// nonBlackFraction is the share of sampled pixels (every stepX/stepY) that are
+// visibly non-black.
+func nonBlackFraction(src image.Image, stepX, stepY int) float64 {
+	b := src.Bounds()
 	var sampled, nonBlack int
 	for y := b.Min.Y; y < b.Max.Y; y += stepY {
 		for x := b.Min.X; x < b.Max.X; x += stepX {
@@ -67,11 +80,9 @@ func isMostlyBlackImg(src image.Image) bool {
 		}
 	}
 	if sampled == 0 {
-		return false
+		return 0
 	}
-	// Allow a hair of noise but require ~everything to be black — a true failed
-	// grab is uniformly (0,0,0).
-	return float64(nonBlack)/float64(sampled) < 0.001
+	return float64(nonBlack) / float64(sampled)
 }
 
 // downscalePNG shrinks a PNG so its largest dimension is at most maxDim, using a

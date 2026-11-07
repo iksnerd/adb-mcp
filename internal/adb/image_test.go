@@ -62,3 +62,26 @@ func TestIsMostlyBlack(t *testing.T) {
 		t.Error("undecodable data should be reported as not black")
 	}
 }
+
+// A black UI with one small icon slips past the sparse sample (the icon covers
+// only 36 of 40000 sample points) but a full scan sees it, so it is not a
+// failed grab.
+func TestIsMostlyBlackImgFullScanConfirmsPositive(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 1000, 1000))
+	for y := range 1000 {
+		for x := range 1000 {
+			img.Set(x, y, color.RGBA{0, 0, 0, 255})
+		}
+	}
+	if !isMostlyBlackImg(img) {
+		t.Fatal("uniform black must still be flagged")
+	}
+	for y := range 30 {
+		for x := range 30 {
+			img.Set(x, y, color.RGBA{255, 255, 255, 255})
+		}
+	}
+	if isMostlyBlackImg(img) {
+		t.Error("black frame with a visible icon must not be flagged as a failed grab")
+	}
+}
