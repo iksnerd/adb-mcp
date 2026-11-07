@@ -1,7 +1,7 @@
 {
   "name": "adb-mcp",
   "displayName": "adb-mcp",
-  "version": "0.24.6",
+  "version": "0.25.0",
   "description": "Drive an Android emulator or device from Claude: screenshot, inspect the UI, tap and type, read logcat, and run Gradle builds and tests.",
   "author": {
     "name": "iksnerd",

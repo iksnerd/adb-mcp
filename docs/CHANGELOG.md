@@ -4,6 +4,90 @@ Shipped work, newest first. Roadmap and open ideas live in
 [BACKLOG.md](BACKLOG.md); the code layout is described in
 [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
+## v0.25.0 — The server puts back what it changes and cancels what it starts
+
+One new tool (`cancel_build`, 81 in all) and a hardening pass. The pass came from
+listing what the server relied on without ever checking, and then making each of
+those things checked, reported, or undone.
+
+**New: `cancel_build`.** Stops a running background Gradle build. `build_status`
+then reports it as failed with "cancelled by cancel_build". A running build is
+also cancelled when the server exits, so a client that goes away no longer leaves
+a Gradle wrapper behind. Only the newest 32 finished builds stay queryable.
+
+**Changed: device state the server changes is recorded and put back.**
+`set_battery`, `set_status_bar`, `stay_awake`, `set_dark_mode` and
+`set_device_lock` change the device in ways that outlive the call. The server now
+records each one, `doctor` lists anything still applied with the call that undoes
+it, and on exit the server puts back battery, status bar demo mode, stay-awake
+and dark mode. Stay-awake, dark mode and the demo-mode flag go back to the value
+the server found (when it could read it); an emulator battery returns to AC on
+and 100%, not to whatever it showed before. The lock is never undone, because the
+old credential is unknown. If entering demo mode fails partway, it is rolled
+back. A tool handler that panics now returns an error and the cleanup still runs.
+
+**Fixed: arguments reach the device intact.** Text from `tap_on_text` and
+`tap_element` with `via_accessibility`, the credential for `set_device_lock`,
+URLs and package names were passed to `adb shell` unquoted, so a space, `&` or `$`
+cut them short: a PIN containing `&` locked the device with the wrong PIN. They
+are quoted now. Emulator console arguments reject control characters, so a newline
+can no longer inject a second console command. `input_text` rejects `%s` and
+non-ASCII text, which Android's `input text` cannot type, instead of reporting
+success.
+
+**Fixed: an exact accessibility tap was never exact.** The bridge click sent
+`partial` as a string, and the bridge read it as a boolean, so `partial=false`
+fell back to a partial match. It is sent as a boolean.
+
+**Fixed: results are tied to the run that produced them.** Test and coverage
+reports older than the build are ignored (a failed compile used to show the
+previous run's failures), `build_and_run` installs the APK of the variant it
+built and says so when none exists, and an up-to-date test task says it found no
+fresh reports. Scaffolded projects pin Gradle 8.9, so they build with an older
+system Gradle. A non-executable `gradlew` names the file and the fix. A hung child
+process can no longer keep a build "running". Secret redaction covers spaces
+around `=`, JSON, `Authorization` and `X-*-Key` headers and PEM blocks, and build
+logs go in a private directory and are pruned after a day.
+
+**Fixed: a failed check no longer reads as an answer.** `app_state` no longer says
+"not installed" or "not running" when the probe itself failed, and with several
+processes it says the bundle source is unknown. `last_crash` errors when it could
+not read the crash log instead of reporting a clean device. The foreground-activity
+and device-secure checks error instead of guessing. `boot_emulator` picks the
+emulator it launched (not any new device), refuses to start a second emulator
+beside one that is still unnamed, and waits for the package manager.
+`stop_screen_record` on a sleeping display fails with the cause instead of saving
+a 0-byte file, and `start_screen_record` warns at the start.
+
+**Changed: annotations say what a tool can do.** Destructive tools go from 12 to
+22. The Gradle tools that take `task` or `args` (`list_gradle_tasks`,
+`list_gradle_variants`, `build_and_run`, `run_unit_tests` and the coverage tools),
+`boot_emulator` (`wipe_data`), `start_logcat_capture` (it clears logcat),
+`stop_screen_record` (it overwrites the file) and `cancel_build` are destructive;
+`wait_for_text` and `render_stats` are no longer read-only; `rotate_screen` is no
+longer idempotent. A test now fails when a read-only tool has a parameter that
+deletes, overwrites or runs arbitrary work.
+
+**Behaviour change: clients that ask before running destructive tools will now ask
+for `build_and_run`, `run_unit_tests`, `list_gradle_tasks` and the others above.**
+
+**Also.**
+- `list_devices` honours its `serial` argument.
+- More than thirty handlers reject a blank required argument before any adb call.
+- A `run_sequence` tap or swipe step without coordinates is rejected, not sent to
+  (0,0), and a sleep step is capped at 300 seconds like `wait`.
+- `session_set_defaults` rejects a relative `project_dir` or one without a Gradle
+  wrapper, and notes a serial that is not attached.
+- An invalid `ANDROID_HOME` is replaced for Gradle with the SDK adb found, and
+  `doctor` says so.
+- The accessibility bridge takes its version from `VERSION`, and `doctor` shows the
+  installed bridge next to the server. An older bridge you installed reports 1.0
+  and keeps working; `adb-mcp bridge install` upgrades it.
+- A Makefile version that fell back to nothing without git history now falls back
+  to `VERSION`.
+- Workflows run only on version tags (the push and pull-request workflow is gone),
+  and the release runner is pinned to `ubuntu-24.04`.
+
 ## v0.24.6 — The plugin launcher reads nothing from the environment again
 
 No new tools and no change to the server binary. One change to the Claude Code
