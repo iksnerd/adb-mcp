@@ -172,9 +172,11 @@ var priorityRank = map[string]int{"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5
 
 // logLineRe matches a `threadtime`-format logcat header:
 // "MM-DD HH:MM:SS.mmm  PID  TID X TAG   : message" — capturing the priority
-// letter and tag (padding around the tag is trimmed by the caller). Both
+// letter and tag (padding around the tag is trimmed by the caller). The tag
+// ends at the first ":" followed by whitespace (the "TAG: " separator), so a
+// tag that itself contains ":" is kept whole. Both
 // Logcat and StartLogcatCapture pin -v threadtime so this parse is reliable.
-var logLineRe = regexp.MustCompile(`^\S+\s+\S+\s+\d+\s+\d+\s+([VDIWEF])\s+([^:]*):`)
+var logLineRe = regexp.MustCompile(`^\S+\s+\S+\s+\d+\s+\d+\s+([VDIWEF])\s+(.+?)\s*:(?:\s|$)`)
 
 func (f LogFilter) validate() error {
 	if f.Priority == "" {
