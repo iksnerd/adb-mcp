@@ -82,9 +82,82 @@ func bridgeServiceListed(enabledList string) bool {
 type BridgeStatus struct {
 	Installed bool
 	Enabled   bool
+	// VersionCode and VersionName are the installed bridge's, or 0 and ""
+	// when they could not be read (not installed, or dumpsys output we do not
+	// recognise). Unknown is never an error.
+	VersionCode int
+	VersionName string
 }
 
-// GetBridgeStatus reads the bridge's install/enable state.
+// MinBridgeVersionCode is the oldest installed bridge versionCode this server
+// still works with. Bump it in the same commit that changes the Go<->bridge
+// contract: the broadcast action, the logcat tag, the extras, or the JSON keys
+// of the result line. The bridge's versionCode is major*10000 + minor*100 +
+// patch of the VERSION file (0.24.6 -> 2406); see bridge/app/build.gradle.kts.
+const MinBridgeVersionCode = 1
+
+// ServerVersion is the adb-mcp version shown next to the bridge's in doctor
+// output. The main package sets it at startup; empty leaves it out.
+var ServerVersion string
+
+// BridgeVersionState classifies an installed bridge against a minimum.
+type BridgeVersionState int
+
+const (
+	BridgeVersionUnknown BridgeVersionState = iota
+	BridgeVersionOK
+	BridgeVersionOlder
+)
+
+// classifyBridgeVersion compares an installed versionCode to a minimum. A
+// code that is not positive means the version could not be read.
+func classifyBridgeVersion(installed, minimum int) BridgeVersionState {
+	switch {
+	case installed <= 0:
+		return BridgeVersionUnknown
+	case installed < minimum:
+		return BridgeVersionOlder
+	default:
+		return BridgeVersionOK
+	}
+}
+
+var (
+	bridgeVersionCodeRe = regexp.MustCompile(`versionCode=(\d+)`)
+	bridgeVersionNameRe = regexp.MustCompile(`versionName=(\S+)`)
+)
+
+// parseBridgeVersion pulls the first versionCode and versionName out of
+// `dumpsys package` output. The layout is not verified against real devices,
+// so anything unrecognised yields zero values rather than an error.
+func parseBridgeVersion(dumpsys string) (code int, name string) {
+	if m := bridgeVersionCodeRe.FindStringSubmatch(dumpsys); m != nil {
+		code, _ = strconv.Atoi(m[1])
+	}
+	if m := bridgeVersionNameRe.FindStringSubmatch(dumpsys); m != nil {
+		name = m[1]
+	}
+	return code, name
+}
+
+// bridgeVersionLine is the doctor's version line for an installed bridge.
+// serverVersion may be empty, in which case it is left out. Information only.
+func bridgeVersionLine(s BridgeStatus, serverVersion string, minimum int) string {
+	switch classifyBridgeVersion(s.VersionCode, minimum) {
+	case BridgeVersionUnknown:
+		return "bridge version unknown"
+	case BridgeVersionOlder:
+		return fmt.Sprintf("⚠ bridge %s (versionCode %d) is older than this server needs (versionCode %d): run `adb-mcp bridge install`", s.VersionName, s.VersionCode, minimum)
+	}
+	line := fmt.Sprintf("bridge %s (versionCode %d)", s.VersionName, s.VersionCode)
+	if serverVersion != "" {
+		line += ", server " + serverVersion
+	}
+	return line
+}
+
+// GetBridgeStatus reads the bridge's install/enable state and, when
+// installed, its version.
 func (c *Client) GetBridgeStatus(ctx context.Context) (BridgeStatus, error) {
 	var s BridgeStatus
 	pkgs, err := c.ListPackages(ctx, BridgePackage)
@@ -92,6 +165,11 @@ func (c *Client) GetBridgeStatus(ctx context.Context) (BridgeStatus, error) {
 		return s, err
 	}
 	s.Installed = len(pkgs) > 0
+	if s.Installed {
+		if out, err := c.adb(ctx, "shell", "dumpsys", "package", BridgePackage); err == nil {
+			s.VersionCode, s.VersionName = parseBridgeVersion(out)
+		}
+	}
 
 	enabledList, err := c.adb(ctx, "shell", "settings", "get", "secure", "enabled_accessibility_services")
 	if err != nil {

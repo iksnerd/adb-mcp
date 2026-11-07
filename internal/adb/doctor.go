@@ -110,6 +110,9 @@ func Doctor(ctx context.Context) string {
 		default:
 			fmt.Fprintf(&b, "• accessibility bridge (%s): not installed (EXPERIMENTAL — run `adb-mcp bridge install` to enable tap_on_text/tap_element via_accessibility=true)\n", d.Serial)
 		}
+		if err == nil && status.Installed {
+			fmt.Fprintf(&b, "  %s\n", bridgeVersionLine(status, ServerVersion, MinBridgeVersionCode))
+		}
 	}
 
 	if leftovers := doctorOverrides(); leftovers != "" {
