@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +97,51 @@ type job struct {
 	mu      sync.Mutex
 	summary BuildSummary
 	started time.Time
-	done    bool
+	cancel  context.CancelFunc
+}
+
+// finished reports whether the build has left StatusRunning. Callers hold j.mu.
+func (j *job) finished() bool { return j.summary.Status != StatusRunning }
+
+// maxFinishedJobs is how many finished jobs stay queryable; older ones are
+// evicted when a new build starts. Running jobs are never evicted.
+const maxFinishedJobs = 32
+
+// evictFinished drops the oldest finished jobs from m until at most keep
+// remain. Callers hold jobsMu.
+func evictFinished(m map[string]*job, keep int) {
+	type entry struct {
+		id      string
+		started time.Time
+	}
+	var fin []entry
+	for id, j := range m {
+		j.mu.Lock()
+		if j.finished() {
+			fin = append(fin, entry{id, j.started})
+		}
+		j.mu.Unlock()
+	}
+	if len(fin) <= keep {
+		return
+	}
+	sort.Slice(fin, func(a, b int) bool { return fin[a].started.Before(fin[b].started) })
+	for _, e := range fin[:len(fin)-keep] {
+		delete(m, e.id)
+	}
+}
+
+// CancelBuild stops a running background build. Cancelling a finished build
+// is a no-op. It is not wired to an MCP tool.
+func CancelBuild(id string) error {
+	jobsMu.Lock()
+	j, ok := jobs[id]
+	jobsMu.Unlock()
+	if !ok {
+		return fmt.Errorf("unknown build job %q (jobs live only as long as this server process, or were evicted)", id)
+	}
+	j.cancel()
+	return nil
 }
 
 var (
@@ -121,15 +166,16 @@ func StartBuild(projectDir, task string, extra []string) (Job, error) {
 		return Job{}, err
 	}
 	id := hex.EncodeToString(raw[:])
-	j := &job{started: time.Now(), summary: BuildSummary{ID: id, Task: task, Status: StatusRunning, LogPath: logFile.Name()}}
+	j := &job{started: time.Now(), summary: BuildSummary{ID: id, Task: task, Status: StatusRunning, LogPath: logFile.Name()}, cancel: cancel}
 	jobsMu.Lock()
+	evictFinished(jobs, maxFinishedJobs)
 	jobs[id] = j
 	jobsMu.Unlock()
 	go func() {
 		defer cancel()
 		final := execute(cmd, logFile, projectDir, BuildSummary{ID: id, Task: task, LogPath: logFile.Name()})
 		j.mu.Lock()
-		j.summary, j.done = final, true
+		j.summary = final
 		j.mu.Unlock()
 	}()
 	return Job{ID: id, LogPath: logFile.Name()}, nil
@@ -142,12 +188,12 @@ func BuildStatus(id string) (BuildSummary, error) {
 	j, ok := jobs[id]
 	jobsMu.Unlock()
 	if !ok {
-		return BuildSummary{}, fmt.Errorf("unknown build job %q (jobs live only as long as this server process)", id)
+		return BuildSummary{}, fmt.Errorf("unknown build job %q (jobs live only as long as this server process, or were evicted)", id)
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	s := j.summary
-	if !j.done {
+	if !j.finished() {
 		s.Duration = time.Since(j.started)
 	}
 	return s, nil

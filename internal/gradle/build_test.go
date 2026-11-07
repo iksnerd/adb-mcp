@@ -2,6 +2,7 @@ package gradle
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -136,5 +137,71 @@ exit 1`)
 	}
 	if s.ErrorCount != 1 || len(s.FirstErrors) != 1 || !strings.Contains(s.FirstErrors[0], "Task 'nosuchTask' not found") {
 		t.Errorf("ErrorCount = %d, FirstErrors = %v; want Gradle's own reason as the one error", s.ErrorCount, s.FirstErrors)
+	}
+}
+
+func TestEvictFinishedKeepsNewestAndNeverRunning(t *testing.T) {
+	base := time.Now()
+	m := map[string]*job{}
+	for i := 0; i < 5; i++ {
+		id := fmt.Sprintf("done%d", i)
+		m[id] = &job{started: base.Add(time.Duration(i) * time.Second), summary: BuildSummary{ID: id, Status: StatusPassed}}
+	}
+	// The oldest job is still running and must survive.
+	m["running"] = &job{started: base.Add(-time.Hour), summary: BuildSummary{ID: "running", Status: StatusRunning}}
+
+	evictFinished(m, 2)
+
+	for _, id := range []string{"running", "done3", "done4"} {
+		if _, ok := m[id]; !ok {
+			t.Errorf("%s was evicted, want kept", id)
+		}
+	}
+	for _, id := range []string{"done0", "done1", "done2"} {
+		if _, ok := m[id]; ok {
+			t.Errorf("%s kept, want evicted", id)
+		}
+	}
+}
+
+func TestEvictedJobReportsUnknown(t *testing.T) {
+	jobsMu.Lock()
+	jobs["evicted-test"] = &job{summary: BuildSummary{ID: "evicted-test", Status: StatusFailed}}
+	jobsMu.Unlock()
+	if _, err := BuildStatus("evicted-test"); err != nil {
+		t.Fatalf("job should exist before eviction: %v", err)
+	}
+	jobsMu.Lock()
+	evictFinished(jobs, 0)
+	jobsMu.Unlock()
+	_, err := BuildStatus("evicted-test")
+	if err == nil || !strings.Contains(err.Error(), "evicted") {
+		t.Errorf("err = %v, want unknown-job error mentioning eviction", err)
+	}
+}
+
+func TestCancelBuildStopsRunningJob(t *testing.T) {
+	dir := fakeProject(t, `exec sleep 30`)
+	job, err := StartBuild(dir, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CancelBuild(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		s, _ := BuildStatus(job.ID)
+		if s.Status == StatusFailed {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("cancelled build never reported failed")
+}
+
+func TestCancelBuildUnknownJob(t *testing.T) {
+	if err := CancelBuild("nope"); err == nil {
+		t.Error("expected an error for an unknown job id")
 	}
 }
