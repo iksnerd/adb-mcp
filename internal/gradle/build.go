@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -31,7 +33,15 @@ const (
 	// backgroundBuildLimit bounds a detached build so a hung Gradle cannot keep
 	// a process and a job entry alive forever.
 	backgroundBuildLimit = 60 * time.Minute
+	// logRetention is how long a build log stays in the log directory; older
+	// ones are removed when a new log is created.
+	logRetention = 24 * time.Hour
 )
+
+// waitDelay bounds how long a finished wrapper may keep the output pipes open.
+// On Windows gradlew.bat leaves a child JVM holding them after it exits, which
+// would otherwise block cmd.Run forever. A variable so tests can shorten it.
+var waitDelay = 10 * time.Second
 
 // BuildSummary is the compact result of a build: enough for an agent to decide
 // what to do next without reading the log, which lives in full (secrets
@@ -47,6 +57,12 @@ type BuildSummary struct {
 	LogPath     string
 	// Err is why the build could not run or exited non-zero.
 	Err string
+	// Started is when the Gradle process was started. Reports and APKs older
+	// than this were not produced by this build.
+	Started time.Time
+	// LogMissing is set by BuildStatus when LogPath no longer exists (pruned
+	// or deleted).
+	LogMissing bool
 }
 
 func (s BuildSummary) String() string {
@@ -69,6 +85,9 @@ func (s BuildSummary) String() string {
 	}
 	if s.LogPath != "" {
 		fmt.Fprintf(&b, "\nFull log: %s", s.LogPath)
+		if s.LogMissing {
+			b.WriteString(" (no longer exists; logs are pruned after a day)")
+		}
 	}
 	return b.String()
 }
@@ -128,6 +147,20 @@ func evictFinished(m map[string]*job, keep int) {
 	sort.Slice(fin, func(a, b int) bool { return fin[a].started.Before(fin[b].started) })
 	for _, e := range fin[:len(fin)-keep] {
 		delete(m, e.id)
+	}
+}
+
+// CancelAll cancels every running background build. The server calls it on
+// shutdown so no Gradle process outlives it.
+func CancelAll() {
+	jobsMu.Lock()
+	all := make([]*job, 0, len(jobs))
+	for _, j := range jobs {
+		all = append(all, j)
+	}
+	jobsMu.Unlock()
+	for _, j := range all {
+		j.cancel()
 	}
 }
 
@@ -196,6 +229,11 @@ func BuildStatus(id string) (BuildSummary, error) {
 	if !j.finished() {
 		s.Duration = time.Since(j.started)
 	}
+	if s.LogPath != "" {
+		if _, err := os.Stat(s.LogPath); err != nil {
+			s.LogMissing = true
+		}
+	}
 	return s, nil
 }
 
@@ -212,15 +250,61 @@ func prepare(ctx context.Context, projectDir, task string, extra []string) (*exe
 	if err != nil {
 		return nil, nil, err
 	}
-	dir := filepath.Join(os.TempDir(), "adb-mcp-gradle")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	dir, err := logDir()
+	if err != nil {
 		return nil, nil, err
 	}
+	pruneLogs(dir, logRetention)
 	logFile, err := os.CreateTemp(dir, "build-*.log")
 	if err != nil {
 		return nil, nil, err
 	}
 	return cmd, logFile, nil
+}
+
+// logDir returns the private directory build logs live in, creating it if
+// needed. The directory sits in the shared temp dir, so another local user
+// could have pre-created it (or planted a symlink) to read or redirect logs:
+// refuse a symlink or a directory owned by someone else, and force mode 0700.
+func logDir() (string, error) {
+	dir := filepath.Join(os.TempDir(), "adb-mcp-gradle")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("refusing to write build logs: %s is a symlink", dir)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("refusing to write build logs: %s is not a directory", dir)
+	}
+	if !ownedByCurrentUser(info) {
+		return "", fmt.Errorf("refusing to write build logs: %s is owned by another user", dir)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+// pruneLogs removes build logs in dir older than maxAge. Best effort.
+func pruneLogs(dir string, maxAge time.Duration) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-maxAge)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "build-") || !strings.HasSuffix(e.Name(), ".log") {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.ModTime().Before(cutoff) {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }
 
 // execute runs cmd with its output redacted into logFile, then summarizes it.
@@ -229,7 +313,13 @@ func execute(cmd *exec.Cmd, logFile *os.File, projectDir string, s BuildSummary)
 	w := &redactingWriter{dst: logFile}
 	cmd.Stdout, cmd.Stderr = w, w
 	start := time.Now()
+	s.Started = start
 	runErr := cmd.Run()
+	// The wrapper itself exited cleanly but a child kept the pipes open past
+	// waitDelay: the build is done, only the pipes were abandoned.
+	if errors.Is(runErr, exec.ErrWaitDelay) {
+		runErr = nil
+	}
 	w.flush()
 	s.Duration = time.Since(start)
 	if runErr != nil {
@@ -245,16 +335,14 @@ func execute(cmd *exec.Cmd, logFile *os.File, projectDir string, s BuildSummary)
 }
 
 // scanErrors counts the failures in a build log and returns the first few:
-// compiler-style error lines (Kotlin "e: …", javac "…: error: …") and Gradle's
-// own reason for a failure, the line under "* What went wrong:" (task not
-// found, dependency resolution, and so on, which have no compiler line).
+// compiler-style error lines (Kotlin "e: …", javac "…: error: …" or a bare
+// "error: …") and, only when there are none, Gradle's own reason for the
+// failure, the line under "* What went wrong:" (task not found, dependency
+// resolution, and so on, which have no compiler line). When compiler lines
+// exist that summary line only restates them, so it is not counted on top.
 func scanErrors(out string) (count int, first []string) {
-	record := func(line string) {
-		count++
-		if len(first) < maxFirstErrors {
-			first = append(first, line)
-		}
-	}
+	var compiler []string
+	var reason string
 	afterWhatWentWrong := false
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -262,13 +350,18 @@ func scanErrors(out string) (count int, first []string) {
 		case line == "* What went wrong:":
 			afterWhatWentWrong = true
 		case afterWhatWentWrong && line != "":
-			record(line)
+			if reason == "" {
+				reason = line
+			}
 			afterWhatWentWrong = false
-		case strings.HasPrefix(line, "e: ") || strings.Contains(line, ": error:"):
-			record(line)
+		case strings.HasPrefix(line, "e: ") || strings.HasPrefix(line, "error:") || strings.Contains(line, ": error:"):
+			compiler = append(compiler, line)
 		}
 	}
-	return count, first
+	if len(compiler) == 0 && reason != "" {
+		compiler = []string{reason}
+	}
+	return len(compiler), compiler[:min(len(compiler), maxFirstErrors)]
 }
 
 // gradleCmd resolves the wrapper in projectDir and returns the command that
@@ -281,17 +374,25 @@ func gradleCmd(ctx context.Context, projectDir string, args ...string) (*exec.Cm
 	if !sdk.FileExists(gradlew) {
 		return nil, fmt.Errorf("%s not found in %s — point project_dir at the module/root that has the Gradle wrapper", wrapperName(), projectDir)
 	}
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat(gradlew); err == nil && info.Mode().Perm()&0o111 == 0 {
+			return nil, fmt.Errorf("%s is not executable — run: chmod +x %s", gradlew, gradlew)
+		}
+	}
 	cmd := exec.CommandContext(ctx, gradlew, args...)
 	cmd.Dir = projectDir
 	cmd.Env = sdk.CommandEnv()
+	cmd.WaitDelay = waitDelay
 	return cmd, nil
 }
 
 // redactingWriter redacts secrets line by line before they reach dst, so the
-// log file on disk never holds one.
+// log file on disk never holds one. A PEM private key spans many lines, so the
+// writer also tracks whether it is inside one and drops the body.
 type redactingWriter struct {
-	dst io.Writer
-	buf bytes.Buffer
+	dst   io.Writer
+	buf   bytes.Buffer
+	inPEM bool
 }
 
 func (w *redactingWriter) Write(p []byte) (int, error) {
@@ -302,15 +403,36 @@ func (w *redactingWriter) Write(p []byte) (int, error) {
 			return len(p), nil
 		}
 		line := string(w.buf.Next(i + 1))
-		if _, err := io.WriteString(w.dst, RedactSecrets(line)); err != nil {
+		if err := w.emit(line); err != nil {
 			return 0, err
 		}
 	}
 }
 
+// emit writes one (possibly final, newline-less) line, redacted.
+func (w *redactingWriter) emit(line string) error {
+	if w.inPEM {
+		if pemEndRe.MatchString(line) {
+			w.inPEM = false
+		}
+		return nil
+	}
+	if loc := pemBeginRe.FindStringIndex(line); loc != nil && !pemEndRe.MatchString(line[loc[1]:]) {
+		w.inPEM = true
+		nl := ""
+		if strings.HasSuffix(line, "\n") {
+			nl = "\n"
+		}
+		_, err := io.WriteString(w.dst, RedactSecrets(line[:loc[0]])+pemRedacted+nl)
+		return err
+	}
+	_, err := io.WriteString(w.dst, RedactSecrets(line))
+	return err
+}
+
 func (w *redactingWriter) flush() {
 	if w.buf.Len() > 0 {
-		_, _ = io.WriteString(w.dst, RedactSecrets(w.buf.String()))
+		_ = w.emit(w.buf.String())
 		w.buf.Reset()
 	}
 }
