@@ -65,7 +65,7 @@ var registeredSchemeRe = regexp.MustCompile(`(?mi)^\s*(?:scheme|schemes?)\s*[:=]
 // should treat an empty result as "not discovered", not as proof that none
 // are registered.
 func (c *Client) RegisteredURLSchemes(ctx context.Context, pkg string) ([]string, error) {
-	out, err := c.adb(ctx, "shell", "dumpsys", "package", pkg)
+	out, err := c.adb(ctx, "shell", "dumpsys", "package", escapeInputText(pkg))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (c *Client) RegisteredURLSchemes(ctx context.Context, pkg string) ([]string
 // has no LAUNCHER activity; that raw arg-dump is unreadable, so surface a clear
 // error instead. component may be "" if monkey didn't echo it.
 func (c *Client) LaunchApp(ctx context.Context, pkg string) (component string, err error) {
-	out, runErr := c.adb(ctx, "shell", "monkey", "-p", pkg, "-v",
+	out, runErr := c.adb(ctx, "shell", "monkey", "-p", escapeInputText(pkg), "-v",
 		"-c", "android.intent.category.LAUNCHER", "1")
 	if strings.Contains(out, "No activities found to run") || strings.Contains(out, "monkey aborted") {
 		return "", fmt.Errorf("cannot launch %s: no launchable activity (is the package installed, and does it have a LAUNCHER activity? check list_packages / get_app_details)", pkg)
@@ -102,7 +102,7 @@ func (c *Client) LaunchApp(ctx context.Context, pkg string) (component string, e
 
 // StopApp force-stops an app.
 func (c *Client) StopApp(ctx context.Context, pkg string) error {
-	_, err := c.adb(ctx, "shell", "am", "force-stop", pkg)
+	_, err := c.adb(ctx, "shell", "am", "force-stop", escapeInputText(pkg))
 	return err
 }
 
@@ -113,7 +113,7 @@ func (c *Client) StopApp(ctx context.Context, pkg string) error {
 // broadcast may be silently ignored with no error. When it doesn't visibly
 // reload the app, fall back to OpenDevMenu + tapping "Reload".
 func (c *Client) ReloadApp(ctx context.Context, pkg string) error {
-	_, err := c.adb(ctx, "shell", "am", "broadcast", "-a", pkg+".RELOAD_APP_ACTION")
+	_, err := c.adb(ctx, "shell", "am", "broadcast", "-a", escapeInputText(pkg+".RELOAD_APP_ACTION"))
 	return err
 }
 
@@ -127,7 +127,7 @@ func (c *Client) OpenDevMenu(ctx context.Context) error {
 
 // ClearAppData wipes an app's data/cache, returning it to a first-launch state.
 func (c *Client) ClearAppData(ctx context.Context, pkg string) (string, error) {
-	return c.adb(ctx, "shell", "pm", "clear", pkg)
+	return c.adb(ctx, "shell", "pm", "clear", escapeInputText(pkg))
 }
 
 // ExpoDevClientURL builds the deep link that points an installed Expo dev build
@@ -155,12 +155,12 @@ func ExpoDevClientURL(scheme, host string, port int) (string, error) {
 // OpenURL opens a URL or deep link via an ACTION_VIEW intent. When pkg is set
 // the intent is targeted at that package.
 func (c *Client) OpenURL(ctx context.Context, url, pkg string) (string, error) {
-	args := []string{"shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url}
+	args := []string{"shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", escapeInputText(url)}
 	if strings.TrimSpace(pkg) != "" {
 		// Restrict the intent to a package with the -p option. A bare positional
 		// argument would be parsed by `am` as the intent DATA URI, clobbering the
 		// -d url above and silently opening the wrong thing.
-		args = append(args, "-p", pkg)
+		args = append(args, "-p", escapeInputText(pkg))
 	}
 	return c.adb(ctx, args...)
 }
@@ -285,7 +285,7 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		}
 	}
 
-	if dump, err := c.adb(ctx, "shell", "dumpsys", "package", pkg); err == nil {
+	if dump, err := c.adb(ctx, "shell", "dumpsys", "package", escapeInputText(pkg)); err == nil {
 		s.Installed = isPackageInstalled(dump)
 		if m := firstInstallRe.FindStringSubmatch(dump); m != nil {
 			s.FirstInstall = strings.TrimSpace(m[1])
@@ -302,7 +302,7 @@ func (c *Client) GetAppStateWithSource(ctx context.Context, pkg, sourcePath stri
 		return s, nil
 	}
 
-	if out, err := c.adb(ctx, "shell", "pidof", pkg); err == nil {
+	if out, err := c.adb(ctx, "shell", "pidof", escapeInputText(pkg)); err == nil {
 		s.PIDs = parsePIDs(out)
 	}
 	s.Running = len(s.PIDs) > 0
@@ -563,7 +563,7 @@ func firstLineContaining(logs, needle string) string {
 // `dumpsys package` + `cmd package resolve-activity`.
 func (c *Client) GetAppDetails(ctx context.Context, pkg string) (AppDetails, error) {
 	d := AppDetails{Package: pkg}
-	dump, err := c.adb(ctx, "shell", "dumpsys", "package", pkg)
+	dump, err := c.adb(ctx, "shell", "dumpsys", "package", escapeInputText(pkg))
 	if err != nil {
 		return d, err
 	}
@@ -576,7 +576,7 @@ func (c *Client) GetAppDetails(ctx context.Context, pkg string) (AppDetails, err
 	}
 	// Best-effort launcher activity.
 	if res, err := c.adb(ctx, "shell", "cmd", "package", "resolve-activity",
-		"--brief", "-c", "android.intent.category.LAUNCHER", pkg); err == nil {
+		"--brief", "-c", "android.intent.category.LAUNCHER", escapeInputText(pkg)); err == nil {
 		for line := range strings.SplitSeq(res, "\n") {
 			line = strings.TrimSpace(line)
 			if strings.Contains(line, "/") && !strings.Contains(line, " ") {

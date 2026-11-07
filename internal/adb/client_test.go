@@ -87,9 +87,9 @@ func TestInputBuilders(t *testing.T) {
 		{"reverse remove", func(c *Client) error { return c.Reverse(ctx, 8081, 0, true) },
 			[]string{"reverse", "--remove", "tcp:8081"}},
 		{"lock defaults to pin", func(c *Client) error { return c.SetDeviceLock(ctx, "", "1234", "") },
-			[]string{"shell", "locksettings", "set-pin", "1234"}},
+			[]string{"shell", "locksettings", "set-pin", "'1234'"}},
 		{"lock change supplies old", func(c *Client) error { return c.SetDeviceLock(ctx, "pin", "1234", "0000") },
-			[]string{"shell", "locksettings", "set-pin", "--old", "0000", "1234"}},
+			[]string{"shell", "locksettings", "set-pin", "--old", "'0000'", "'1234'"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

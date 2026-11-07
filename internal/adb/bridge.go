@@ -127,10 +127,10 @@ func (c *Client) AccessibilityClick(ctx context.Context, resourceID, text string
 
 	args := []string{"shell", "am", "broadcast", "-a", BridgeClickAction}
 	if resourceID != "" {
-		args = append(args, "-e", "resource_id", resourceID)
+		args = append(args, "-e", "resource_id", escapeInputText(resourceID))
 	}
 	if text != "" {
-		args = append(args, "-e", "text", text)
+		args = append(args, "-e", "text", escapeInputText(text))
 	}
 	args = append(args, "-e", "partial", strconv.FormatBool(partial))
 	if _, err := c.adb(ctx, args...); err != nil {
