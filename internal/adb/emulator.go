@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/iksnerd/adb-mcp/internal/sdk"
 )
@@ -227,14 +228,33 @@ func (c *Client) emu(ctx context.Context, what string, args ...string) (string, 
 	if !strings.HasPrefix(c.Serial, "emulator-") {
 		return "", fmt.Errorf("%s only works on an emulator (serial %q is not emulator-*): the emulator console has no physical-device equivalent", what, c.Serial)
 	}
+	// The console is line oriented: a newline inside any argument would end the
+	// command early and run the rest as a second console command.
+	for _, a := range args {
+		if i := strings.IndexFunc(a, unicode.IsControl); i >= 0 {
+			return "", fmt.Errorf("%s: argument contains a control character (%q at byte %d); the emulator console would read it as a separate command", what, a[i], i)
+		}
+	}
 	out, err := c.adb(ctx, append([]string{"emu"}, args...)...)
 	if err != nil {
 		return out, err
 	}
-	if strings.Contains(out, "KO:") {
+	if consoleRejected(out) {
 		return out, fmt.Errorf("emulator rejected %s: %s", what, strings.TrimSpace(out))
 	}
 	return out, nil
+}
+
+// consoleRejected reports whether the console answered KO. The marker counts
+// only at the start of a line: payload text (a snapshot list entry) may
+// contain "KO:" anywhere else.
+func consoleRejected(out string) bool {
+	for line := range strings.SplitSeq(out, "\n") {
+		if strings.HasPrefix(strings.TrimRight(line, "\r"), "KO:") {
+			return true
+		}
+	}
+	return false
 }
 
 // FingerTouch simulates a fingerprint sensor touch on an emulator
