@@ -250,7 +250,11 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 	if err != nil {
 		return nil, err
 	}
-	deepLink, err := adb.ExpoDevClientURL(in.Scheme, in.Host, in.Port)
+	port := in.Port
+	if port <= 0 {
+		port = defaultMetroPort
+	}
+	deepLink, err := adb.ExpoDevClientURL(in.Scheme, in.Host, port)
 	if err != nil {
 		return nil, err
 	}
@@ -277,9 +281,17 @@ func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallTool
 		if detail == "" {
 			detail = "on-screen error text unavailable"
 		}
-		return nil, devClientLaunchError(ctx, c, in.Package, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; Metro is unreachable — run adb_reverse {device_port: 8081} and relaunch", top, detail))
+		return nil, devClientLaunchError(ctx, c, in.Package, fmt.Errorf("dev client opened DevLauncherErrorActivity (%s): %s; %s", top, detail, metroUnreachableHint(port)))
 	}
-	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse {device_port: 8081}).", deepLink, c.Serial), nil
+	return text("Opened dev client at %s on %s. If it landed on the Dev Launcher list instead, the scheme is wrong or the build isn't an expo-dev-client — check app.json \"scheme\" and confirm Metro is reachable (adb_reverse {device_port: %d}).", deepLink, c.Serial, port), nil
+}
+
+// defaultMetroPort is the Metro dev-server port launch_dev_client uses when
+// port is omitted (the same default adb.ExpoDevClientURL applies).
+const defaultMetroPort = 8081
+
+func metroUnreachableHint(port int) string {
+	return fmt.Sprintf("Metro is unreachable — run adb_reverse {device_port: %d} and relaunch", port)
 }
 
 func devClientLaunchError(ctx context.Context, c *adb.Client, pkg string, err error) error {
