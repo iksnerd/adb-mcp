@@ -79,11 +79,30 @@ func (c *Client) StatusBarDemo(ctx context.Context, enter bool, opts StatusBarOp
 		return err
 	}
 	if !enter {
-		return c.demoBroadcast(ctx, "exit")
+		err := c.demoBroadcast(ctx, "exit")
+		if err == nil {
+			ClearOverride(c.Serial, OverrideStatusBarDemo)
+		}
+		return err
 	}
 	if err := c.demoBroadcast(ctx, "enter"); err != nil {
 		return err
 	}
+	NoteOverride(c.Serial, OverrideStatusBarDemo)
+	if err := c.configureDemo(ctx, opts); err != nil {
+		// Demo mode is entered but half configured: put the bar back rather
+		// than leave it that way, and say which outcome the caller got.
+		if exitErr := c.demoBroadcast(ctx, "exit"); exitErr != nil {
+			return fmt.Errorf("%w (status bar demo mode could NOT be rolled back: rollback failed: %v; run set_status_bar enabled=false)", err, exitErr)
+		}
+		ClearOverride(c.Serial, OverrideStatusBarDemo)
+		return fmt.Errorf("%w (status bar demo mode rolled back)", err)
+	}
+	return nil
+}
+
+// configureDemo sends the post-"enter" demo commands.
+func (c *Client) configureDemo(ctx context.Context, opts StatusBarOptions) error {
 	if opts.Clock != "" {
 		if err := c.demoBroadcast(ctx, "clock", "hhmm", opts.Clock); err != nil {
 			return err

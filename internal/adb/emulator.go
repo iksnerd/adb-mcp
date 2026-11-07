@@ -371,8 +371,19 @@ func (c *Client) isEmulator() bool { return strings.HasPrefix(c.Serial, "emulato
 // on either — call it to undo a forced state. At least one of level/charging
 // must be set unless reset is true.
 func (c *Client) SetBattery(ctx context.Context, level *int, charging *bool, reset bool) error {
+	err := c.setBattery(ctx, level, charging, reset)
+	if err == nil && !reset {
+		NoteOverride(c.Serial, OverrideBattery)
+	}
+	return err
+}
+
+func (c *Client) setBattery(ctx context.Context, level *int, charging *bool, reset bool) error {
 	if reset {
 		_, err := c.adb(ctx, "shell", "dumpsys", "battery", "reset")
+		if err == nil {
+			ClearOverride(c.Serial, OverrideBattery)
+		}
 		return err
 	}
 	if level == nil && charging == nil {

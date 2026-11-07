@@ -111,5 +111,10 @@ func Doctor(ctx context.Context) string {
 		}
 	}
 
+	if leftovers := doctorOverrides(); leftovers != "" {
+		b.WriteString(leftovers)
+		b.WriteString("\n")
+	}
+
 	return strings.TrimRight(b.String(), "\n")
 }

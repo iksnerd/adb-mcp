@@ -27,12 +27,18 @@ func (c *Client) SetDeviceLock(ctx context.Context, lockType, value, old string)
 	}
 	args = append(args, value)
 	_, err := c.adb(ctx, args...)
+	if err == nil {
+		NoteOverride(c.Serial, OverrideDeviceLock) // the fact only, never the credential
+	}
 	return err
 }
 
 // ClearDeviceLock removes the lock screen, supplying the current credential.
 func (c *Client) ClearDeviceLock(ctx context.Context, old string) error {
 	_, err := c.adb(ctx, "shell", "locksettings", "clear", "--old", old)
+	if err == nil {
+		ClearOverride(c.Serial, OverrideDeviceLock)
+	}
 	return err
 }
 

@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
 	"github.com/iksnerd/adb-mcp/internal/bridgeupdate"
@@ -106,6 +107,18 @@ func main() {
 	// explicitly (not via defer) because the log.Fatalf below would os.Exit and
 	// skip deferred cleanup on the error path.
 	adb.StopAllCaptures()
+
+	// Reverse the device state this process applied that is safe to reverse
+	// (forced battery, status bar demo mode). Bounded, errors only logged.
+	// stay_awake and the lock are left alone: the old setting/credential is unknown.
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 12*time.Second)
+	for _, rerr := range adb.RestoreOverrides(restoreCtx) {
+		log.Printf("shutdown: could not restore device state: %v", rerr)
+	}
+	for _, o := range adb.Overrides() {
+		log.Printf("shutdown: left %s applied on %s", o.Kind, o.Serial)
+	}
+	restoreCancel()
 
 	// A cancelled context (SIGINT/SIGTERM) or a closed stdin (the MCP client
 	// disconnecting) is a normal shutdown, not a failure — exit 0 quietly.
