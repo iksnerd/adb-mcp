@@ -19,6 +19,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -65,6 +66,9 @@ func main() {
 	}
 	if problems := undocumented(*root); len(problems) > 0 {
 		fail(fmt.Errorf("registered but absent from docs/TOOLS.md: %s", strings.Join(problems, ", ")))
+	}
+	if err := registryNameMismatch(*root); err != nil {
+		fail(err)
 	}
 	if problems := unwrappedGuides(*root); len(problems) > 0 {
 		fail(fmt.Errorf("guide resources with no plugin skill wrapping them: %s", strings.Join(problems, ", ")))
@@ -193,6 +197,41 @@ var pluginSkillDirs = []string{
 }
 
 var reGuideName = regexp.MustCompile(`(?m)^\t\tname:\s+"([a-z-]+)"`)
+
+var reOCIServerLabel = regexp.MustCompile(`(?m)^LABEL\s+io\.modelcontextprotocol\.server\.name="([^"]+)"`)
+
+// registryNameMismatch checks that server.json's "name" equals the Dockerfile's
+// io.modelcontextprotocol.server.name label. The registry proves ownership of the
+// OCI image by matching the two, and rejects the publish when they differ: after
+// the image and the GitHub Release are already live.
+func registryNameMismatch(root string) error {
+	docker, err := os.ReadFile(filepath.Join(root, "Dockerfile"))
+	if err != nil {
+		return err
+	}
+	manifest, err := os.ReadFile(filepath.Join(root, "server.json"))
+	if err != nil {
+		return err
+	}
+	return compareRegistryName(string(docker), manifest)
+}
+
+func compareRegistryName(dockerfile string, serverJSON []byte) error {
+	var m struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(serverJSON, &m); err != nil {
+		return fmt.Errorf("server.json: %w", err)
+	}
+	label := reOCIServerLabel.FindStringSubmatch(dockerfile)
+	if label == nil {
+		return fmt.Errorf("Dockerfile has no io.modelcontextprotocol.server.name label")
+	}
+	if m.Name == "" || label[1] != m.Name {
+		return fmt.Errorf("Dockerfile label io.modelcontextprotocol.server.name is %q but server.json name is %q; the MCP registry would reject the publish", label[1], m.Name)
+	}
+	return nil
+}
 
 // skillTrees returns the plugin skill trees that exist under root.
 func skillTrees(root string) []string {

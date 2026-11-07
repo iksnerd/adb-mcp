@@ -91,3 +91,22 @@ func TestSkillTreesIsEmptyWhenThePluginTreesMoved(t *testing.T) {
 		t.Errorf("skillTrees = %v, want one", got)
 	}
 }
+
+func TestCompareRegistryName(t *testing.T) {
+	docker := "FROM x\nLABEL io.modelcontextprotocol.server.name=\"io.github.a/b\"\n"
+	if err := compareRegistryName(docker, []byte(`{"name":"io.github.a/b"}`)); err != nil {
+		t.Errorf("equal names: %v", err)
+	}
+	if err := compareRegistryName(docker, []byte(`{"name":"io.github.a/c"}`)); err == nil {
+		t.Error("different names must fail")
+	}
+	if err := compareRegistryName("FROM x\n", []byte(`{"name":"io.github.a/b"}`)); err == nil {
+		t.Error("a missing label must fail")
+	}
+}
+
+func TestRealRegistryNamesAgree(t *testing.T) {
+	if err := registryNameMismatch(filepath.Join("..", "..")); err != nil {
+		t.Error(err)
+	}
+}
