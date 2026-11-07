@@ -11,6 +11,20 @@ import (
 
 var packageRe = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$`)
 
+// reservedWords holds the Java keywords and literals plus Kotlin's hard
+// keywords: none may be a package segment.
+var reservedWords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields(`abstract assert boolean break byte case catch char class const continue
+default do double else enum extends final finally float for goto if implements import instanceof int
+interface long native new package private protected public return short static strictfp super switch
+synchronized this throw throws transient try void volatile while true false null
+as fun in is object typealias typeof val var when`) {
+		m[w] = true
+	}
+	return m
+}()
+
 // nameRe restricts the project display name to a charset that can't break out
 // of the Kotlin string literals and the XML attribute value it's interpolated
 // into (settings.gradle.kts, AndroidManifest.xml, the generated .kt source).
@@ -30,6 +44,11 @@ func Create(opts Options) ([]string, error) {
 	}
 	if !packageRe.MatchString(opts.Package) {
 		return nil, fmt.Errorf("package must look like com.example.app")
+	}
+	for seg := range strings.SplitSeq(opts.Package, ".") {
+		if reservedWords[seg] {
+			return nil, fmt.Errorf("package segment %q is a reserved Java/Kotlin word and the project would not compile", seg)
+		}
 	}
 	if strings.TrimSpace(opts.Name) == "" {
 		opts.Name = "Android App"

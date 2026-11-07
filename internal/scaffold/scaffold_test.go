@@ -55,3 +55,21 @@ func TestCreateDigitLeadingNameProducesValidIdentifier(t *testing.T) {
 		t.Fatal("expected a generated .kt file")
 	}
 }
+
+// A package segment that is a Java or Kotlin reserved word writes a project that
+// fails to compile; reject it up front.
+func TestCreateRejectsReservedWordSegments(t *testing.T) {
+	for _, pkg := range []string{"com.example.in", "com.example.class", "com.example.fun", "int.example.app", "com.example.app.new", "com.example.object"} {
+		dir := filepath.Join(t.TempDir(), "app")
+		if _, err := Create(Options{Destination: dir, Name: "Sample", Package: pkg}); err == nil {
+			t.Errorf("package %q uses a reserved word and must be rejected", pkg)
+		}
+		if _, err := os.Stat(dir); err == nil {
+			t.Errorf("package %q was rejected only after writing the project", pkg)
+		}
+	}
+	// A keyword as a substring of a segment is fine.
+	if _, err := Create(Options{Destination: filepath.Join(t.TempDir(), "app"), Name: "Sample", Package: "com.example.interface2"}); err != nil {
+		t.Errorf("interface2 is not a keyword: %v", err)
+	}
+}
