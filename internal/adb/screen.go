@@ -31,7 +31,13 @@ func (c *Client) ResumedActivity(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return parseResumedActivity(out), nil
+	activity := parseResumedActivity(out)
+	if activity == "" {
+		// Empty must not read as an answer: two empty reads would "settle", and
+		// assert_foreground would report a blank top activity.
+		return "", fmt.Errorf("no resumed activity found in dumpsys activity output (screen off, or an unrecognised dump format)")
+	}
+	return activity, nil
 }
 
 // SettledResumedActivity polls ResumedActivity until two consecutive reads

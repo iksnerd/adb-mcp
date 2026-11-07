@@ -331,7 +331,7 @@ func TestIsDeviceSecure(t *testing.T) {
 	// fall through to get-disabled, which reports the lockscreen is not disabled
 	// => secure. A runner keyed on the subcommand models the two calls.
 	locked := &Client{Serial: "emulator-5554", run: func(_ context.Context, args ...string) ([]byte, error) {
-		if len(args) >= 2 && args[1] == "verify" {
+		if len(args) >= 3 && args[2] == "verify" {
 			return []byte("Old password '' didn't match"), errors.New("exit status 1")
 		}
 		return []byte("false"), nil // get-disabled: not disabled

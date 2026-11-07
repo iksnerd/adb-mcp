@@ -51,9 +51,15 @@ func (c *Client) IsDeviceSecure(ctx context.Context) (bool, error) {
 	// below, which returns "false" (read as secure) even for a default device
 	// with no lock at all — get-disabled reflects whether the lockscreen is
 	// administratively disabled, not whether a credential exists.
-	if out, err := c.adb(ctx, "shell", "locksettings", "verify"); err == nil &&
-		strings.Contains(strings.ToLower(out), "success") {
+	out, verifyErr := c.adb(ctx, "shell", "locksettings", "verify")
+	if verifyErr == nil && strings.Contains(strings.ToLower(out), "success") {
 		return false, nil // empty credential verified => no lock set
+	}
+	if verifyErr != nil && !credentialRejected(out) {
+		// verify failed for a reason unrelated to the credential (offline
+		// device, adb error). The get-disabled fallback would answer "false"
+		// for a device with no lock at all, which reads as secure.
+		return false, fmt.Errorf("locksettings verify failed: %w", verifyErr)
 	}
 	// Fallback (older images / no `verify` subcommand): get-disabled == "false"
 	// means the lockscreen is not disabled, which — combined with the verify
@@ -63,4 +69,17 @@ func (c *Client) IsDeviceSecure(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(out) == "false", nil
+}
+
+// credentialRejected reports whether `locksettings verify` output says the
+// (empty) credential was refused, which is evidence a credential exists, as
+// opposed to the command failing outright.
+func credentialRejected(out string) bool {
+	out = strings.ToLower(out)
+	for _, w := range []string{"match", "incorrect", "wrong", "invalid"} {
+		if strings.Contains(out, w) {
+			return true
+		}
+	}
+	return false
 }
