@@ -49,6 +49,20 @@ func TestHandlersRejectEmptyRequiredStrings(t *testing.T) {
 		{"render_stats", "package", func() error { _, e := renderStats(ctx, renderStatsArgs{}); return e }},
 		{"wait_for_text", "text", func() error { _, e := waitForText(ctx, waitForTextArgs{}); return e }},
 		{"stop_screen_record", "local_path", func() error { _, e := stopScreenRecord(ctx, stopRecordArgs{}); return e }},
+		{"tap_on_text", "text", func() error { _, e := tapOnText(ctx, tapTextArgs{}); return e }},
+		{"tap_element", "resource_id", func() error { _, e := tapElement(ctx, tapElementArgs{}); return e }},
+		{"input_text", "text", func() error { _, e := inputText(ctx, inputTextArgs{}); return e }},
+		{"press_key", "key", func() error { _, e := pressKey(ctx, pressKeyArgs{}); return e }},
+		{"enter_pin", "digits", func() error { _, e := enterPIN(ctx, enterPINArgs{}); return e }},
+		{"send_sms/from", "from", func() error { _, e := sendSMS(ctx, sendSMSArgs{Text: "123456"}); return e }},
+		{"send_sms/text", "text", func() error { _, e := sendSMS(ctx, sendSMSArgs{From: "+15551234567"}); return e }},
+		{"phone_call", "number", func() error { _, e := phoneCall(ctx, phoneCallArgs{}); return e }},
+		{"set_sensor", "sensor", func() error { _, e := setSensor(ctx, setSensorArgs{}); return e }},
+		{"connect_wireless", "host_port", func() error { _, e := connectWireless(ctx, connectWirelessArgs{}); return e }},
+		{"launch_dev_client", "scheme", func() error { _, e := launchDevClient(ctx, launchDevClientArgs{}); return e }},
+		{"avd_snapshot/save", "name", func() error { _, e := avdSnapshot(ctx, snapshotArgs{Action: "save"}); return e }},
+		{"avd_snapshot/load", "name", func() error { _, e := avdSnapshot(ctx, snapshotArgs{Action: "Load"}); return e }},
+		{"avd_snapshot/delete", "name", func() error { _, e := avdSnapshot(ctx, snapshotArgs{Action: "delete", Name: " "}); return e }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

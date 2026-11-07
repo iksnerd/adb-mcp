@@ -196,12 +196,12 @@ func findAndTap(ctx context.Context, c *adb.Client, query, noun string, filter u
 }
 
 func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("text", in.Text); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(in.Text) == "" {
-		return nil, fmt.Errorf("text is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
 		return accessibilityTap(ctx, c, "", in.Text, partialOrDefault(in.Partial), boolOr(in.VerifyChange, false))
@@ -220,12 +220,12 @@ func tapOnText(ctx context.Context, in tapTextArgs) (*mcp.CallToolResult, error)
 }
 
 func tapElement(ctx context.Context, in tapElementArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("resource_id", in.ResourceID); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(in.ResourceID) == "" {
-		return nil, fmt.Errorf("resource_id is required")
 	}
 	if boolOr(in.ViaAccessibility, false) {
 		return accessibilityTap(ctx, c, in.ResourceID, "", partialOrDefault(in.Partial), boolOr(in.VerifyChange, false))
@@ -343,6 +343,10 @@ func inputKeyCombo(ctx context.Context, in keyComboArgs) (*mcp.CallToolResult, e
 }
 
 func inputText(ctx context.Context, in inputTextArgs) (*mcp.CallToolResult, error) {
+	// Not requireNonEmpty: a lone space is text worth typing.
+	if in.Text == "" {
+		return nil, fmt.Errorf("text is required and must not be empty")
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -354,6 +358,9 @@ func inputText(ctx context.Context, in inputTextArgs) (*mcp.CallToolResult, erro
 }
 
 func pressKey(ctx context.Context, in pressKeyArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("key", in.Key); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -449,6 +456,9 @@ func longPress(ctx context.Context, in longPressArgs) (*mcp.CallToolResult, erro
 }
 
 func enterPIN(ctx context.Context, in enterPINArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("digits", in.Digits); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err

@@ -166,6 +166,12 @@ type sendSMSArgs struct {
 }
 
 func sendSMS(ctx context.Context, in sendSMSArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("from", in.From); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("text", in.Text); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -183,6 +189,9 @@ type phoneCallArgs struct {
 }
 
 func phoneCall(ctx context.Context, in phoneCallArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("number", in.Number); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -243,6 +252,12 @@ type snapshotArgs struct {
 }
 
 func avdSnapshot(ctx context.Context, in snapshotArgs) (*mcp.CallToolResult, error) {
+	switch strings.ToLower(strings.TrimSpace(in.Action)) {
+	case "save", "load", "delete":
+		if err := requireNonEmpty("name", in.Name); err != nil {
+			return nil, err
+		}
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -302,6 +317,9 @@ type setSensorArgs struct {
 }
 
 func setSensor(ctx context.Context, in setSensorArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("sensor", in.Sensor); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
@@ -320,6 +338,9 @@ func setSensor(ctx context.Context, in setSensorArgs) (*mcp.CallToolResult, erro
 }
 
 func connectWireless(ctx context.Context, in connectWirelessArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("host_port", in.HostPort); err != nil {
+		return nil, err
+	}
 	out, err := adb.ConnectWireless(ctx, in.HostPort, in.PairAddress, in.PairingCode)
 	if err != nil {
 		return nil, fmt.Errorf("%v\n%s", err, out)

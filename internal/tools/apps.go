@@ -246,6 +246,9 @@ func openURL(ctx context.Context, in openURLArgs) (*mcp.CallToolResult, error) {
 }
 
 func launchDevClient(ctx context.Context, in launchDevClientArgs) (*mcp.CallToolResult, error) {
+	if err := requireNonEmpty("scheme", in.Scheme); err != nil {
+		return nil, err
+	}
 	c, err := resolve(ctx, in.Serial)
 	if err != nil {
 		return nil, err
