@@ -100,25 +100,23 @@ func main() {
 	tools.Register(srv)
 	guides.Register(srv)
 
+	// A panic that escapes srv.Run on this goroutine (a tool handler panic is
+	// already recovered in tools.add) must not skip the cleanup below: run it,
+	// then exit non-zero. A panic on another goroutine cannot be caught here.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic: %v", r)
+			cleanup()
+			os.Exit(2)
+		}
+	}()
+
 	err := srv.Run(ctx, &mcp.StdioTransport{})
 
-	// Tear down any running logcat/screen-record capture sessions on EVERY exit
-	// path so their detached adb processes and temp files don't leak. This runs
-	// explicitly (not via defer) because the log.Fatalf below would os.Exit and
-	// skip deferred cleanup on the error path.
-	adb.StopAllCaptures()
-
-	// Reverse the device state this process applied that is safe to reverse
-	// (forced battery, status bar demo mode). Bounded, errors only logged.
-	// stay_awake and the lock are left alone: the old setting/credential is unknown.
-	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 12*time.Second)
-	for _, rerr := range adb.RestoreOverrides(restoreCtx) {
-		log.Printf("shutdown: could not restore device state: %v", rerr)
-	}
-	for _, o := range adb.Overrides() {
-		log.Printf("shutdown: left %s applied on %s", o.Kind, o.Serial)
-	}
-	restoreCancel()
+	// Tear down on EVERY exit path. This runs explicitly (not via defer)
+	// because the log.Fatalf below would os.Exit and skip deferred cleanup on
+	// the error path; the deferred recover above covers a panic.
+	cleanup()
 
 	// A cancelled context (SIGINT/SIGTERM) or a closed stdin (the MCP client
 	// disconnecting) is a normal shutdown, not a failure — exit 0 quietly.
@@ -140,4 +138,21 @@ func isCleanShutdown(err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "server is closing") || strings.HasSuffix(msg, "EOF")
+}
+
+// cleanup tears down what this process started or changed: logcat/screen-record
+// capture sessions (their detached adb processes and temp files) and the device
+// state safe to reverse (forced battery, status bar demo, stay_awake with a
+// known prior). Bounded, errors only logged. The lock is left alone: the old
+// credential is unknown.
+func cleanup() {
+	adb.StopAllCaptures()
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer restoreCancel()
+	for _, rerr := range adb.RestoreOverrides(restoreCtx) {
+		log.Printf("shutdown: could not restore device state: %v", rerr)
+	}
+	for _, o := range adb.Overrides() {
+		log.Printf("shutdown: left %s applied on %s", o.Kind, o.Serial)
+	}
 }

@@ -12,6 +12,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -294,8 +295,20 @@ func Register(s *mcp.Server) {
 // add is a small generic wrapper over mcp.AddTool to cut boilerplate.
 func add[In any](s *mcp.Server, name, desc string, h func(context.Context, In) (*mcp.CallToolResult, error)) {
 	mcp.AddTool(s, &mcp.Tool{Name: name, Title: titleFor(name), Description: desc, Annotations: annotationsFor(name)},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			res, err := h(ctx, in)
+		func(ctx context.Context, _ *mcp.CallToolRequest, in In) (res *mcp.CallToolResult, _ any, err error) {
+			// go-sdk does not recover a panicking handler: it would end the
+			// process and skip the shutdown cleanup in main. Report it as a
+			// tool error instead and keep serving.
+			defer func() {
+				if r := recover(); r != nil {
+					res = &mcp.CallToolResult{
+						IsError: true,
+						Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("%s panicked: %v", name, r)}},
+					}
+					err = nil
+				}
+			}()
+			res, err = h(ctx, in)
 			return res, nil, err
 		})
 }
