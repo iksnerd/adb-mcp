@@ -227,7 +227,7 @@ func Register(s *mcp.Server) {
 
 	// --- Environment ---
 	add(s, "set_dark_mode",
-		"Turn the system dark theme on or off (cmd uimode night) — to test light/dark appearances.",
+		"Turn the system dark theme on or off (cmd uimode night) — to test light/dark appearances. The mode it found is remembered and put back when the server exits (when it could be read); call it again with the original value to restore it sooner, and doctor lists it while it is changed.",
 		setDarkMode)
 	add(s, "set_location",
 		"Set the emulator's mock GPS location (longitude, latitude) — for location-gated features.",
