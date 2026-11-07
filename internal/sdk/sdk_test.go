@@ -111,6 +111,8 @@ func TestCommandEnvKeepsExistingSdkRoot(t *testing.T) {
 // Exporting that would trade a clear "no SDK" error for a confusing one about
 // a path that isn't there.
 func TestCommandEnvSkipsNonexistentRoot(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // no default install either, so nothing valid exists
+	t.Setenv("ANDROID_SDK_ROOT", "")
 	t.Setenv("ANDROID_HOME", filepath.Join(t.TempDir(), "not-an-sdk"))
 
 	env := CommandEnv()
@@ -203,5 +205,60 @@ func TestRootSkipsInvalidEnvForValidDefault(t *testing.T) {
 	t.Setenv("ANDROID_HOME", bad)
 	if got := Root(); got != bad {
 		t.Errorf("with no valid SDK anywhere Root() should still report the set variable: got %s", got)
+	}
+}
+
+func countKey(env []string, key string) int {
+	n := 0
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); strings.EqualFold(k, key) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestAndroidHomeEnvSubstitutesInvalidCallerValue(t *testing.T) {
+	good := fakeSDK(t)
+	bad := filepath.Join(t.TempDir(), "typo")
+
+	// A valid caller value is untouched.
+	env := androidHomeEnv([]string{"ANDROID_HOME=" + good}, fakeSDK(t))
+	if v, _ := envValue(env, "ANDROID_HOME"); v != good {
+		t.Errorf("valid caller value changed to %q", v)
+	}
+	// Invalid ANDROID_HOME is replaced in place.
+	env = androidHomeEnv([]string{"A=1", "ANDROID_HOME=" + bad}, good)
+	if v, _ := envValue(env, "ANDROID_HOME"); v != good {
+		t.Errorf("ANDROID_HOME = %q, want %q", v, good)
+	}
+	if n := countKey(env, "ANDROID_HOME"); n != 1 {
+		t.Errorf("ANDROID_HOME appears %d times", n)
+	}
+	// Invalid ANDROID_SDK_ROOT cannot win.
+	env = androidHomeEnv([]string{"ANDROID_SDK_ROOT=" + bad}, good)
+	if v, _ := envValue(env, "ANDROID_HOME"); v != good {
+		t.Errorf("ANDROID_HOME = %q, want %q", v, good)
+	}
+	if v, ok := envValue(env, "ANDROID_SDK_ROOT"); ok && v != "" && v != good {
+		t.Errorf("invalid ANDROID_SDK_ROOT survived: %q", v)
+	}
+	// Both set and invalid.
+	env = androidHomeEnv([]string{"ANDROID_HOME=" + bad, "ANDROID_SDK_ROOT=" + bad}, good)
+	if v, _ := envValue(env, "ANDROID_HOME"); v != good {
+		t.Errorf("ANDROID_HOME = %q, want %q", v, good)
+	}
+	if v, ok := envValue(env, "ANDROID_SDK_ROOT"); ok && v != "" && v != good {
+		t.Errorf("invalid ANDROID_SDK_ROOT survived: %q", v)
+	}
+	// Valid ANDROID_HOME beside an invalid ANDROID_SDK_ROOT: valid one untouched.
+	env = androidHomeEnv([]string{"ANDROID_HOME=" + good, "ANDROID_SDK_ROOT=" + bad}, fakeSDK(t))
+	if v, _ := envValue(env, "ANDROID_HOME"); v != good {
+		t.Errorf("valid ANDROID_HOME changed to %q", v)
+	}
+	// Nothing valid anywhere: unchanged.
+	env = androidHomeEnv([]string{"ANDROID_HOME=" + bad}, bad)
+	if v, _ := envValue(env, "ANDROID_HOME"); v != bad {
+		t.Errorf("with no valid root the env must be unchanged, got %q", v)
 	}
 }

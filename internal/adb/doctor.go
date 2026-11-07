@@ -31,6 +31,7 @@ func Doctor(ctx context.Context) string {
 		fmt.Fprintf(&b, "✗ Android SDK: %s has no platform-tools/ — not an SDK install (set ANDROID_HOME, or pass --sdk)\n", root)
 	default:
 		fmt.Fprintf(&b, "• Android SDK: %s\n", root)
+		b.WriteString(rejectedEnvNote())
 	}
 
 	// adb version, AVDs, and attached devices are three independent probes —
@@ -117,4 +118,15 @@ func Doctor(ctx context.Context) string {
 	}
 
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// rejectedEnvNote is the doctor line for a set-but-invalid ANDROID_HOME or
+// ANDROID_SDK_ROOT that this server replaces for adb and Gradle with the valid
+// SDK it found. Empty when nothing was replaced.
+func rejectedEnvNote() string {
+	name, val := sdk.RejectedEnv()
+	if name == "" {
+		return ""
+	}
+	return fmt.Sprintf("⚠ %s=%s is not an SDK; using %s (fix or unset it)\n", name, val, sdk.Root())
 }

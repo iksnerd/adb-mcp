@@ -118,8 +118,14 @@ func CommandEnv() []string {
 // local.properties, including one this server had just scaffolded. Only set
 // when the directory really exists, so a wrong guess can't mask the clearer
 // "no SDK" error with a confusing one about a bad path.
+//
+// A caller variable that is set but not an SDK root (a typo, a stale path) is
+// replaced when root is valid: Root() already skips it, so adb uses root, and
+// leaving it would send Gradle to the bad path. A valid caller value is never
+// touched.
 func androidHomeEnv(env []string, root string) []string {
 	existing := -1
+	invalid := false
 	for i, kv := range env {
 		key, val, found := strings.Cut(kv, "=")
 		if !found {
@@ -127,20 +133,48 @@ func androidHomeEnv(env []string, root string) []string {
 		}
 		isHome := strings.EqualFold(key, "ANDROID_HOME")
 		if val != "" && (isHome || strings.EqualFold(key, "ANDROID_SDK_ROOT")) {
-			return env
+			if IsSDKRoot(val) {
+				return env
+			}
+			invalid = true
 		}
 		if isHome {
-			existing = i // set but empty — overwrite it rather than add a duplicate key
+			existing = i // set but empty or invalid — overwrite it rather than add a duplicate key
 		}
 	}
 	if !IsSDKRoot(root) {
 		return env
+	}
+	if invalid {
+		// Neutralise an invalid ANDROID_SDK_ROOT so it cannot win over the
+		// ANDROID_HOME exported below.
+		for i, kv := range env {
+			if key, val, found := strings.Cut(kv, "="); found && val != "" && strings.EqualFold(key, "ANDROID_SDK_ROOT") {
+				env[i] = key + "=" + root
+			}
+		}
 	}
 	if existing >= 0 {
 		env[existing] = "ANDROID_HOME=" + root
 		return env
 	}
 	return append(env, "ANDROID_HOME="+root)
+}
+
+// RejectedEnv reports the first ANDROID_HOME / ANDROID_SDK_ROOT set to
+// something that is not an SDK root, when Root() resolved to a valid SDK
+// anyway (so CommandEnv substitutes it). Doctor names it so the bad variable
+// is not hidden. It returns empty strings when nothing was substituted.
+func RejectedEnv() (name, value string) {
+	if !IsSDKRoot(Root()) {
+		return "", ""
+	}
+	for _, n := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
+		if v := os.Getenv(n); v != "" && !IsSDKRoot(v) {
+			return n, v
+		}
+	}
+	return "", ""
 }
 
 // Exe adds the platform executable suffix (.exe on Windows).
