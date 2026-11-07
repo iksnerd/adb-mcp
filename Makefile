@@ -5,7 +5,10 @@ INSTALL_DIR ?= $(HOME)/.local/bin
 # stripped to match VERSION/main.go's bare-number convention), fall back to
 # the VERSION file (git describe --always would otherwise mask a missing tag
 # by returning a bare commit hash, so it's deliberately not used here).
-VERSION := $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//' || cat VERSION 2>/dev/null || echo dev)
+# The fallbacks test the output, not the exit status: in a pipeline the status
+# is sed's, so `a | sed || b` never reached b and a tarball or shallow clone
+# got an empty version.
+VERSION := $(or $(strip $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//')),$(strip $(shell cat VERSION 2>/dev/null)),dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 .PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check
