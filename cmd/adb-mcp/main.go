@@ -19,6 +19,7 @@ import (
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
 	"github.com/iksnerd/adb-mcp/internal/bridgeupdate"
+	"github.com/iksnerd/adb-mcp/internal/gradle"
 	"github.com/iksnerd/adb-mcp/internal/guides"
 	"github.com/iksnerd/adb-mcp/internal/selfupdate"
 	"github.com/iksnerd/adb-mcp/internal/tools"
@@ -141,11 +142,13 @@ func isCleanShutdown(err error) bool {
 }
 
 // cleanup tears down what this process started or changed: logcat/screen-record
-// capture sessions (their detached adb processes and temp files) and the device
+// capture sessions (their detached adb processes and temp files), running Gradle
+// builds (cancelled so no wrapper outlives the server) and the device
 // state safe to reverse (forced battery, status bar demo, stay_awake with a
 // known prior). Bounded, errors only logged. The lock is left alone: the old
 // credential is unknown.
 func cleanup() {
+	gradle.CancelAll() // background builds must not outlive the server
 	adb.StopAllCaptures()
 	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer restoreCancel()
