@@ -379,6 +379,10 @@ func parseCurrentFocus(dump string) string {
 	return ""
 }
 
+// DisplayAwake is isScreenAwake for callers outside this package: true when the
+// display is on, and also when its state cannot be read.
+func (c *Client) DisplayAwake(ctx context.Context) bool { return c.isScreenAwake(ctx) }
+
 // isScreenAwake reports whether the display is on (mWakefulness=Awake). If the
 // state can't be read it assumes awake, so a probe failure never mislabels a
 // live screen as off.

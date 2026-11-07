@@ -158,10 +158,10 @@ func Register(s *mcp.Server) {
 		"Stop the running logcat capture and return what was collected since start, optionally filtered by a case-insensitive substring, a minimum priority (V/D/I/W/E/F), and/or tags (OR'd). Output is capped to the last 500 lines by default (override with tail) so a long capture doesn't blow the token budget — narrow with the filters first.",
 		stopLogcatCapture)
 	add(s, "start_screen_record",
-		"Start recording the screen to an mp4 on the device (Android caps a single recording at ~180s). Pair with stop_screen_record.",
+		"Start recording the screen to an mp4 on the device (Android caps a single recording at ~180s). Pair with stop_screen_record. The display must be awake: an asleep display sends no frames and the recording comes out empty (the result warns; stay_awake fixes it).",
 		startScreenRecord)
 	add(s, "stop_screen_record",
-		"Stop the screen recording, finalize the mp4, and pull it to a local path.",
+		"Stop the screen recording, finalize the mp4, and pull it to a local path. Fails with an explanation if the recording holds no frames (the display was asleep) instead of saving an empty file.",
 		stopScreenRecord)
 
 	// --- App lifecycle ---

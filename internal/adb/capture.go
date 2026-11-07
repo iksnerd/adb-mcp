@@ -246,10 +246,16 @@ func (c *Client) StopScreenRecord(ctx context.Context, localPath string) (string
 	// (whose command line also carries it) does not match itself.
 	pattern := "[" + s.devicePath[:1] + "]" + s.devicePath[1:]
 	_, _ = c.adb(ctx, "shell", "pkill", "-INT", "-f", pattern)
-	c.waitFileStable(ctx, s.devicePath)
+	size := c.waitFileStable(ctx, s.devicePath)
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = s.cmd.Process.Kill()
 		_, _ = s.cmd.Process.Wait()
+	}
+	if size == "0" {
+		// screenrecord writes nothing when no frames arrive, which is what an
+		// asleep display gives it. Pulling would "succeed" with an empty file.
+		_, _ = c.adb(ctx, "shell", "rm", "-f", s.devicePath)
+		return "", fmt.Errorf("the screen recording is empty: the device produced no frames (the file is empty or was never created), usually because the display was asleep or off. Run stay_awake with enabled=true (or wake the device), then record again")
 	}
 	if _, err := c.PullFile(ctx, s.devicePath, localPath); err != nil {
 		return "", err
@@ -258,18 +264,38 @@ func (c *Client) StopScreenRecord(ctx context.Context, localPath string) (string
 	return localPath, nil
 }
 
+// recordEmptyPolls is how many consecutive readings of "empty or missing file"
+// mean the recording holds no frames, rather than screenrecord still
+// finalizing.
+const recordEmptyPolls = 5
+
 // waitFileStable polls the device file's size until two consecutive non-zero
 // reads agree (screenrecord has finished finalizing), bounded by
-// recordSettleTimeout. On timeout it returns anyway; the pull then surfaces
-// whatever is there.
-func (c *Client) waitFileStable(ctx context.Context, devicePath string) {
+// recordSettleTimeout. It returns "0" when the file stayed empty, or never
+// existed, for recordEmptyPolls readings in a row (no frames were recorded: an
+// asleep display gives screenrecord nothing to write). Otherwise it returns the
+// last size it read, and on timeout the pull then surfaces what is there.
+func (c *Client) waitFileStable(ctx context.Context, devicePath string) string {
 	deadline := time.Now().Add(recordSettleTimeout)
-	prev := ""
+	prev, last := "", ""
+	empties := 0
 	for time.Now().Before(deadline) {
 		out, err := c.adb(ctx, "shell", "stat", "-c", "%s", devicePath)
 		size := strings.TrimSpace(out)
-		if err == nil && size != "" && size != "0" && size == prev {
-			return
+		last = ""
+		if err == nil {
+			last = size
+		}
+		switch {
+		case err == nil && size != "" && size != "0" && size == prev:
+			return size
+		case err != nil || size == "" || size == "0":
+			empties++
+			if empties >= recordEmptyPolls {
+				return "0"
+			}
+		default:
+			empties = 0
 		}
 		if err == nil {
 			prev = size
@@ -278,8 +304,9 @@ func (c *Client) waitFileStable(ctx context.Context, devicePath string) {
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return last
 		case <-time.After(recordPollInterval):
 		}
 	}
+	return last
 }

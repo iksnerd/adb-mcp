@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/iksnerd/adb-mcp/internal/adb"
@@ -111,7 +112,12 @@ func startScreenRecord(ctx context.Context, in serialArg) (*mcp.CallToolResult, 
 	if err := c.StartScreenRecord(ctx); err != nil {
 		return nil, err
 	}
-	return text("Recording %s (max ~180s). Drive your flow, then stop_screen_record.", c.Serial), nil
+	msg := fmt.Sprintf("Recording %s (max ~180s). Drive your flow, then stop_screen_record.", c.Serial)
+	if !c.DisplayAwake(ctx) {
+		// An asleep display sends no frames, so the recording would come out empty.
+		msg += " Warning: the display is asleep or off, so this recording will be empty. Call stay_awake with enabled=true (or wake the device), then stop_screen_record and record again."
+	}
+	return text("%s", msg), nil
 }
 
 func stopScreenRecord(ctx context.Context, in stopRecordArgs) (*mcp.CallToolResult, error) {
