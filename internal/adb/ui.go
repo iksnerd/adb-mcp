@@ -2,6 +2,8 @@ package adb
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,14 +24,25 @@ func (c *Client) dumpOnce(ctx context.Context) ([]uiauto.Element, error) {
 // transient "could not get idle state" error that occurs mid-animation. It
 // also reports how many bounded nodes the filter hid.
 func (c *Client) dumpFiltered(ctx context.Context, filter uiauto.UIFilter) ([]uiauto.Element, int, error) {
-	const remote = "/sdcard/window_dump.xml"
+	// A per-call device path: two overlapping dumps (or two servers) must not
+	// read each other's half-written file.
+	remote := "/sdcard/aemcp-ui-" + randToken() + ".xml"
+	defer func() { _, _ = c.adb(context.WithoutCancel(ctx), "shell", "rm", "-f", remote) }()
 	var lastErr error
 	for attempt := range 2 {
 		if attempt > 0 {
 			time.Sleep(1500 * time.Millisecond)
 		}
-		if _, err := c.adb(ctx, "shell", "uiautomator", "dump", remote); err != nil {
+		// uiautomator can exit 0 without writing a file ("could not get idle
+		// state"); clear first so a leftover can never pass as the current tree.
+		_, _ = c.adb(ctx, "shell", "rm", "-f", remote)
+		dumpOut, err := c.adb(ctx, "shell", "uiautomator", "dump", remote)
+		if err != nil {
 			lastErr = err
+			continue
+		}
+		if strings.Contains(dumpOut, "ERROR") {
+			lastErr = fmt.Errorf("uiautomator: %s", strings.TrimSpace(dumpOut))
 			continue
 		}
 		out, err := c.adbBytes(ctx, "shell", "cat", remote)
@@ -38,6 +51,10 @@ func (c *Client) dumpFiltered(ctx context.Context, filter uiauto.UIFilter) ([]ui
 			continue
 		}
 		xmlStr := string(out)
+		if strings.TrimSpace(xmlStr) == "" {
+			lastErr = fmt.Errorf("uiautomator dump wrote no file")
+			continue
+		}
 		if i := strings.Index(xmlStr, "<?xml"); i > 0 {
 			xmlStr = xmlStr[i:]
 		}
@@ -49,6 +66,15 @@ func (c *Client) dumpFiltered(ctx context.Context, filter uiauto.UIFilter) ([]ui
 		return elems, hidden, nil
 	}
 	return nil, 0, fmt.Errorf("uiautomator dump failed (device busy?): %w", lastErr)
+}
+
+// randToken returns a short random hex string for per-call device file names.
+func randToken() string {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
 }
 
 // UISnapshot is a settled hierarchy read plus the context needed to trust it:
@@ -171,23 +197,53 @@ func (c *Client) WaitForText(ctx context.Context, query string, partial bool, ti
 	}
 }
 
+// displaySize returns the current logical screen size in pixels. An active
+// `wm size` override wins over the physical size (input coordinates follow the
+// override), and the axes are swapped when the display is rotated to landscape
+// (best effort: read from `dumpsys input`'s SurfaceOrientation, left unswapped
+// when it can't be read).
 func (c *Client) displaySize(ctx context.Context) (int, int) {
 	out, err := c.adb(ctx, "shell", "wm", "size")
 	if err != nil {
 		return 0, 0
 	}
+	var w, h int
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
-		if i := strings.LastIndex(line, ":"); i >= 0 {
-			parts := strings.Split(strings.TrimSpace(line[i+1:]), "x")
-			if len(parts) == 2 {
-				w, e1 := strconv.Atoi(parts[0])
-				h, e2 := strconv.Atoi(parts[1])
-				if e1 == nil && e2 == nil {
-					return w, h
-				}
-			}
+		i := strings.LastIndex(line, ":")
+		if i < 0 {
+			continue
+		}
+		parts := strings.Split(strings.TrimSpace(line[i+1:]), "x")
+		if len(parts) != 2 {
+			continue
+		}
+		pw, e1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+		ph, e2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if e1 != nil || e2 != nil {
+			continue
+		}
+		w, h = pw, ph
+		if strings.HasPrefix(line, "Override") {
+			break
 		}
 	}
-	return 0, 0
+	if w > 0 && h > 0 && c.landscape(ctx) {
+		w, h = h, w
+	}
+	return w, h
+}
+
+// landscape reports whether the display is rotated 90/270 degrees.
+func (c *Client) landscape(ctx context.Context) bool {
+	out, err := c.adb(ctx, "shell", "dumpsys", "input")
+	if err != nil {
+		return false
+	}
+	_, rest, ok := strings.Cut(out, "SurfaceOrientation:")
+	if !ok {
+		return false
+	}
+	rest = strings.TrimSpace(rest)
+	return strings.HasPrefix(rest, "1") || strings.HasPrefix(rest, "3")
 }
