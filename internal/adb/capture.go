@@ -14,7 +14,8 @@ import (
 
 // Capture sessions are stateful: start spawns a background process that keeps
 // running across tool calls, stop tears it down and returns what it collected.
-// Keyed by resolved device serial.
+// Keyed by resolved device serial: the only entry points are tools.resolve (via
+// ResolveSerial, which never returns ""), so the key is always concrete.
 
 // sessionRegistry is a serial-keyed table of in-flight background sessions
 // (a logcat capture or a screen recording), guarded by one mutex. start holds
