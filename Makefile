@@ -11,7 +11,7 @@ INSTALL_DIR ?= $(HOME)/.local/bin
 VERSION := $(or $(strip $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//')),$(strip $(shell cat VERSION 2>/dev/null)),dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check
+.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check install-hooks uninstall-hooks
 
 build: ## Compile the server binary into ./bin
 	@mkdir -p bin
@@ -61,6 +61,16 @@ plugin-pin-check: ## Fail if the plugin's pin disagrees with plugin.json or the 
 	  scripts/check-plugin-pin.sh plugin/adb-mcp/launcher plugin/adb-mcp/.claude-plugin/plugin.json bin/plugin-checksums.txt
 
 check: vet test docs-check plugin-test ## vet + test + doc counts + plugin launcher
+
+# CI runs only on version tags, so this hook is the gate on every commit. It
+# tests the staged snapshot, not the working tree (see .githooks/pre-commit).
+install-hooks: ## Enable the pre-commit hook for this checkout
+	@git config core.hooksPath .githooks
+	@echo "core.hooksPath -> .githooks (skip one run with: git commit --no-verify)"
+
+uninstall-hooks: ## Disable the pre-commit hook for this checkout
+	@git config --unset core.hooksPath || true
+	@echo "hooks disabled"
 
 run: build ## Build and run over stdio (for manual JSON-RPC poking)
 	./bin/$(BINARY)

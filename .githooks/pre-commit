@@ -1,0 +1,72 @@
+#!/bin/bash
+# .githooks/pre-commit: tests the commit you are about to make, not the working tree.
+# CI runs only on version tags, so this hook is the only gate between commits.
+# Enable with `make install-hooks`. Skip once with `git commit --no-verify`.
+set -uo pipefail
+
+# Nothing staged (a merge commit with no changes): nothing to check.
+git diff --cached --quiet --diff-filter=ACMRD && exit 0
+
+REPO="$(git rev-parse --show-toplevel)"
+SNAP="$(mktemp -d)/staged"
+mkdir -p "$SNAP"
+trap 'rm -rf "$(dirname "$SNAP")"' EXIT
+git checkout-index -a -f --prefix="$SNAP/"
+
+# D included: a commit that only deletes a file other code uses must still run the suites.
+staged() { git diff --cached --name-only --diff-filter=ACMRD -- "$@"; }
+
+# What triggers what. Go tests read VERSION, server.json and the scripts, and the
+# docs count check reads the code and the docs, so those trigger the Go side too.
+go_files="$(staged '*.go' 'go.mod' 'go.sum' 'VERSION' 'server.json' 'Makefile')"
+doc_files="$(staged '*.md' 'docs/stats.json' '.claude-plugin/*' 'plugin/*/.claude-plugin/*')"
+plugin_files="$(staged 'plugin/*' 'scripts/*' '.github/workflows/release.yml')"
+sh_files="$(staged '*.sh' '.githooks/*')"
+
+# git exports these to a hook; a test that runs git in a temp repo would use
+# this commit's index instead of its own.
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX
+
+fail=0
+step() {
+    local label="$1"; shift
+    if ! out="$("$@" 2>&1)"; then
+        printf '  ✗ %s\n' "$label"
+        printf '%s\n' "$out" | sed 's/^/      /' | head -25
+        fail=1
+    else
+        printf '  ✓ %s\n' "$label"
+    fi
+}
+
+echo "pre-commit: checking the staged snapshot"
+
+if [ -n "$go_files$sh_files" ] && [ -f "$SNAP/go.mod" ]; then
+    step "gofmt"   bash -c "cd '$SNAP' && test -z \"\$(gofmt -l .)\" || { gofmt -l .; false; }"
+    step "go vet"  bash -c "cd '$SNAP' && go vet ./..."
+    # -race and -count=1 match the release gate; the test cache cannot see files a child process reads.
+    step "go test" bash -c "cd '$SNAP' && go test -race -count=1 ./..."
+fi
+
+if [ -n "$go_files$doc_files" ] && [ -f "$SNAP/go.mod" ]; then
+    step "doc counts" bash -c "cd '$SNAP' && go run ./scripts/docsync -check"
+fi
+
+if [ -n "$plugin_files$sh_files" ] && [ -d "$SNAP/plugin" ]; then
+    if command -v node >/dev/null 2>&1; then
+        step "plugin tests" bash -c "cd '$SNAP' && node --test plugin/tests/launch.test.js && scripts/check-plugin-pin.test.sh"
+    else
+        echo "  – plugin tests skipped (node not installed)"
+    fi
+fi
+
+# Cheap check on every commit. In $SNAP there is no .git, so list the scripts from
+# the repo and refuse to pass when that list is empty but scripts exist.
+step "bash -n scripts" bash -c "cd '$SNAP' && files=\$(git -C '$REPO' ls-files '*.sh'); [ -n \"\$files\" ] || [ -z \"\$(find . -name '*.sh' -not -path './.git/*')\" ] || { echo 'no script list, but scripts exist'; exit 1; }; for f in \$files .githooks/pre-commit; do [ -f \"\$f\" ] && bash -n \"\$f\" || exit 1; done"
+
+if [ "$fail" -ne 0 ]; then
+    echo
+    echo "pre-commit failed. Fix the above, or 'git commit --no-verify' to skip."
+    exit 1
+fi
+echo "pre-commit: ok"

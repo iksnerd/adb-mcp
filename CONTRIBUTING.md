@@ -22,6 +22,11 @@ make run       # run over stdio for manual JSON-RPC poking
 
 `make check` is the bar every change must clear before it's ready for review.
 
+Pushes and pull requests get no CI: the workflow runs only on `v*` tags. Run
+`make install-hooks` once per checkout to enable the pre-commit hook, which tests
+the staged snapshot (gofmt, vet, `go test -race`, doc counts, plugin tests, `bash -n`)
+before each commit. Skip one run with `git commit --no-verify`.
+
 ## Architecture
 
 The code is execution layers mirrored by a thin adapter layer — read
