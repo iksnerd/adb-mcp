@@ -48,6 +48,16 @@ if [ -n "$go_files$sh_files" ] && [ -f "$SNAP/go.mod" ]; then
     step "go test" bash -c "cd '$SNAP' && go test -race -count=1 ./..."
 fi
 
+# tools/list is context every client pays on every turn: it may shrink, never grow, unless
+# the budget file is updated in the same commit (make tool-budget-update).
+if [ -n "$go_files" ] && [ -f "$SNAP/go.mod" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        step "tool size" bash -c "cd '$SNAP' && go build -o \"\$PWD/adb-mcp.budget\" ./cmd/adb-mcp && python3 scripts/mcp_tool_budget.py --baseline docs/tool-budget.json -- \"\$PWD/adb-mcp.budget\""
+    else
+        echo "  – tool size skipped (python3 not installed)"
+    fi
+fi
+
 if [ -n "$go_files$doc_files" ] && [ -f "$SNAP/go.mod" ]; then
     step "doc counts" bash -c "cd '$SNAP' && go run ./scripts/docsync -check"
 fi
