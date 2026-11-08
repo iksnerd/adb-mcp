@@ -103,6 +103,7 @@ func main() {
 
 	stale = append(stale, syncSkillBodies(*root, *check)...)
 	stale = append(stale, syncStats(*root, c, *check)...)
+	stale = append(stale, syncAgentPrompt(*root, *check)...)
 
 	if len(stale) > 0 {
 		fmt.Fprintf(os.Stderr, "\nstale counts, skill bodies or stats in: %s\nrun `make docs` and commit the result\n", strings.Join(stale, ", "))

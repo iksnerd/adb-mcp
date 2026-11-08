@@ -52,6 +52,33 @@ below) instead of relearning them each session.
 
 ## Getting started
 
+### Let your agent set it up
+
+Paste this into Claude Code, Cursor, Codex or any agent that can run shell commands:
+
+<!-- agent-setup:start (generated from docs/agent-setup-prompt.txt by make docs) -->
+````text
+Set up adb-mcp (https://github.com/iksnerd/adb-mcp), an MCP server that drives
+Android emulators and devices. Do each step and report what you did.
+
+1. Check that `adb` and an Android SDK exist (`adb version`; the SDK is usually
+   at ~/Library/Android/sdk on macOS or ~/Android/Sdk on Linux). If they are
+   missing, tell me to install Android Studio and stop. Do not install it yourself.
+2. Install the server: `curl -fsSL https://raw.githubusercontent.com/iksnerd/adb-mcp/main/install.sh | sh`
+   On Windows, take the zip from https://github.com/iksnerd/adb-mcp/releases/latest instead.
+   Then check `which adb-mcp`. If it is not on PATH, use the absolute path below.
+3. Register it with the client you are running in, once:
+   - Claude Code: `claude mcp add adb -- adb-mcp`
+   - Cursor, Windsurf or another client: add {"mcpServers":{"adb":{"command":"adb-mcp"}}} to its MCP config
+   If the client launches servers without ANDROID_HOME set, add "--sdk", "<sdk path>" to args.
+4. Tell me to restart the client so the adb tools load, then stop. After the
+   restart, call `doctor` and fix what it reports. Then call `list_avds`, boot
+   one with `boot_emulator`, and take a `screenshot` to prove it works.
+````
+<!-- agent-setup:end -->
+
+Prefer to do it yourself? The same steps, one at a time:
+
 ### 1. Prerequisites
 
 - Android SDK with `platform-tools` (`adb`) and `emulator`. The server finds it
