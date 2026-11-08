@@ -23,9 +23,10 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
 
 PROTOCOL = "2025-06-18"
-TIMEOUT = 60
+TIMEOUT = 60  # seconds for the whole measurement; a server that never answers is killed
 
 
 class MeasureError(Exception):
@@ -59,13 +60,16 @@ def compare(baseline: dict, current: dict) -> list[str]:
     return problems
 
 
-def list_tools(cmd: list[str]) -> list[dict]:
+def list_tools(cmd: list[str], timeout: float = TIMEOUT) -> list[dict]:
     try:
         proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
         )
     except OSError as err:
         raise MeasureError(f"cannot start {cmd[0]}: {err}") from err
+    # Killing the process ends the blocked read with end-of-file, which reply() reports.
+    timer = threading.Timer(timeout, proc.kill)
+    timer.start()
     try:
         def send(msg: dict) -> None:
             proc.stdin.write(json.dumps(msg) + "\n")
@@ -75,7 +79,7 @@ def list_tools(cmd: list[str]) -> list[dict]:
             while True:
                 line = proc.stdout.readline()
                 if not line:
-                    raise MeasureError(f"{cmd[0]} closed its output before answering request {want}")
+                    raise MeasureError(f"{cmd[0]} closed its output before answering request {want} (or it was killed after the timeout)")
                 try:
                     msg = json.loads(line)
                 except ValueError:
@@ -104,6 +108,7 @@ def list_tools(cmd: list[str]) -> list[dict]:
             raise MeasureError("the server listed no tools; refusing to record or pass an empty list")
         return tools
     finally:
+        timer.cancel()
         proc.kill()
         proc.wait()
 
@@ -127,6 +132,7 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--baseline", help="baseline JSON file; the check fails when the list grew")
     ap.add_argument("--update", action="store_true", help="write the baseline instead of checking it")
+    ap.add_argument("--timeout", type=float, default=TIMEOUT, help="seconds before a silent server is killed")
     ap.add_argument("--top", type=int, default=8, help="how many of the largest tools to print")
     ap.add_argument("cmd", nargs=argparse.REMAINDER, help="-- then the server command")
     args = ap.parse_args(argv)
@@ -136,7 +142,7 @@ def main(argv: list[str]) -> int:
     if args.update and not args.baseline:
         ap.error("--update needs --baseline FILE")
     try:
-        current = measure(list_tools(cmd))
+        current = measure(list_tools(cmd, args.timeout))
     except MeasureError as err:
         print(f"mcp_tool_budget: {err}", file=sys.stderr)
         return 2
