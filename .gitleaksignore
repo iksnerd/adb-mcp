@@ -1,0 +1,5 @@
+# Fake credentials in the redaction tests (hunter2, a dummy PEM block). They are
+# the inputs the redactor must mask, not real secrets.
+38e813905aecc70610db86b2c17823749d5dbebf:internal/gradle/redact_test.go:generic-api-key:29
+38e813905aecc70610db86b2c17823749d5dbebf:internal/gradle/redact_test.go:private-key:30
+38e813905aecc70610db86b2c17823749d5dbebf:internal/gradle/redact_test.go:private-key:31
