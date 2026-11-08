@@ -59,7 +59,7 @@ These drive the emulator's Extended Controls panel — a window of the emulator 
 |---|---|
 | `send_sms` | Deliver an incoming SMS (`from`, `text`) — drive OTP / 2FA flows without a second phone |
 | `phone_call` | Ring or transition an emulated voice call (`action`: call/accept/cancel/busy/hold) |
-| `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI. Emulator via `emu power`; physical device via `dumpsys battery set` (`reset:true` restores automatic reporting) |
+| `set_battery` | Set battery `level` (0-100) and/or `charging` state — test low-battery / charging-only UI. Emulator via `emu power`; physical device via `dumpsys battery set` (`reset:true` restores automatic reporting: the device's own reading, not the earlier level; on an emulator, AC at 100%) |
 | `rotate_screen` | Rotate the emulator to its next orientation |
 | `avd_snapshot` | `save`/`load`/`delete`/`list` AVD snapshots — reset to a known state faster than a cold wipe |
 | `cellular` | Shape the radio: `data`/`voice` state, `signal` (0-4), `network_speed`/`network_delay` — offline/roaming/weak-signal/throttled |

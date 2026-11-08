@@ -129,7 +129,7 @@ func Register(s *mcp.Server) {
 		"Drive an emulated voice call (adb emu gsm). action=\"call\" (default) rings an incoming call from number; \"accept\"/\"cancel\"/\"busy\"/\"hold\" transition an in-progress call. Use to test call-interruption behaviour and CALL_PHONE flows. Emulator-only.",
 		phoneCall)
 	add(s, "set_battery",
-		"Set the battery level (0-100) and/or charging state — test low-battery UI and charging-only logic deterministically. On an emulator it uses the console (adb emu power); on a PHYSICAL device it forces the values via dumpsys battery, which persist until you call this again with reset=true (or the device reboots). Provide level, charging, or both — or reset=true to restore automatic reporting. (For a fake battery in a clean SCREENSHOT status bar only, use set_status_bar instead.)",
+		"Set the battery level (0-100) and/or charging state — test low-battery UI and charging-only logic deterministically. On an emulator it uses the console (adb emu power); on a PHYSICAL device it forces the values via dumpsys battery, which persist until you call this again with reset=true (or the device reboots). Provide level, charging, or both — or reset=true to restore automatic reporting (the device's own reading, not the level it had before you set one; on an emulator that is AC power at 100%). The server also runs this reset when it shuts down. (For a fake battery in a clean SCREENSHOT status bar only, use set_status_bar instead.)",
 		setBattery)
 	add(s, "rotate_screen",
 		"Rotate the emulator to its next orientation (adb emu rotate) — the quick way to exercise landscape/portrait layout and rotation-driven state loss. Emulator-only.",
