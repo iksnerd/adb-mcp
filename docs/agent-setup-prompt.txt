@@ -6,9 +6,9 @@ Android emulators and devices. Do each step and report what you did.
    missing, tell me to install Android Studio and stop. Do not install it yourself.
 2. Install the server: `curl -fsSL https://raw.githubusercontent.com/iksnerd/adb-mcp/main/install.sh | sh`
    On Windows, take the zip from https://github.com/iksnerd/adb-mcp/releases/latest instead.
-   Then check `which adb-mcp`. If it is not on PATH, use the absolute path below.
+   Then check `which adb-mcp`. If it is not on PATH, use its absolute path in step 3.
 3. Register it with the client you are running in, once:
-   - Claude Code: `claude mcp add adb -- adb-mcp`
+   - Claude Code: `claude mcp add -s user adb -- adb-mcp` (user scope, so it works in every project)
    - Cursor, Windsurf or another client: add {"mcpServers":{"adb":{"command":"adb-mcp"}}} to its MCP config
    If the client launches servers without ANDROID_HOME set, add "--sdk", "<sdk path>" to args.
 4. Tell me to restart the client so the adb tools load, then stop. After the
