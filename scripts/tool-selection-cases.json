@@ -1,0 +1,22 @@
+[
+  {"prompt": "Take a screenshot of the emulator.", "expect": ["screenshot"]},
+  {"prompt": "What is on the screen right now? I need the coordinates of each button.", "expect": ["describe_ui"]},
+  {"prompt": "Tap the 'Sign in' button.", "expect": ["tap_on_text", "tap_element"]},
+  {"prompt": "Tap the screen at x=540, y=1200.", "expect": ["tap"]},
+  {"prompt": "The lock screen is showing. Enter the PIN 1234.", "expect": ["enter_pin"]},
+  {"prompt": "Show me the recent error lines from logcat.", "expect": ["logcat"]},
+  {"prompt": "The app just crashed. What was the exception?", "expect": ["last_crash", "logcat"]},
+  {"prompt": "Make the status bar show 12:00 with a full battery so my screenshots look clean.", "expect": ["set_status_bar"]},
+  {"prompt": "Run the unit tests for the Android project in /tmp/demo-app.", "expect": ["run_unit_tests"]},
+  {"prompt": "Give me the JaCoCo coverage report for the project in /tmp/demo-app.", "expect": ["get_coverage_report"]},
+  {"prompt": "What is the line coverage of LoginViewModel.kt in /tmp/demo-app?", "expect": ["get_file_coverage"]},
+  {"prompt": "In a single call: press home, wait 19 seconds, launch com.example.app, wait 9 seconds, then tap Cancel only if a biometric prompt is showing.", "expect": ["run_sequence"]},
+  {"prompt": "Switch the emulator to dark mode.", "expect": ["set_dark_mode"]},
+  {"prompt": "Set the device location to Berlin.", "expect": ["set_location"]},
+  {"prompt": "Install /tmp/app-debug.apk on the device.", "expect": ["install_app"]},
+  {"prompt": "Wait until the text 'Welcome' appears on screen.", "expect": ["wait_for_text"]},
+  {"prompt": "Boot the emulator named Pixel_8.", "expect": ["boot_emulator"]},
+  {"prompt": "Clear all data for the app com.example.app.", "expect": ["clear_app_data"]},
+  {"prompt": "Swipe up to scroll the list.", "expect": ["swipe"]},
+  {"prompt": "Is my Android environment set up properly? Check adb and the SDK.", "expect": ["doctor"]}
+]

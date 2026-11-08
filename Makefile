@@ -11,7 +11,7 @@ INSTALL_DIR ?= $(HOME)/.local/bin
 VERSION := $(or $(strip $(shell git describe --tags --dirty 2>/dev/null | sed 's/^v//')),$(strip $(shell cat VERSION 2>/dev/null)),dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check tool-budget tool-budget-update install-hooks uninstall-hooks
+.PHONY: build install uninstall test vet check run version clean fmt tidy docs docs-check plugin-test plugin-pin plugin-pin-check tool-budget tool-budget-update tool-selection install-hooks uninstall-hooks
 
 build: ## Compile the server binary into ./bin
 	@mkdir -p bin
@@ -65,6 +65,9 @@ tool-budget: build ## Fail if the tools/list got bigger than docs/tool-budget.js
 
 tool-budget-update: build ## Record today's tools/list size as the new budget (growth on purpose)
 	python3 scripts/mcp_tool_budget.py --baseline docs/tool-budget.json --update -- bin/$(BINARY)
+
+tool-selection: build ## Does the model still pick the right tool? Costs real model calls (about 40 small runs)
+	python3 scripts/tool_selection_eval.py --server bin/$(BINARY) --label current
 
 check: vet test docs-check plugin-test tool-budget ## vet + test + doc counts + plugin launcher + tool size
 
