@@ -13,12 +13,12 @@ import (
 
 // serialArg is embedded by every device-targeted tool's arguments.
 type serialArg struct {
-	Serial string `json:"serial,omitempty" jsonschema:"Target device serial (adb -s). Optional when exactly one device is attached."`
+	Serial string `json:"serial,omitempty" jsonschema:"Device serial; optional when one device is attached."`
 }
 
 // projectDirArg is embedded by every Gradle-project-targeted tool's arguments.
 type projectDirArg struct {
-	ProjectDir string `json:"project_dir,omitempty" jsonschema:"Path to the Android project root containing the Gradle wrapper (gradlew). Optional if session_set_defaults has pinned a project_dir for this session."`
+	ProjectDir string `json:"project_dir,omitempty" jsonschema:"Android project root (has gradlew). Optional once session_set_defaults pins one."`
 }
 
 // text formats a plain-text tool result.
