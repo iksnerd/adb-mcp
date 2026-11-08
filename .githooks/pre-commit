@@ -52,6 +52,12 @@ if [ -n "$go_files$doc_files" ] && [ -f "$SNAP/go.mod" ]; then
     step "doc counts" bash -c "cd '$SNAP' && go run ./scripts/docsync -check"
 fi
 
+# Docs-only commits run no Go suite, so this guard has its own step: shipped text
+# must not cite a private feedback room (scripts/hygiene).
+if [ -n "$doc_files" ] && [ -f "$SNAP/go.mod" ]; then
+    step "no private channels" bash -c "cd '$SNAP' && go test -count=1 ./scripts/hygiene/"
+fi
+
 if [ -n "$plugin_files$sh_files" ] && [ -d "$SNAP/plugin" ]; then
     if command -v node >/dev/null 2>&1; then
         step "plugin tests" bash -c "cd '$SNAP' && node --test plugin/tests/launch.test.js && scripts/check-plugin-pin.test.sh"
