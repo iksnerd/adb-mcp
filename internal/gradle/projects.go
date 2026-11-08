@@ -38,8 +38,7 @@ func ParseProjects(projectsOutput string) []string {
 // secrets. Gradle's stock `properties` task dumps a module's ENTIRE effective
 // property set, including credentials injected via ~/.gradle/gradle.properties
 // or env vars for private Maven repo auth — indistinguishable in the raw
-// output from harmless entries like compileSdkVersion. Field report:
-// council-hub android-mcp-papercuts #019fdd06.
+// output from harmless entries like compileSdkVersion.
 var secretPropertyKeyRe = regexp.MustCompile(`(?i)(pass|secret|token|key|credential)`)
 
 // propertyLineRe matches one "key: value" line from gradlew's properties task

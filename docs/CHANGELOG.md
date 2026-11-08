@@ -212,7 +212,7 @@ that check; CI runs it on every push.
 
 ## v0.24.1 — Builds an agent can wait on, and docs that match the code
 
-A field report from a bare React Native test run (`adb-mcp-feedback`) said the
+A field report from a bare React Native test run said the
 agent called two adb-mcp tools and did everything else through the shell. Checked
 against the code, each reason was real: `gradle_build` held the call open for the
 whole 4-5 minute build and answered with a bare tail, nothing could read the
@@ -538,7 +538,7 @@ end-to-end (built binary, real MCP stdio calls, text and resource_id
 matching, no-match handling) on `emulator-5556`. **EXPERIMENTAL**: this
 proves the mechanism works, not the specific "coordinate tap no-ops,
 accessibility click succeeds" differential from the original field report
-(`android-mcp` `#019f75a8`) — that needs the reporter's actual `NativeTabs`
+— that needs the reporter's actual `NativeTabs`
 app, which wasn't available for this pass. Closes the round-6 BACKLOG item
 open since v0.14.0.
 
@@ -572,8 +572,7 @@ set, which routinely includes credentials injected via
 indistinguishable in the raw output from harmless entries like
 `compileSdkVersion`. Property values whose key matches
 password/token/key/credential (case-insensitive) are now masked before the
-tool returns them. Field report: council-hub `android-mcp-papercuts`
-`#019fdd06`.
+tool returns them. From a field report.
 
 **`list_gradle_variants` / `list_gradle_tasks` can now scope to a
 submodule.** Both previously always ran against the Gradle root —
@@ -620,7 +619,7 @@ off-screen rows. Default stays off, matching existing polling semantics.
 
 ## v0.18.0 — app_state foreground/staleness + scaffold_android_project + gradle_project_properties
 
-Round 9 field feedback (`android-mcp-papercuts` #019fdb7d, 2026-08-07 — a
+Round 9 field feedback (2026-08-07 — a
 timing-sensitive app-exit/reopen bug), plus the remaining XcodeBuildMCP parity
 gaps. Every change here went through an independent code review before
 shipping; six real bugs it found (three correctness, one injection risk, one
@@ -764,7 +763,7 @@ offset 0). Also added an optional `display` param (`"inner"`/`"primary"`,
 panel. Note: `screencap -d` keys off the **physical** display id from
 `dumpsys SurfaceFlinger --display-id`, *not* the logical id `0`/`1` (passing the
 logical id makes screencap fail outright) — `ResolveDisplay` handles the
-mapping. (`android-emulator-mcp-feedback` #019f7abc.)
+mapping. (From a field report.)
 
 **New — `app_state`.** The most-requested gap: no way to tell a Metro-connected
 dev process from one silently running its **embedded** bundle (which ignores
@@ -773,7 +772,7 @@ reads hitting different pids). Reports installed?/running? + pid(s), main-proces
 uptime, first-install/last-update times, and a Metro-vs-embedded **bundle
 source** heuristic over the app's recent logcat (HMRClient / Fast Refresh /
 DevServer markers), with the evidence line it keyed on. Run it first when JS
-edits seem to have no effect. (`android-mcp-papercuts` #019f6fad item 4.)
+edits seem to have no effect. (From a field report.)
 
 **New — `has_biometric_enrolled`.** Reports whether any fingerprint is enrolled
 (and how many) from `dumpsys fingerprint`. Check it before a biometric flow:
@@ -782,7 +781,7 @@ it just sits on "Touch the sensor". Design settled by earlier live probing
 (round 7): the framework exposes only an enrolled **count**, never the finger id,
 and a wrong `fingerprint_touch` id trips a HAL lockout — so this is a count
 probe, not runtime id-discovery. Verified live: an empty AVD reports 0, and 1
-after enrolling one fingerprint. (`android-mcp-papercuts` #019f709b, reframed.)
+after enrolling one fingerprint. (From a field report, reframed.)
 
 **New — `run_sequence`** (resolves the round-4 DECISION). Runs several steps in
 one call — `sleep`, `tap`, `tap_text`, `tap_element`, `key`, `text`, `swipe`,
@@ -794,8 +793,8 @@ perturbs the very timer being tested, so batching is the only faithful way to
 reproduce them. Returns a per-step result (ok/skipped/error) plus the final
 hierarchy; a non-optional step error stops the rest. Verified live end-to-end
 (`home → launch → wait_text → guarded steps → describe_ui`). The larger Maestro
-integration stays a separate open decision. (`android-mcp-papercuts` #019f6fad /
-addendum #019f6fb4.)
+integration stays a separate open decision. (From a field report and its
+addendum.)
 
 **Docs & guides.** `driving` gains the foldable-capture note, an "edits not
 showing up → check `app_state` for the embedded-bundle trap" gotcha, and a
@@ -844,8 +843,7 @@ the buildable build variants (e.g. `freeDebug`, `paidRelease`). Each maps to an
 project. Test-only APK tasks (`androidTest`/`unitTest`) are excluded. Closes the
 "deeper project discovery" parity gap's variant half. Pure parsing, unit-tested.
 
-**New — `tap` hit-test (`identify`).** From field feedback (`android-mcp`
-#019f75a8): a coordinate `tap` on a native `NativeTabs` bar returned success but
+**New — `tap` hit-test (`identify`).** From field feedback: a coordinate `tap` on a native `NativeTabs` bar returned success but
 navigated nowhere, and nothing distinguished "the tap missed" from "it landed
 but did nothing." `tap` now takes `identify: true`, which reports which element
 the coordinate lands in — or that it hit a **non-clickable wrapper** or **no
@@ -930,7 +928,7 @@ builders are now unit-tested by asserting exact adb argv with **no device**.
 
 ## v0.11.2 — biometric-loop fixes + doctor version reporting
 
-Round-5 field feedback (`android-mcp-papercuts` #019f709b / #019f70d1).
+Round-5 field feedback.
 
 - **`enter_pin` blind-tap guard** — with `grid`/`coords` it happily tapped
   into a focused BiometricPrompt (no pad on screen). It now refuses when a
@@ -966,7 +964,7 @@ Doc-drift audit after the v0.11.0 visibility round; no behavior changes.
 
 ## v0.11.0 — visibility round: occlusion, trustworthy absence, biometrics, self-update
 
-Driven by field-feedback rounds 3–4 (council-hub, 2026-07-17). Theme: the
+Driven by field-feedback rounds 3–4 (2026-07-17). Theme: the
 tools reported what they *did* well and what they *couldn't see* poorly —
 occluded windows, filtered nodes, no-op actions, rotated buffers all looked
 identical to "nothing there". 49 → 53 tools.
